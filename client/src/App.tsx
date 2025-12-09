@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import './index.css';
-import DashboardLayout from './layouts/DashboardLayout';
 import AppRoutes from './AppRoutes';
 import { useAuth } from './context/AuthContext';
 
