@@ -23,11 +23,7 @@ function App() {
     }
   }, [login, user]);
 
-  return (
-    <DashboardLayout>
-      <AppRoutes />
-    </DashboardLayout>
-  );
+  return <AppRoutes />;
 }
 
 export default App;
