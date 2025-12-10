@@ -2,8 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { socket } from '../services/socket';
 import { Button } from '../components/ui/Button';
-import { Card } from '../components/ui/Card';
-import { ArrowLeft, Loader2, Clock, Users, Trophy, X, ChevronDown, MoreVertical, Volume2 } from 'lucide-react';
+import { Loader2, Clock, X, ChevronDown, MoreVertical, Volume2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../utils/cn';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -80,7 +79,7 @@ const MasterBoard = ({ calledNumbers, lastCalled }: { calledNumbers: Set<number>
     );
 };
 
-const PlayingCard = ({ card, calledNumbers, onMark }: { card: BingoCard, calledNumbers: Set<number>, onMark?: (num: number) => void }) => {
+const PlayingCard = ({ card, calledNumbers }: { card: BingoCard, calledNumbers: Set<number> }) => {
     return (
         <div className="bg-[#2A1B3D] rounded-xl p-3 shadow-xl border border-white/10 mb-4 max-w-sm mx-auto">
             <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-t-lg py-1 px-4 mb-2 flex justify-between items-center shadow-lg">
@@ -141,7 +140,7 @@ const GamePage: React.FC = () => {
     // Game State
     const [calledNumbers, setCalledNumbers] = useState<Set<number>>(new Set());
     const [currentNumber, setCurrentNumber] = useState<number | null>(null);
-    const [timeLeft, setTimeLeft] = useState(25);
+    const [timeLeft] = useState(25);
     const [history, setHistory] = useState<number[]>([]);
 
     // Mock initial data
