@@ -1,12 +1,14 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, Wallet, History, Settings, LogOut, Menu, X } from 'lucide-react';
+import { Home, Wallet, History, Settings, LogOut, Menu, X, User } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../utils/cn';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../context/AuthContext';
 
 export default function Layout() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const location = useLocation();
+    const { user, logout } = useAuth();
 
     const navItems = [
         { icon: Home, label: 'Game Lobby', path: '/lobby' },

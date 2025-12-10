@@ -7,12 +7,14 @@ const HomePage: React.FC = () => {
     const { user } = useAuth();
 
     useEffect(() => {
-        // If user is authenticated, redirect to lobby
+        // Always redirect authenticated users to lobby
         if (user) {
             navigate('/lobby');
         }
     }, [user, navigate]);
 
+    // This page should only show briefly before redirect
+    // or if accessed directly without authentication
     return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
             <div className="text-center max-w-md">
@@ -20,26 +22,8 @@ const HomePage: React.FC = () => {
                     Bingo Ethiopia
                 </h1>
                 <p className="text-xl mb-8 text-white/80">
-                    Play Real-Money Bingo in Ethiopia!
+                    Loading...
                 </p>
-
-                <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
-                    <p className="text-white/90 mb-4">
-                        🎮 To play Bingo Ethiopia:
-                    </p>
-                    <ol className="text-left text-white/70 space-y-2 mb-6">
-                        <li>1. Open the Telegram bot</li>
-                        <li>2. Send <code className="bg-black/30 px-2 py-1 rounded">/start</code></li>
-                        <li>3. Register by sharing your contact</li>
-                        <li>4. Click "Play Bingo" to start!</li>
-                    </ol>
-
-                    <p className="text-sm text-white/50">
-                        This app works exclusively through Telegram.
-                        <br />
-                        Please access it via the Telegram bot.
-                    </p>
-                </div>
             </div>
         </div>
     );
