@@ -342,9 +342,9 @@ const GamePage: React.FC = () => {
     const getLetter = (num: number) => ['B', 'I', 'N', 'G', 'O'][Math.floor((num - 1) / 15)];
 
     return (
-        <div className="min-h-screen bg-[#1a1b2e] flex flex-col text-white overflow-hidden">
-            {/* Game Info Bar */}
-            <div className="bg-[#2A1B3D] grid grid-cols-5 gap-1 p-1 border-b border-white/5">
+        <div className="h-screen bg-[#1a1b2e] flex flex-col text-white overflow-hidden">
+            {/* Game Info Bar - Fixed height */}
+            <div className="bg-[#2A1B3D] grid grid-cols-5 gap-1 p-1 border-b border-white/5 h-16 shrink-0">
                 {[
                     { label: 'Game ID', val: gameId?.slice(-8) || 'BB543258' },
                     { label: 'Players', val: '22' },
@@ -359,18 +359,19 @@ const GamePage: React.FC = () => {
                 ))}
             </div>
 
+            {/* Main Game Area - Takes remaining space */}
             <div className="flex-1 overflow-hidden flex relative">
-                {/* Left Panel: Master Board */}
-                <div className="w-[35%] h-full p-1 bg-[#1a1b2e] shrink-0">
+                {/* Left Panel: Master Board - 50% */}
+                <div className="w-1/2 h-full p-1 bg-[#1a1b2e] shrink-0">
                     <MasterBoard calledNumbers={calledNumbers} lastCalled={currentNumber} />
                 </div>
 
-                {/* Right Panel: Play Area */}
-                <div className="w-[65%] relative flex flex-col h-full overflow-hidden bg-[#1a1b2e]">
+                {/* Right Panel: Play Area - 50% */}
+                <div className="w-1/2 h-full flex flex-col overflow-hidden bg-[#1a1b2e]">
 
-                    {/* Top Section: Current Call Display */}
-                    <div className="bg-[#2A1B3D] p-2 border-b border-white/5">
-                        <div className="flex items-center justify-between">
+                    {/* Top Section: Current Call Display - Fixed height */}
+                    <div className="bg-[#2A1B3D] p-2 border-b border-white/5 shrink-0">
+                        <div className="flex items-center justify-between mb-1">
                             {/* Current Number Badge */}
                             <div className="bg-purple-600 text-white px-3 py-1 rounded-full font-bold text-sm">
                                 {currentNumber ? `${getLetter(currentNumber)}-${currentNumber}` : 'N-45'}
@@ -381,7 +382,7 @@ const GamePage: React.FC = () => {
                         </div>
 
                         {/* Large Current Number Circle */}
-                        <div className="flex justify-center my-3">
+                        <div className="flex justify-center">
                             <AnimatePresence mode='wait'>
                                 <motion.div
                                     key={currentNumber}
@@ -389,10 +390,10 @@ const GamePage: React.FC = () => {
                                     animate={{ scale: 1, opacity: 1 }}
                                     exit={{ scale: 1.2, opacity: 0 }}
                                     transition={{ duration: 0.3 }}
-                                    className="relative w-24 h-24 rounded-full bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 shadow-[0_0_30px_rgba(255,200,0,0.5)] flex items-center justify-center border-4 border-yellow-600/30"
+                                    className="relative w-20 h-20 rounded-full bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 shadow-[0_0_30px_rgba(255,200,0,0.5)] flex items-center justify-center border-4 border-yellow-600/30"
                                 >
                                     <div className="text-center">
-                                        <div className="text-purple-700 font-black text-3xl drop-shadow-lg">
+                                        <div className="text-purple-700 font-black text-2xl drop-shadow-lg">
                                             {currentNumber ? `${getLetter(currentNumber)}-${currentNumber}` : 'N-45'}
                                         </div>
                                     </div>
@@ -401,35 +402,36 @@ const GamePage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Scrollable Cards Area */}
-                    <div className="flex-1 overflow-y-auto custom-scrollbar p-2 bg-gradient-to-b from-[#1a1b2e] to-[#2A1B3D] pb-16">
-                        {myCards.map(card => (
-                            <PlayingCard
-                                key={card.id}
-                                card={card}
-                                calledNumbers={calledNumbers}
-                            />
+                    {/* Cards Area - Takes remaining space, NO SCROLL */}
+                    <div className="flex-1 overflow-hidden p-2 bg-gradient-to-b from-[#1a1b2e] to-[#2A1B3D] flex flex-col gap-2">
+                        {myCards.slice(0, 2).map(card => (
+                            <div key={card.id} className="flex-1">
+                                <PlayingCard
+                                    card={card}
+                                    calledNumbers={calledNumbers}
+                                />
+                            </div>
                         ))}
                     </div>
                 </div>
             </div>
 
-            {/* Bottom Actions - 3 Buttons */}
-            <div className="grid grid-cols-3 gap-1 p-1 bg-[#1a1b2e] border-t border-white/5">
+            {/* Bottom Actions - Fixed height */}
+            <div className="grid grid-cols-3 gap-1 p-1 bg-[#1a1b2e] border-t border-white/5 h-14 shrink-0">
                 <Button
-                    className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-bold py-4 rounded-lg shadow-lg"
+                    className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-bold rounded-lg shadow-lg"
                     onClick={() => navigate('/lobby')}
                 >
                     Leave
                 </Button>
                 <Button
-                    className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold py-4 rounded-lg shadow-lg flex items-center justify-center gap-2"
+                    className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold rounded-lg shadow-lg flex items-center justify-center gap-2"
                 >
-                    <RefreshCw size={18} />
+                    <RefreshCw size={16} />
                     Refresh
                 </Button>
                 <Button
-                    className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-black font-black py-4 rounded-lg shadow-lg text-lg"
+                    className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-black font-black rounded-lg shadow-lg text-base"
                 >
                     BINGO!
                 </Button>
