@@ -34,8 +34,8 @@ if (bot) {
 
         if (!isRegistered) {
             await ctx.reply(
-                '👋 *Welcome to Bingo Ethiopia!*\\n\\n' +
-                'To get started and access all features, please register by sharing your contact information.\\n\\n' +
+                '👋 *Welcome to Bingo Ethiopia!*\n\n' +
+                'To get started and access all features, please register by sharing your contact information.\n\n' +
                 '📱 Click the button below to register:',
                 {
                     parse_mode: 'Markdown',
@@ -49,7 +49,7 @@ if (bot) {
 
         const user = await userService.getUser(telegramId);
         await ctx.reply(
-            `👋 Welcome back, ${user?.firstName}!\\n\\n` +
+            `👋 Welcome back, ${user?.firstName}!\n\n` +
             `💰 Your balance: ${user?.balance} Birr`
         );
         await showMainMenu(ctx);
