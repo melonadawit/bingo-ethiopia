@@ -13,7 +13,7 @@ const bot = BOT_TOKEN ? new Telegraf(BOT_TOKEN) : null;
 // Helper function to show main menu
 function showMainMenu(ctx: any) {
     return ctx.reply(
-        '🎮 *Welcome to Bingo Ethiopia!*\\n\\nChoose an option below:',
+        '🎮 *Welcome to Bingo Ethiopia!*\n\nChoose an option below:',
         {
             parse_mode: 'Markdown',
             ...Markup.keyboard([
@@ -84,9 +84,9 @@ if (bot) {
             });
 
             await ctx.reply(
-                '✅ *Registration Successful!*\\n\\n' +
-                `Welcome, ${user.firstName}! 🎉\\n\\n` +
-                `🎁 You've received ${user.balance} Birr as a welcome bonus!\\n\\n` +
+                '✅ *Registration Successful!*\n\n' +
+                `Welcome, ${user.firstName}! 🎉\n\n` +
+                `🎁 You've received ${user.balance} Birr as a welcome bonus!\n\n` +
                 'You can now access all features.',
                 { parse_mode: 'Markdown' }
             );
@@ -109,8 +109,8 @@ if (bot) {
         }
 
         await ctx.reply(
-            `💰 *Your Balance*\\n\\n` +
-            `Current Balance: *${user.balance} Birr*\\n\\n` +
+            `💰 *Your Balance*\n\n` +
+            `Current Balance: *${user.balance} Birr*\n\n` +
             `Use the Deposit button to add funds!`,
             { parse_mode: 'Markdown' }
         );
@@ -127,9 +127,9 @@ if (bot) {
         }
 
         await ctx.reply(
-            '💳 *Deposit Funds*\\n\\n' +
-            'To deposit, please contact our support or use the web app.\\n\\n' +
-            '📱 Support: @BingoEthiopiaSupport',
+            '💳 *Deposit Funds*\n\n' +
+            'To deposit, please use the web app.\n\n' +
+            '📱 Click "Play Bingo" button to open the app and go to Wallet.',
             { parse_mode: 'Markdown' }
         );
     });
@@ -145,12 +145,12 @@ if (bot) {
         }
 
         await ctx.reply(
-            `📊 *Your Statistics*\\n\\n` +
-            `👤 Name: ${user.firstName}\\n` +
-            `📱 Phone: ${user.phoneNumber}\\n` +
-            `📅 Member since: ${user.registeredAt.toLocaleDateString()}\\n` +
-            `💰 Balance: ${user.balance} Birr\\n` +
-            `🎮 Games Played: Coming soon!\\n` +
+            `📊 *Your Statistics*\n\n` +
+            `👤 Name: ${user.firstName}\n` +
+            `📱 Phone: ${user.phoneNumber}\n` +
+            `📅 Member since: ${user.registeredAt.toLocaleDateString()}\n` +
+            `💰 Balance: ${user.balance} Birr\n` +
+            `🎮 Games Played: Coming soon!\n` +
             `🏆 Wins: Coming soon!`,
             { parse_mode: 'Markdown' }
         );
@@ -159,8 +159,8 @@ if (bot) {
     // Settings
     bot.hears('⚙️ Settings', async (ctx) => {
         await ctx.reply(
-            '⚙️ *Settings*\\n\\n' +
-            'Settings panel coming soon!\\n\\n' +
+            '⚙️ *Settings*\n\n' +
+            'Settings panel coming soon!\n\n' +
             'For now, use /start to return to the main menu.',
             { parse_mode: 'Markdown' }
         );

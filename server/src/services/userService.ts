@@ -1,3 +1,5 @@
+import { db } from '../firebase';
+
 interface UserData {
     telegramId: number;
     phoneNumber: string;
@@ -10,6 +12,19 @@ interface UserData {
 
 class UserService {
     private users: Map<number, UserData> = new Map();
+    private useFirebase: boolean = false;
+
+    constructor() {
+        // Check if Firebase is available
+        try {
+            if (db) {
+                this.useFirebase = true;
+                console.log('✅ UserService: Using Firebase for storage');
+            }
+        } catch (error) {
+            console.log('⚠️  UserService: Using in-memory storage (Firebase not configured)');
+        }
+    }
 
     async registerUser(data: {
         telegramId: number;
@@ -24,24 +39,97 @@ class UserService {
             balance: 100 // Welcome bonus
         };
 
+        // Store in memory
         this.users.set(data.telegramId, user);
+
+        // Store in Firebase if available
+        if (this.useFirebase) {
+            try {
+                await db.collection('users').doc(data.telegramId.toString()).set({
+                    ...user,
+                    registeredAt: user.registeredAt.toISOString()
+                });
+                console.log(`✅ User registered in Firebase: ${data.firstName} (${data.telegramId})`);
+            } catch (error) {
+                console.error('Firebase registration error:', error);
+            }
+        }
+
         console.log(`✅ User registered: ${data.firstName} (${data.telegramId})`);
         return user;
     }
 
     async getUser(telegramId: number): Promise<UserData | null> {
-        return this.users.get(telegramId) || null;
+        // Check memory first
+        let user = this.users.get(telegramId);
+
+        // If not in memory and Firebase is available, check Firebase
+        if (!user && this.useFirebase) {
+            try {
+                const doc = await db.collection('users').doc(telegramId.toString()).get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    user = {
+                        ...data,
+                        registeredAt: new Date(data!.registeredAt)
+                    } as UserData;
+                    // Cache in memory
+                    this.users.set(telegramId, user);
+                }
+            } catch (error) {
+                console.error('Firebase get user error:', error);
+            }
+        }
+
+        return user || null;
     }
 
     async isRegistered(telegramId: number): Promise<boolean> {
-        return this.users.has(telegramId);
+        // Check memory first
+        if (this.users.has(telegramId)) {
+            return true;
+        }
+
+        // Check Firebase if available
+        if (this.useFirebase) {
+            try {
+                const doc = await db.collection('users').doc(telegramId.toString()).get();
+                if (doc.exists) {
+                    // Cache in memory
+                    const data = doc.data();
+                    const user = {
+                        ...data,
+                        registeredAt: new Date(data!.registeredAt)
+                    } as UserData;
+                    this.users.set(telegramId, user);
+                    return true;
+                }
+            } catch (error) {
+                console.error('Firebase check registration error:', error);
+            }
+        }
+
+        return false;
     }
 
     async updateBalance(telegramId: number, amount: number): Promise<number> {
-        const user = this.users.get(telegramId);
+        const user = await this.getUser(telegramId);
         if (!user) throw new Error('User not found');
 
         user.balance += amount;
+        this.users.set(telegramId, user);
+
+        // Update in Firebase if available
+        if (this.useFirebase) {
+            try {
+                await db.collection('users').doc(telegramId.toString()).update({
+                    balance: user.balance
+                });
+            } catch (error) {
+                console.error('Firebase update balance error:', error);
+            }
+        }
+
         return user.balance;
     }
 
