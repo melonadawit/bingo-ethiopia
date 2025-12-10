@@ -33,13 +33,12 @@ function App() {
           balance: 1000
         };
         localStorage.setItem('user', JSON.stringify(mockUser));
-        // Trigger a re-render by calling login (which will read from localStorage)
-        window.location.reload();
+        localStorage.setItem('token', 'mock-token-' + Date.now());
       }
     } else {
       console.log('Not running in Telegram WebApp');
     }
-  }, [login, user]);
+  }, []); // Empty dependency array to run only once
 
   return <AppRoutes />;
 }
