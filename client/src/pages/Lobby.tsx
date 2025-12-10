@@ -128,30 +128,36 @@ export default function Lobby() {
                                 <Card variant="interactive" className="group h-full flex flex-col relative overflow-hidden">
                                     <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${mode.color} opacity-10 blur-2xl group-hover:opacity-20 transition-opacity`} />
 
-                                    <div className="flex items-start justify-between mb-4">
-                                        <div className={`p-3 rounded-xl bg-gradient-to-br ${mode.color} text-white shadow-lg`}>
-                                            <IconComponent size={24} />
+                                    <div className="relative z-10 flex flex-col h-full">
+                                        <div className="flex items-start justify-between mb-4">
+                                            <div className={`p-3 rounded-xl bg-gradient-to-br ${mode.color} text-white shadow-lg`}>
+                                                <IconComponent size={24} />
+                                            </div>
+                                            <div className="flex items-center gap-1 text-xs font-bold text-slate-400 bg-slate-900/50 px-2 py-1 rounded-full border border-slate-700">
+                                                <Users size={12} />
+                                                {mode.activePlayers} Playing
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-1 text-xs font-bold text-slate-400 bg-slate-900/50 px-2 py-1 rounded-full border border-slate-700">
-                                            <Users size={12} />
-                                            {mode.activePlayers} Playing
-                                        </div>
-                                    </div>
 
-                                    <h3 className="text-xl font-bold text-white mb-1 group-hover:text-indigo-400 transition-colors">{mode.title}</h3>
-                                    <p className="text-slate-400 text-sm mb-6 flex-1">{mode.description}</p>
+                                        <h3 className="text-xl font-bold text-white mb-1 group-hover:text-indigo-400 transition-colors">{mode.title}</h3>
+                                        <p className="text-slate-400 text-sm mb-6 flex-1">{mode.description}</p>
 
-                                    <div className="mt-auto">
-                                        <div className="flex items-center justify-between mb-4 p-3 bg-slate-900/50 rounded-lg border border-slate-800">
-                                            <span className="text-sm text-slate-400">Entry Bet</span>
-                                            <span className="text-lg font-bold text-white">{mode.minBet} Birr</span>
+                                        <div className="mt-auto">
+                                            <div className="flex items-center justify-between mb-4 p-3 bg-slate-900/50 rounded-lg border border-slate-800">
+                                                <span className="text-sm text-slate-400">Entry Bet</span>
+                                                <span className="text-lg font-bold text-white">{mode.minBet} Birr</span>
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                className="w-full relative z-20"
+                                                onClick={(e) => {
+                                                    e.stopPropagation(); // Prevent card click if any
+                                                    navigate(`/game/${mode.id}`);
+                                                }}
+                                            >
+                                                Join Room
+                                            </Button>
                                         </div>
-                                        <Button
-                                            className="w-full"
-                                            onClick={() => navigate(`/game/${mode.id}`)}
-                                        >
-                                            Join Room
-                                        </Button>
                                     </div>
                                 </Card>
                             </motion.div>
