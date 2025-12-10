@@ -182,7 +182,6 @@ const GamePage: React.FC = () => {
     // Game State
     const [calledNumbers, setCalledNumbers] = useState<Set<number>>(new Set());
     const [currentNumber, setCurrentNumber] = useState<number | null>(null);
-    const [history, setHistory] = useState<number[]>([]);
     const [countdown, setCountdown] = useState(30);
 
     // Mock initial data - 300 cards
@@ -261,7 +260,6 @@ const GamePage: React.FC = () => {
             usedNumbers.add(num);
             setCurrentNumber(num);
             setCalledNumbers(prev => new Set(prev).add(num));
-            setHistory(prev => [num, ...prev].slice(0, 3));
 
             count++;
         }, 3000);
@@ -348,7 +346,7 @@ const GamePage: React.FC = () => {
             {/* Game Info Bar */}
             <div className="bg-[#2A1B3D] grid grid-cols-5 gap-1 p-1 border-b border-white/5">
                 {[
-                    { label: 'Game ID', val: 'BB543258' },
+                    { label: 'Game ID', val: gameId?.slice(-8) || 'BB543258' },
                     { label: 'Players', val: '22' },
                     { label: 'Bet', val: '10' },
                     { label: 'Derash', val: '176' },
