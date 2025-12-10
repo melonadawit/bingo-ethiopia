@@ -75,15 +75,22 @@ export default function Layout() {
 
                             <div className="p-4 bg-slate-800/50 rounded-2xl border border-slate-700/50">
                                 <div className="flex items-center gap-3 mb-3">
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-orange-500 flex items-center justify-center font-bold text-slate-900">
-                                        TG
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-cyan-500 flex items-center justify-center">
+                                        <User size={20} className="text-white" />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-white truncate">Bereket T.</p>
-                                        <p className="text-xs text-slate-400 truncate">@bereket_tg</p>
+                                        <p className="text-sm font-semibold text-white truncate">
+                                            {user?.username || user?.firstName || 'Player'}
+                                        </p>
+                                        <p className="text-xs text-slate-400 truncate">
+                                            {user?.balance || 0} Birr
+                                        </p>
                                     </div>
                                 </div>
-                                <button className="w-full flex items-center justify-center gap-2 text-xs font-medium text-red-400 hover:text-red-300 py-2 hover:bg-red-500/10 rounded-lg transition">
+                                <button
+                                    onClick={logout}
+                                    className="w-full flex items-center justify-center gap-2 text-xs font-medium text-red-400 hover:text-red-300 py-2 hover:bg-red-500/10 rounded-lg transition"
+                                >
                                     <LogOut size={14} />
                                     Disconnect
                                 </button>
