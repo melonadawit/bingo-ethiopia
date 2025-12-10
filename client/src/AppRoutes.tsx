@@ -13,7 +13,7 @@ const AppRoutes = () => {
                 <Route index element={<HomePage />} />
                 <Route path="lobby" element={<Lobby />} />
                 <Route path="wallet" element={<Wallet />} />
-                <Route path="game" element={<GamePage />} />
+                <Route path="game/:gameId" element={<GamePage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
         </Routes>
