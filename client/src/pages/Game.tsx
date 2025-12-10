@@ -207,6 +207,22 @@ const GamePage: React.FC = () => {
         };
     }, []);
 
+    // Countdown timer for selection
+    useEffect(() => {
+        if (status === 'selection') {
+            const timer = setInterval(() => {
+                setCountdown(prev => {
+                    if (prev <= 1) {
+                        clearInterval(timer);
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+            return () => clearInterval(timer);
+        }
+    }, [status]);
+
     const handleSelectCard = (id: number) => {
         if (selectedCards.includes(id)) {
             setSelectedCards(prev => prev.filter(c => c !== id));
@@ -258,22 +274,6 @@ const GamePage: React.FC = () => {
             </div>
         );
     }
-
-    // Countdown timer for selection
-    useEffect(() => {
-        if (status === 'selection') {
-            const timer = setInterval(() => {
-                setCountdown(prev => {
-                    if (prev <= 1) {
-                        clearInterval(timer);
-                        return 0;
-                    }
-                    return prev - 1;
-                });
-            }, 1000);
-            return () => clearInterval(timer);
-        }
-    }, [status]);
 
     if (status === 'selection') {
         return (
