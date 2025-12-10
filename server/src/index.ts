@@ -31,19 +31,7 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-import { bot } from './bot';
-
-// Function to launch bot
-const launchBot = async () => {
-    console.log('Attempting to launch Telegram Bot...');
-    await bot.launch();
-    console.log('Telegram Bot Started Successfully!');
-    console.log('Bot Username:', bot.botInfo?.username);
-};
-
-// Enable graceful stop
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+import { launchBot } from './bot';
 
 httpServer.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

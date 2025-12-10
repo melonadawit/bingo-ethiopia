@@ -4,11 +4,16 @@ import { v4 as uuidv4 } from 'uuid';
 interface GameState {
     id: string;
     mode: string;
-    players: string[]; // User IDs
+    players: string[];
     drawnNumbers: number[];
     status: 'waiting' | 'playing' | 'ended';
     intervalId?: NodeJS.Timeout;
     winner?: string;
+}
+
+interface WinPattern {
+    type: 'row' | 'column' | 'diagonal' | 'fullhouse';
+    indices: number[];
 }
 
 const games: Record<string, GameState> = {};
@@ -80,13 +85,89 @@ export class GameManager {
         this.io.to(gameId).emit('game_ended', { winner });
     }
 
-    // Simplified validation: Trust client for now, robust check later
-    validateWin(gameId: string, userId: string, board: number[][]): boolean {
-        const game = games[gameId];
-        if (!game) return false;
+    getGame(gameId: string): GameState | undefined {
+        return games[gameId];
+    }
 
-        // Verify if the board has a valid bingo pattern with currently drawn numbers
-        // This is a placeholder. Full matrix check needed.
+    // Win validation methods
+    validateWin(board: number[], markedNumbers: number[]): WinPattern | null {
+        // Check rows
+        for (let row = 0; row < 5; row++) {
+            if (this.checkRow(board, markedNumbers, row)) {
+                return {
+                    type: 'row',
+                    indices: [row * 5, row * 5 + 1, row * 5 + 2, row * 5 + 3, row * 5 + 4]
+                };
+            }
+        }
+
+        // Check columns
+        for (let col = 0; col < 5; col++) {
+            if (this.checkColumn(board, markedNumbers, col)) {
+                return {
+                    type: 'column',
+                    indices: [col, col + 5, col + 10, col + 15, col + 20]
+                };
+            }
+        }
+
+        // Check diagonals
+        if (this.checkDiagonal(board, markedNumbers, 'main')) {
+            return {
+                type: 'diagonal',
+                indices: [0, 6, 12, 18, 24]
+            };
+        }
+
+        if (this.checkDiagonal(board, markedNumbers, 'anti')) {
+            return {
+                type: 'diagonal',
+                indices: [4, 8, 12, 16, 20]
+            };
+        }
+
+        // Check full house
+        if (markedNumbers.length === 25) {
+            return {
+                type: 'fullhouse',
+                indices: Array.from({ length: 25 }, (_, i) => i)
+            };
+        }
+
+        return null;
+    }
+
+    private checkRow(board: number[], marked: number[], row: number): boolean {
+        for (let col = 0; col < 5; col++) {
+            const index = row * 5 + col;
+            // Skip center free space
+            if (index === 12) continue;
+            if (!marked.includes(board[index])) {
+                return false;
+            }
+        }
         return true;
     }
+
+    private checkColumn(board: number[], marked: number[], col: number): boolean {
+        for (let row = 0; row < 5; row++) {
+            const index = row * 5 + col;
+            // Skip center free space
+            if (index === 12) continue;
+            if (!marked.includes(board[index])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private checkDiagonal(board: number[], marked: number[], type: 'main' | 'anti'): boolean {
+        const indices = type === 'main'
+            ? [0, 6, 12, 18, 24]  // Top-left to bottom-right
+            : [4, 8, 12, 16, 20]; // Top-right to bottom-left
+
+        return indices.every(i => i === 12 || marked.includes(board[i]));
+    }
 }
+
+export type { WinPattern };
