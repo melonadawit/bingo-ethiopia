@@ -12,69 +12,69 @@ const bot = BOT_TOKEN ? new Telegraf(BOT_TOKEN) : null;
 
 // Helper function to show main menu
 function showMainMenu(ctx: any) {
-    return ctx.reply(
-        '🎮 *Welcome to Bingo Ethiopia!*\n\nChoose an option below:',
-        {
-            parse_mode: 'Markdown',
-            ...Markup.keyboard([
-                [Markup.button.webApp('🎯 Play Bingo', WEBAPP_URL!)],
-                ['💰 Check Balance', '💳 Deposit'],
-                ['📊 My Stats', '⚙️ Settings']
-            ]).resize()
-        }
-    );
+    const menuText = '🎮 *Welcome to Bingo Ethiopia!*\n\nChoose an option below:';
+    return ctx.reply(menuText, {
+        parse_mode: 'Markdown',
+        ...Markup.keyboard([
+            [Markup.button.webApp('🎯 Play Bingo', WEBAPP_URL!)],
+            ['💰 Check Balance', '💳 Deposit'],
+            ['📊 My Stats', '⚙️ Settings']
+        ]).resize()
+    });
 }
 
 // Only set up bot handlers if bot exists
 if (bot) {
     // Start command - Check registration
     bot.start(async (ctx) => {
-        const telegramId = ctx.from.id;
-        const isRegistered = await userService.isRegistered(telegramId);
+        try {
+            const telegramId = ctx.from.id;
+            const isRegistered = await userService.isRegistered(telegramId);
 
-        if (!isRegistered) {
-            await ctx.reply(
-                '👋 *Welcome to Bingo Ethiopia!*\n\n' +
-                'To get started and access all features, please register by sharing your contact information.\n\n' +
-                '📱 Click the button below to register:',
-                {
+            if (!isRegistered) {
+                const welcomeText = '👋 *Welcome to Bingo Ethiopia!*\n\n' +
+                    'To get started and access all features, please register by sharing your contact information.\n\n' +
+                    '📱 Click the button below to register:';
+
+                await ctx.reply(welcomeText, {
                     parse_mode: 'Markdown',
                     ...Markup.keyboard([
                         [Markup.button.contactRequest('📱 Register Now')]
                     ]).resize()
-                }
-            );
-            return;
-        }
+                });
+                return;
+            }
 
-        const user = await userService.getUser(telegramId);
-        await ctx.reply(
-            `👋 Welcome back, ${user?.firstName}!\n\n` +
-            `💰 Your balance: ${user?.balance} Birr`
-        );
-        await showMainMenu(ctx);
+            const user = await userService.getUser(telegramId);
+            const welcomeBackText = '👋 Welcome back, ' + user?.firstName + '!\n\n💰 Your balance: ' + user?.balance + ' Birr';
+            await ctx.reply(welcomeBackText);
+            await showMainMenu(ctx);
+        } catch (error) {
+            console.error('Start command error:', error);
+            await ctx.reply('Sorry, something went wrong. Please try again.');
+        }
     });
 
     // Handle contact share for registration
     bot.on('contact', async (ctx) => {
-        const contact = ctx.message.contact;
-        const telegramId = ctx.from.id;
-
-        // Verify it's the user's own contact
-        if (contact.user_id !== telegramId) {
-            await ctx.reply('❌ Please share your own contact to register.');
-            return;
-        }
-
-        // Check if already registered
-        if (await userService.isRegistered(telegramId)) {
-            await ctx.reply('✅ You are already registered!');
-            await showMainMenu(ctx);
-            return;
-        }
-
-        // Register user
         try {
+            const contact = ctx.message.contact;
+            const telegramId = ctx.from.id;
+
+            // Verify it's the user's own contact
+            if (contact.user_id !== telegramId) {
+                await ctx.reply('❌ Please share your own contact to register.');
+                return;
+            }
+
+            // Check if already registered
+            if (await userService.isRegistered(telegramId)) {
+                await ctx.reply('✅ You are already registered!');
+                await showMainMenu(ctx);
+                return;
+            }
+
+            // Register user
             const user = await userService.registerUser({
                 telegramId: contact.user_id,
                 phoneNumber: contact.phone_number,
@@ -83,14 +83,12 @@ if (bot) {
                 username: ctx.from.username
             });
 
-            await ctx.reply(
-                '✅ *Registration Successful!*\n\n' +
-                `Welcome, ${user.firstName}! 🎉\n\n` +
-                `🎁 You've received ${user.balance} Birr as a welcome bonus!\n\n` +
-                'You can now access all features.',
-                { parse_mode: 'Markdown' }
-            );
+            const successText = '✅ *Registration Successful!*\n\n' +
+                'Welcome, ' + user.firstName + '! 🎉\n\n' +
+                '🎁 You\'ve received ' + user.balance + ' Birr as a welcome bonus!\n\n' +
+                'You can now access all features.';
 
+            await ctx.reply(successText, { parse_mode: 'Markdown' });
             await showMainMenu(ctx);
         } catch (error) {
             console.error('Registration error:', error);
@@ -98,72 +96,88 @@ if (bot) {
         }
     });
 
-    // Check Balance - Only for registered users
+    // Check Balance
     bot.hears('💰 Check Balance', async (ctx) => {
-        const telegramId = ctx.from.id;
-        const user = await userService.getUser(telegramId);
+        try {
+            const telegramId = ctx.from.id;
+            const user = await userService.getUser(telegramId);
 
-        if (!user) {
-            await ctx.reply('❌ Please register first using /start');
-            return;
+            if (!user) {
+                await ctx.reply('❌ Please register first using /start');
+                return;
+            }
+
+            const balanceText = '💰 *Your Balance*\n\n' +
+                'Current Balance: *' + user.balance + ' Birr*\n\n' +
+                'Use the Deposit button to add funds!';
+
+            await ctx.reply(balanceText, { parse_mode: 'Markdown' });
+        } catch (error) {
+            console.error('Check balance error:', error);
+            await ctx.reply('Sorry, something went wrong.');
         }
-
-        await ctx.reply(
-            `💰 *Your Balance*\n\n` +
-            `Current Balance: *${user.balance} Birr*\n\n` +
-            `Use the Deposit button to add funds!`,
-            { parse_mode: 'Markdown' }
-        );
     });
 
-    // Deposit - Only for registered users
+    // Deposit
     bot.hears('💳 Deposit', async (ctx) => {
-        const telegramId = ctx.from.id;
-        const user = await userService.getUser(telegramId);
+        try {
+            const telegramId = ctx.from.id;
+            const user = await userService.getUser(telegramId);
 
-        if (!user) {
-            await ctx.reply('❌ Please register first using /start');
-            return;
+            if (!user) {
+                await ctx.reply('❌ Please register first using /start');
+                return;
+            }
+
+            const depositText = '💳 *Deposit Funds*\n\n' +
+                'To deposit, please use the web app.\n\n' +
+                '📱 Click "Play Bingo" button to open the app and go to Wallet.';
+
+            await ctx.reply(depositText, { parse_mode: 'Markdown' });
+        } catch (error) {
+            console.error('Deposit error:', error);
+            await ctx.reply('Sorry, something went wrong.');
         }
-
-        await ctx.reply(
-            '💳 *Deposit Funds*\n\n' +
-            'To deposit, please use the web app.\n\n' +
-            '📱 Click "Play Bingo" button to open the app and go to Wallet.',
-            { parse_mode: 'Markdown' }
-        );
     });
 
     // My Stats
     bot.hears('📊 My Stats', async (ctx) => {
-        const telegramId = ctx.from.id;
-        const user = await userService.getUser(telegramId);
+        try {
+            const telegramId = ctx.from.id;
+            const user = await userService.getUser(telegramId);
 
-        if (!user) {
-            await ctx.reply('❌ Please register first using /start');
-            return;
+            if (!user) {
+                await ctx.reply('❌ Please register first using /start');
+                return;
+            }
+
+            const statsText = '📊 *Your Statistics*\n\n' +
+                '👤 Name: ' + user.firstName + '\n' +
+                '📱 Phone: ' + user.phoneNumber + '\n' +
+                '📅 Member since: ' + user.registeredAt.toLocaleDateString() + '\n' +
+                '💰 Balance: ' + user.balance + ' Birr\n' +
+                '🎮 Games Played: Coming soon!\n' +
+                '🏆 Wins: Coming soon!';
+
+            await ctx.reply(statsText, { parse_mode: 'Markdown' });
+        } catch (error) {
+            console.error('Stats error:', error);
+            await ctx.reply('Sorry, something went wrong.');
         }
-
-        await ctx.reply(
-            `📊 *Your Statistics*\n\n` +
-            `👤 Name: ${user.firstName}\n` +
-            `📱 Phone: ${user.phoneNumber}\n` +
-            `📅 Member since: ${user.registeredAt.toLocaleDateString()}\n` +
-            `💰 Balance: ${user.balance} Birr\n` +
-            `🎮 Games Played: Coming soon!\n` +
-            `🏆 Wins: Coming soon!`,
-            { parse_mode: 'Markdown' }
-        );
     });
 
     // Settings
     bot.hears('⚙️ Settings', async (ctx) => {
-        await ctx.reply(
-            '⚙️ *Settings*\n\n' +
-            'Settings panel coming soon!\n\n' +
-            'For now, use /start to return to the main menu.',
-            { parse_mode: 'Markdown' }
-        );
+        try {
+            const settingsText = '⚙️ *Settings*\n\n' +
+                'Settings panel coming soon!\n\n' +
+                'For now, use /start to return to the main menu.';
+
+            await ctx.reply(settingsText, { parse_mode: 'Markdown' });
+        } catch (error) {
+            console.error('Settings error:', error);
+            await ctx.reply('Sorry, something went wrong.');
+        }
     });
 }
 
