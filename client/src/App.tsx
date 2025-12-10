@@ -15,10 +15,18 @@ function App() {
       telegram.expand();
 
       const initData = telegram.initData;
+      console.log('Telegram initData:', initData ? 'Present' : 'Missing');
+
       if (initData && !user) {
         // Attempt auto-login via Context
-        login();
+        console.log('Attempting Telegram login...');
+        login().catch(err => {
+          console.error('Login failed:', err);
+          // Even if login fails, show the app
+        });
       }
+    } else {
+      console.log('Not running in Telegram WebApp');
     }
   }, [login, user]);
 
@@ -26,4 +34,3 @@ function App() {
 }
 
 export default App;
-
