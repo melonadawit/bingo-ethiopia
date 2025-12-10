@@ -3,7 +3,8 @@ import { getCurrentUser, loginWithTelegram } from '../services/auth';
 
 interface User {
     id: string;
-    username: string;
+    username?: string;
+    firstName?: string;
     balance: number;
 }
 
