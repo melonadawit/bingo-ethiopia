@@ -180,6 +180,7 @@ const GamePage: React.FC = () => {
     const [calledNumbers, setCalledNumbers] = useState<Set<number>>(new Set());
     const [currentNumber, setCurrentNumber] = useState<number | null>(null);
     const [history, setHistory] = useState<number[]>([]);
+    const [countdown, setCountdown] = useState(30);
 
     // Mock initial data - 300 cards
     const availableCards = useMemo(() => Array.from({ length: 300 }, (_, i) => i + 1), []);
@@ -258,9 +259,36 @@ const GamePage: React.FC = () => {
         );
     }
 
+    // Countdown timer for selection
+    useEffect(() => {
+        if (status === 'selection') {
+            const timer = setInterval(() => {
+                setCountdown(prev => {
+                    if (prev <= 1) {
+                        clearInterval(timer);
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+            return () => clearInterval(timer);
+        }
+    }, [status]);
+
     if (status === 'selection') {
         return (
             <div className="min-h-screen bg-[#1a1b2e] flex flex-col text-white overflow-hidden">
+                {/* Header with Timer */}
+                <div className="bg-gradient-to-r from-orange-500 to-red-600 p-2 text-center border-b border-white/10">
+                    <div className="flex items-center justify-center gap-4 text-sm">
+                        <div><span className="text-white/70">Time:</span> <span className="font-black text-xl">{countdown}s</span></div>
+                        <div className="h-4 w-px bg-white/20" />
+                        <div><span className="text-white/70">Players:</span> <span className="font-bold">24</span></div>
+                        <div className="h-4 w-px bg-white/20" />
+                        <div><span className="text-white/70">Prize:</span> <span className="font-bold">1,200 Birr</span></div>
+                    </div>
+                </div>
+
                 {/* Selection Grid */}
                 <div className="flex-1 p-2 overflow-y-auto pb-[280px]">
                     <h2 className="text-center font-bold text-base mb-2">Select Your Cards (Max 2)</h2>
@@ -329,13 +357,13 @@ const GamePage: React.FC = () => {
             </div>
 
             <div className="flex-1 overflow-hidden flex relative">
-                {/* Left Panel: Master Board (30%) */}
-                <div className="w-[30%] h-full p-1 bg-[#201530] border-r border-white/5 z-10 shrink-0">
+                {/* Left Panel: Master Board (40%) */}
+                <div className="w-[40%] h-full p-1 bg-[#201530] border-r border-white/5 z-10 shrink-0">
                     <MasterBoard calledNumbers={calledNumbers} lastCalled={currentNumber} />
                 </div>
 
-                {/* Right Panel: Play Area (70%) */}
-                <div className="w-[70%] relative flex flex-col h-full overflow-hidden">
+                {/* Right Panel: Play Area (60%) */}
+                <div className="w-[60%] relative flex flex-col h-full overflow-hidden">
 
                     {/* Top Section: Current Call Display */}
                     <div className="bg-gradient-to-br from-purple-900/60 to-indigo-900/60 p-2 flex items-center justify-center relative overflow-hidden border-b border-white/5">
@@ -348,10 +376,12 @@ const GamePage: React.FC = () => {
                                     const colors = {
                                         'B': 'from-orange-500 to-red-500',
                                         'I': 'from-emerald-500 to-green-600',
-                                        'N': 'from-pink-500 to-purple-500'
+                                        'N': 'from-pink-500 to-purple-500',
+                                        'G': 'from-blue-500 to-cyan-500',
+                                        'O': 'from-yellow-500 to-orange-500'
                                     };
                                     return (
-                                        <div key={i} className={`px-2 py-1 rounded-full bg-gradient-to-r ${colors[letter as keyof typeof colors] || 'from-blue-500 to-cyan-500'} text-white text-xs font-bold shadow-lg`}>
+                                        <div key={i} className={`px-2 py-1 rounded-full bg-gradient-to-r ${colors[letter as keyof typeof colors]} text-white text-xs font-bold shadow-lg`}>
                                             {letter}-{num}
                                         </div>
                                     );
@@ -394,16 +424,16 @@ const GamePage: React.FC = () => {
                         ))}
                     </div>
 
-                    {/* Bottom Actions - Full Width */}
-                    <div className="absolute bottom-0 left-0 w-full bg-[#1a1b2e] p-1 grid grid-cols-2 gap-1 border-t border-white/5 z-20">
+                    {/* Bottom Actions - Full Width, No Padding */}
+                    <div className="absolute bottom-0 left-0 w-full bg-[#1a1b2e] grid grid-cols-2 border-t border-white/5 z-20">
                         <Button
-                            className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-lg shadow-lg"
+                            className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-none shadow-lg"
                             onClick={() => navigate('/lobby')}
                         >
                             Leave
                         </Button>
                         <Button
-                            className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-black font-black py-4 rounded-lg shadow-lg text-lg"
+                            className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-black font-black py-4 rounded-none shadow-lg text-lg"
                         >
                             BINGO!
                         </Button>
