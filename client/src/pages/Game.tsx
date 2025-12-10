@@ -131,9 +131,7 @@ const PlayingCard = ({ card, calledNumbers }: { card: BingoCard, calledNumbers: 
 const GamePage: React.FC = () => {
     const { gameId } = useParams();
     const navigate = useNavigate();
-    const { user: authUser, isLoading } = useAuth();
-    // Fallback to guest user for UI testing if auth not ready
-    const user = authUser || { id: 'guest', username: 'Guest', balance: 0 };
+    const { user } = useAuth();
 
     const [status, setStatus] = useState<GameStatus>('connecting');
     const [selectedCards, setSelectedCards] = useState<number[]>([]);
@@ -149,13 +147,18 @@ const GamePage: React.FC = () => {
     const availableCards = useMemo(() => Array.from({ length: 56 }, (_, i) => i + 1), []);
 
     useEffect(() => {
+        if (!user) {
+            navigate('/lobby');
+            return;
+        }
+
         // Simulate Connection
         const timer = setTimeout(() => {
             setStatus('selection');
         }, 1000);
 
         return () => clearTimeout(timer);
-    }, []); // Removed user dependency to avoid reset
+    }, [user, navigate]);
 
     // Cleanup socket on unmount
     useEffect(() => {
