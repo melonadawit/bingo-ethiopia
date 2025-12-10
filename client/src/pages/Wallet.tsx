@@ -8,6 +8,41 @@ const Wallet = () => {
     const { user } = useAuth();
     const [showDepositModal, setShowDepositModal] = useState(false);
     const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+    const [depositAmount, setDepositAmount] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    const handleDeposit = async () => {
+        if (!depositAmount || parseFloat(depositAmount) < 10) {
+            alert('Minimum deposit is 10 Birr');
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/payment/deposit`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                },
+                body: JSON.stringify({ amount: parseFloat(depositAmount) }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Redirect to Chapa checkout
+                window.location.href = data.checkout_url;
+            } else {
+                alert(data.error || 'Failed to initialize payment');
+            }
+        } catch (error) {
+            console.error('Deposit error:', error);
+            alert('Failed to process deposit');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
 
     // Mock transaction history
     const transactions = [
@@ -92,8 +127,8 @@ const Wallet = () => {
                         >
                             <div className="flex items-center gap-3">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tx.type === 'win' ? 'bg-green-500/20 text-green-400' :
-                                        tx.type === 'deposit' ? 'bg-blue-500/20 text-blue-400' :
-                                            'bg-red-500/20 text-red-400'
+                                    tx.type === 'deposit' ? 'bg-blue-500/20 text-blue-400' :
+                                        'bg-red-500/20 text-red-400'
                                     }`}>
                                     {tx.type === 'win' ? <TrendingUp size={20} /> :
                                         tx.type === 'deposit' ? <ArrowDownCircle size={20} /> :

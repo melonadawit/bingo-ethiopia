@@ -20,11 +20,13 @@ app.use(express.json());
 import authRoutes from './routes/authRoutes';
 import gameRoutes from './routes/gameRoutes';
 import walletRoutes from './routes/walletRoutes';
+import paymentRoutes from './routes/payment';
 
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/game', gameRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/payment', paymentRoutes);
 
 // Health Check
 app.get('/health', (req, res) => {
