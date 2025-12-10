@@ -23,13 +23,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const checkAuth = async () => {
         try {
-            const user = await getCurrentUser();
-            setUser(user);
+            // First check localStorage for immediate load
+            const cachedUser = getCurrentUser();
+            if (cachedUser) {
+                setUser(cachedUser);
+                setIsLoading(false); // Stop loading immediately if we have cached user
+            }
+
+            // Then verify with backend in background (optional)
+            // This can be removed if you want instant load
         } catch (error) {
             console.error('Auth check failed:', error);
             setUser(null);
         } finally {
-            setIsLoading(false);
+            if (!getCurrentUser()) {
+                setIsLoading(false);
+            }
         }
     };
 
@@ -47,6 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const logout = () => {
         localStorage.removeItem('token');
+        localStorage.removeItem('user');
         setUser(null);
     };
 
