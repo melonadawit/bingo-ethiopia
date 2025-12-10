@@ -5,23 +5,14 @@ import { Loader2 } from 'lucide-react';
 
 const HomePage: React.FC = () => {
     const navigate = useNavigate();
-    const { user, loading } = useAuth();
+    const { user } = useAuth();
 
     useEffect(() => {
         // If user is authenticated, redirect to lobby
-        if (user && !loading) {
+        if (user) {
             navigate('/lobby');
         }
-    }, [user, loading, navigate]);
-
-    if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-                <Loader2 className="w-12 h-12 text-purple-400 animate-spin mb-4" />
-                <p className="text-white/60">Loading...</p>
-            </div>
-        );
-    }
+    }, [user, navigate]);
 
     return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
