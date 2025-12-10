@@ -343,8 +343,8 @@ const GamePage: React.FC = () => {
 
     return (
         <div className="h-screen bg-[#1a1b2e] flex flex-col text-white overflow-hidden">
-            {/* Game Info Bar - Fixed height */}
-            <div className="bg-[#2A1B3D] grid grid-cols-5 gap-1 p-1 border-b border-white/5 h-16 shrink-0">
+            {/* Game Info Bar - Compact */}
+            <div className="bg-[#2A1B3D] grid grid-cols-5 gap-0.5 p-0.5 border-b border-white/5 h-14 shrink-0">
                 {[
                     { label: 'Game ID', val: gameId?.slice(-8) || 'BB543258' },
                     { label: 'Players', val: '22' },
@@ -352,37 +352,37 @@ const GamePage: React.FC = () => {
                     { label: 'Derash', val: '176' },
                     { label: 'Called', val: calledNumbers.size.toString() },
                 ].map((item, i) => (
-                    <div key={i} className="bg-slate-800/50 rounded p-1 text-center">
-                        <div className="text-[9px] text-slate-400 uppercase font-medium">{item.label}</div>
-                        <div className="font-bold text-sm text-white">{item.val}</div>
+                    <div key={i} className="bg-slate-800/50 rounded p-0.5 text-center">
+                        <div className="text-[8px] text-slate-400 uppercase font-medium">{item.label}</div>
+                        <div className="font-bold text-xs text-white">{item.val}</div>
                     </div>
                 ))}
             </div>
 
             {/* Main Game Area - Takes remaining space */}
-            <div className="flex-1 overflow-hidden flex relative">
+            <div className="flex-1 overflow-hidden flex relative gap-0.5">
                 {/* Left Panel: Master Board - 50% */}
-                <div className="w-1/2 h-full p-1 bg-[#1a1b2e] shrink-0">
+                <div className="w-1/2 h-full p-0.5 bg-[#1a1b2e] shrink-0">
                     <MasterBoard calledNumbers={calledNumbers} lastCalled={currentNumber} />
                 </div>
 
                 {/* Right Panel: Play Area - 50% */}
                 <div className="w-1/2 h-full flex flex-col overflow-hidden bg-[#1a1b2e]">
 
-                    {/* Top Section: Current Call Display - Fixed height */}
-                    <div className="bg-[#2A1B3D] p-2 border-b border-white/5 shrink-0">
-                        <div className="flex items-center justify-between mb-1">
+                    {/* Top Section: Current Call Display - Compact */}
+                    <div className="bg-[#2A1B3D] p-1 border-b border-white/5 shrink-0">
+                        <div className="flex items-center justify-between mb-0.5">
                             {/* Current Number Badge */}
-                            <div className="bg-purple-600 text-white px-3 py-1 rounded-full font-bold text-sm">
+                            <div className="bg-purple-600 text-white px-2 py-0.5 rounded-full font-bold text-xs">
                                 {currentNumber ? `${getLetter(currentNumber)}-${currentNumber}` : 'N-45'}
                             </div>
 
                             {/* Volume Icon */}
-                            <Volume2 size={20} className="text-slate-400" />
+                            <Volume2 size={16} className="text-slate-400" />
                         </div>
 
-                        {/* Large Current Number Circle */}
-                        <div className="flex justify-center">
+                        {/* Large Current Number Circle + 3 Recent */}
+                        <div className="flex justify-center items-center gap-1 mb-0.5">
                             <AnimatePresence mode='wait'>
                                 <motion.div
                                     key={currentNumber}
@@ -390,20 +390,39 @@ const GamePage: React.FC = () => {
                                     animate={{ scale: 1, opacity: 1 }}
                                     exit={{ scale: 1.2, opacity: 0 }}
                                     transition={{ duration: 0.3 }}
-                                    className="relative w-20 h-20 rounded-full bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 shadow-[0_0_30px_rgba(255,200,0,0.5)] flex items-center justify-center border-4 border-yellow-600/30"
+                                    className="relative w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 shadow-[0_0_20px_rgba(255,200,0,0.4)] flex items-center justify-center border-2 border-yellow-600/30"
                                 >
                                     <div className="text-center">
-                                        <div className="text-purple-700 font-black text-2xl drop-shadow-lg">
+                                        <div className="text-purple-700 font-black text-xl drop-shadow-lg">
                                             {currentNumber ? `${getLetter(currentNumber)}-${currentNumber}` : 'N-45'}
                                         </div>
                                     </div>
                                 </motion.div>
                             </AnimatePresence>
                         </div>
+
+                        {/* 3 Recent Numbers - Side by Side */}
+                        <div className="flex gap-1 justify-center">
+                            {[...calledNumbers].slice(-4, -1).reverse().map((num, i) => {
+                                const letter = getLetter(num);
+                                const colors = {
+                                    'B': 'from-blue-500 to-blue-600',
+                                    'I': 'from-purple-500 to-purple-600',
+                                    'N': 'from-pink-500 to-pink-600',
+                                    'G': 'from-emerald-500 to-emerald-600',
+                                    'O': 'from-orange-500 to-orange-600'
+                                };
+                                return (
+                                    <div key={i} className={`px-1.5 py-0.5 rounded-full bg-gradient-to-r ${colors[letter as keyof typeof colors]} text-white text-[10px] font-bold`}>
+                                        {letter}-{num}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
 
                     {/* Cards Area - Takes remaining space, NO SCROLL */}
-                    <div className="flex-1 overflow-hidden p-2 bg-gradient-to-b from-[#1a1b2e] to-[#2A1B3D] flex flex-col gap-2">
+                    <div className="flex-1 overflow-hidden p-0.5 bg-gradient-to-b from-[#1a1b2e] to-[#2A1B3D] flex flex-col gap-1">
                         {myCards.slice(0, 2).map(card => (
                             <div key={card.id} className="flex-1">
                                 <PlayingCard
@@ -416,22 +435,22 @@ const GamePage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Bottom Actions - Fixed height */}
-            <div className="grid grid-cols-3 gap-1 p-1 bg-[#1a1b2e] border-t border-white/5 h-14 shrink-0">
+            {/* Bottom Actions - Compact */}
+            <div className="grid grid-cols-3 gap-0.5 p-0.5 bg-[#1a1b2e] border-t border-white/5 h-12 shrink-0">
                 <Button
-                    className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-bold rounded-lg shadow-lg"
+                    className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-bold rounded-lg shadow-lg text-sm"
                     onClick={() => navigate('/lobby')}
                 >
                     Leave
                 </Button>
                 <Button
-                    className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold rounded-lg shadow-lg flex items-center justify-center gap-2"
+                    className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold rounded-lg shadow-lg flex items-center justify-center gap-1 text-sm"
                 >
-                    <RefreshCw size={16} />
+                    <RefreshCw size={14} />
                     Refresh
                 </Button>
                 <Button
-                    className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-black font-black rounded-lg shadow-lg text-base"
+                    className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-black font-black rounded-lg shadow-lg text-sm">
                 >
                     BINGO!
                 </Button>
