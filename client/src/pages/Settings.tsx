@@ -16,7 +16,15 @@ const Settings = () => {
         navigate('/lobby');
     };
 
-    const settingsSections = [
+    type SettingsItem = {
+        icon: any;
+        label: string;
+        action: () => void;
+        toggle?: boolean;
+        value?: boolean;
+    };
+
+    const settingsSections: { title: string; items: SettingsItem[] }[] = [
         {
             title: 'Account',
             items: [
