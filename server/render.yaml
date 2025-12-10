@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: bingo-ethiopia-api
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: CHAPA_SECRET_KEY
+        sync: false
+      - key: CHAPA_PUBLIC_KEY
+        sync: false
+      - key: CHAPA_ENCRYPTION_KEY
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false

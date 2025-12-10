@@ -1,65 +1,121 @@
-# Vercel Deployment Guide
+# Bingo Ethiopia - Deployment Guide
 
-## Step 1: Push to GitHub
+## 🚀 Quick Deploy to Render (Free)
 
-Open a terminal in `c:\Users\OK\.gemini\antigravity\scratch\bingo-ethiopia` and run:
-
+### Step 1: Push Code to GitHub
 ```bash
-git init
 git add .
-git commit -m "Initial commit: Bingo Ethiopia game"
-git branch -M main
-git remote add origin https://github.com/melonadawit/bingo-ethiopia.git
-git push -u origin main
+git commit -m "Ready for deployment"
+git push
 ```
 
-**Note**: You may need to authenticate with GitHub. Use your GitHub username and a Personal Access Token (not password).
+### Step 2: Deploy on Render
 
-## Step 2: Deploy to Vercel
+1. Go to https://render.com
+2. Sign up/Login with GitHub
+3. Click **"New +"** → **"Web Service"**
+4. Select your repository: **bingo-ethiopia**
+5. Configure:
+   - **Name:** `bingo-ethiopia-api`
+   - **Root Directory:** `server`
+   - **Environment:** `Node`
+   - **Build Command:** `npm install && npm run build`
+   - **Start Command:** `npm start`
+   - **Plan:** `Free`
 
-1. Go to https://vercel.com/signup
-2. Click "Continue with GitHub"
-3. Authorize Vercel to access your GitHub account
-4. Click "Import Project" or "Add New Project"
-5. Select `melonadawit/bingo-ethiopia` repository
-6. Vercel will auto-detect it's a Vite project
-7. **Important**: Set the Root Directory to `client`
-8. Add Environment Variable:
-   - Name: `VITE_API_URL`
-   - Value: `http://localhost:3002/api` (we'll update this later with ngrok or your backend URL)
-9. Click "Deploy"
+6. **Add Environment Variables:**
+   ```
+   CHAPA_SECRET_KEY=CHASECK_TEST-3uteD329HSKOHaUqxxAK8qN4VU7QJgDF
+   CHAPA_PUBLIC_KEY=CHAPUBK_TEST-eBkWiTm9nVjZ6t9Lfwlo4pHQwaeLZeRc
+   CHAPA_ENCRYPTION_KEY=kGCcmvvazLOKv6Tn7Pw6nlx8
+   NODE_ENV=production
+   PORT=10000
+   ```
 
-## Step 3: Update Telegram Bot
+7. Click **"Create Web Service"**
 
-After deployment, Vercel will give you a URL like: `https://bingo-ethiopia.vercel.app`
+### Step 3: Get Your API URL
 
-Update your bot's WEBAPP_URL in `server/.env`:
+After deployment completes (~5 mins), you'll get:
 ```
-WEBAPP_URL=https://bingo-ethiopia.vercel.app
+https://bingo-ethiopia-api.onrender.com
 ```
 
-Restart your server:
-```bash
-cd server
-npm run dev
+### Step 4: Update Vercel
+
+1. Go to Vercel Dashboard
+2. Select your project
+3. Settings → Environment Variables
+4. Add/Update:
+   ```
+   VITE_API_URL=https://bingo-ethiopia-api.onrender.com
+   ```
+5. Redeploy
+
+### Step 5: Test!
+
+1. Open your Vercel app
+2. Go to Wallet
+3. Click Deposit
+4. Enter amount
+5. Pay with Chapa test credentials
+
+---
+
+## 🔧 Environment Variables Reference
+
+### Required for Render:
+```
+CHAPA_SECRET_KEY=CHASECK_TEST-3uteD329HSKOHaUqxxAK8qN4VU7QJgDF
+CHAPA_PUBLIC_KEY=CHAPUBK_TEST-eBkWiTm9nVjZ6t9Lfwlo4pHQwaeLZeRc
+CHAPA_ENCRYPTION_KEY=kGCcmvvazLOKv6Tn7Pw6nlx8
+NODE_ENV=production
+PORT=10000
 ```
 
-## Step 4: Configure Backend Connection
-
-Since your backend is running locally, you have two options:
-
-**Option A: Use ngrok for backend** (recommended for testing)
-```bash
-cd server
-.\ngrok.exe http 3002
+### Required for Vercel:
 ```
-Then update Vercel environment variable `VITE_API_URL` to the ngrok URL.
+VITE_API_URL=https://bingo-ethiopia-api.onrender.com
+```
 
-**Option B: Deploy backend to Railway/Render** (for production)
-Deploy your server folder to a hosting service and update `VITE_API_URL`.
+---
 
-## Troubleshooting
+## ✅ Deployment Checklist
 
-- If build fails, check Vercel build logs
-- Make sure Root Directory is set to `client`
-- Verify all dependencies are in `client/package.json`
+- [ ] Code pushed to GitHub
+- [ ] Render service created
+- [ ] Environment variables added to Render
+- [ ] Deployment successful (check logs)
+- [ ] API URL copied
+- [ ] Vercel environment variable updated
+- [ ] Vercel redeployed
+- [ ] Payment tested end-to-end
+
+---
+
+## 🐛 Troubleshooting
+
+**Build fails on Render:**
+- Check build logs
+- Ensure `npm run build` works locally
+- Verify all dependencies in package.json
+
+**API not responding:**
+- Check Render logs
+- Verify environment variables are set
+- Wait for cold start (30-60s first request)
+
+**Payment fails:**
+- Check Chapa keys are correct
+- Verify callback URL is accessible
+- Check Render logs for errors
+
+---
+
+## 📞 Support
+
+If you encounter issues:
+1. Check Render logs
+2. Check Vercel logs
+3. Test locally first
+4. Verify all environment variables
