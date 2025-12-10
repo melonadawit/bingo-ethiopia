@@ -127,8 +127,8 @@ const Wallet = () => {
                         >
                             <div className="flex items-center gap-3">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tx.type === 'win' ? 'bg-green-500/20 text-green-400' :
-                                    tx.type === 'deposit' ? 'bg-blue-500/20 text-blue-400' :
-                                        'bg-red-500/20 text-red-400'
+                                        tx.type === 'deposit' ? 'bg-blue-500/20 text-blue-400' :
+                                            'bg-red-500/20 text-red-400'
                                     }`}>
                                     {tx.type === 'win' ? <TrendingUp size={20} /> :
                                         tx.type === 'deposit' ? <ArrowDownCircle size={20} /> :
@@ -148,7 +148,7 @@ const Wallet = () => {
                 </div>
             </div>
 
-            {/* Deposit Modal */}
+            {/* Deposit Modal - Chapa Integration */}
             {showDepositModal && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <motion.div
@@ -156,26 +156,41 @@ const Wallet = () => {
                         animate={{ scale: 1, opacity: 1 }}
                         className="bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-slate-700"
                     >
-                        <h3 className="text-2xl font-bold text-white mb-4">Deposit Funds</h3>
-                        <p className="text-slate-400 mb-4">Choose your deposit method:</p>
+                        <h3 className="text-2xl font-bold text-white mb-2">Deposit via Chapa</h3>
+                        <p className="text-slate-400 mb-4 text-sm">Supports Telebirr, CBE Birr, M-Pesa & more</p>
 
-                        <div className="space-y-3 mb-6">
-                            {['Telebirr', 'CBE Birr', 'M-Pesa', 'Bank Transfer'].map((method) => (
-                                <button
-                                    key={method}
-                                    className="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 rounded-xl transition-colors"
-                                >
-                                    {method}
-                                </button>
-                            ))}
+                        <div className="mb-6">
+                            <label className="text-slate-400 text-sm mb-2 block">Amount (Birr)</label>
+                            <input
+                                type="number"
+                                value={depositAmount}
+                                onChange={(e) => setDepositAmount(e.target.value)}
+                                placeholder="Enter amount (min 10 Birr)"
+                                disabled={isProcessing}
+                                className="w-full bg-slate-800 text-white px-4 py-3 rounded-xl border border-slate-700 focus:border-indigo-500 outline-none disabled:opacity-50"
+                            />
+                            <p className="text-slate-500 text-xs mt-2">Minimum deposit: 10 Birr</p>
                         </div>
 
-                        <Button
-                            onClick={() => setShowDepositModal(false)}
-                            className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl"
-                        >
-                            Cancel
-                        </Button>
+                        <div className="grid grid-cols-2 gap-3">
+                            <Button
+                                onClick={() => {
+                                    setShowDepositModal(false);
+                                    setDepositAmount('');
+                                }}
+                                disabled={isProcessing}
+                                className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl disabled:opacity-50"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleDeposit}
+                                disabled={isProcessing || !depositAmount || parseFloat(depositAmount) < 10}
+                                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold py-3 rounded-xl disabled:opacity-50"
+                            >
+                                {isProcessing ? 'Processing...' : 'Pay Now'}
+                            </Button>
+                        </div>
                     </motion.div>
                 </div>
             )}
