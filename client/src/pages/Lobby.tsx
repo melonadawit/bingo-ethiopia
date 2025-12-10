@@ -4,7 +4,46 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Users, Clock, Trophy, PlayCircle, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { gameService, type GameMode, type GlobalStats } from '../services/game';
+
+// Mock data - no backend needed
+const mockGameModes = [
+    {
+        id: 'classic-bingo',
+        title: 'Classic Bingo',
+        description: 'Traditional 75-ball bingo with standard patterns',
+        minBet: 10,
+        maxBet: 100,
+        activePlayers: 24,
+        icon: 'PlayCircle',
+        color: 'from-blue-500 to-cyan-500'
+    },
+    {
+        id: 'speed-bingo',
+        title: 'Speed Bingo',
+        description: 'Fast-paced 30-ball bingo for quick wins',
+        minBet: 5,
+        maxBet: 50,
+        activePlayers: 18,
+        icon: 'Zap',
+        color: 'from-yellow-500 to-orange-500'
+    },
+    {
+        id: 'jackpot-bingo',
+        title: 'Jackpot Bingo',
+        description: 'Progressive jackpot with massive prizes',
+        minBet: 20,
+        maxBet: 200,
+        activePlayers: 42,
+        icon: 'Trophy',
+        color: 'from-purple-500 to-pink-500'
+    }
+];
+
+const mockStats = {
+    activePlayers: 84,
+    totalPrizePool: 12500,
+    isSystemLive: true
+};
 
 const iconMap: Record<string, any> = {
     'Zap': Zap,
@@ -14,89 +53,67 @@ const iconMap: Record<string, any> = {
 
 export default function Lobby() {
     const navigate = useNavigate();
-    const [gameModes, setGameModes] = useState<GameMode[]>([]);
-    const [stats, setStats] = useState<GlobalStats | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const [modesData, statsData] = await Promise.all([
-                    gameService.getGameModes(),
-                    gameService.getGlobalStats()
-                ]);
-                setGameModes(modesData);
-                setStats(statsData);
-            } catch (err) {
-                console.error("Failed to fetch lobby data:", err);
-                setError('Failed to load game data. Please try again.');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchData();
-    }, []);
-
-    if (loading) {
-        return <div className="text-white text-center mt-20">Loading Lobby...</div>;
-    }
-
-    if (error) {
-        return <div className="text-red-400 text-center mt-20">{error}</div>;
-    }
+    const gameModes = mockGameModes;
+    const stats = mockStats;
 
     return (
-        <div className="space-y-8">
-            {/* Header Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card variant="glass" className="flex items-center justify-between p-6">
-                    <div>
-                        <p className="text-slate-400 text-sm font-medium">Total Players Online</p>
-                        <h3 className="text-3xl font-black text-white mt-1">
-                            {stats?.onlinePlayers?.toLocaleString() || '-'}
-                        </h3>
-                    </div>
-                    <div className="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
-                        <Users size={24} />
-                    </div>
-                </Card>
-                <Card variant="glass" className="flex items-center justify-between p-6">
-                    <div>
-                        <p className="text-slate-400 text-sm font-medium">Global Derash (Pool)</p>
-                        <h3 className="text-3xl font-black text-emerald-400 mt-1">
-                            ETB {stats?.jackpotPool?.toLocaleString() || '-'}
-                        </h3>
-                    </div>
-                    <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-                        <span className="font-bold text-lg">Birr</span>
-                    </div>
-                </Card>
-                <Card variant="glass" className="flex items-center justify-between p-6">
-                    <div>
-                        <p className="text-slate-400 text-sm font-medium">System Status</p>
-                        <div className="flex items-center gap-2 mt-2">
-                            <span className="relative flex h-3 w-3">
-                                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${stats?.isSystemLive ? 'bg-green-400' : 'bg-red-400'} opacity-75`}></span>
-                                <span className={`relative inline-flex rounded-full h-3 w-3 ${stats?.isSystemLive ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                            </span>
-                            <span className={`font-bold ${stats?.isSystemLive ? 'text-green-400' : 'text-red-400'}`}>
-                                {stats?.isSystemLive ? 'Live' : 'Offline'}
-                            </span>
-                        </div>
-                    </div>
-                    <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center text-green-400">
-                        <Clock size={24} />
-                    </div>
-                </Card>
-            </div>
+        <div className="min-h-screen p-6">
+            <div className="max-w-7xl mx-auto">
+                {/* Header */}
+                <div className="mb-8">
+                    <h1 className="text-4xl font-black text-white mb-2 bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+                        Game Lobby
+                    </h1>
+                    <p className="text-slate-400">Choose your game mode and start playing!</p>
+                </div>
 
-            {/* Game Modes */}
-            <div>
+                {/* Stats Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                    <Card variant="glass" className="flex items-center justify-between p-6">
+                        <div>
+                            <p className="text-slate-400 text-sm font-medium">Active Players</p>
+                            <h3 className="text-3xl font-bold text-white mt-2">
+                                {stats.activePlayers}
+                            </h3>
+                        </div>
+                        <div className="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+                            <Users size={24} />
+                        </div>
+                    </Card>
+                    <Card variant="glass" className="flex items-center justify-between p-6">
+                        <div>
+                            <p className="text-slate-400 text-sm font-medium">Total Prize Pool</p>
+                            <h3 className="text-3xl font-bold text-white mt-2">
+                                {stats.totalPrizePool}
+                            </h3>
+                        </div>
+                        <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                            <span className="font-bold text-lg">Birr</span>
+                        </div>
+                    </Card>
+                    <Card variant="glass" className="flex items-center justify-between p-6">
+                        <div>
+                            <p className="text-slate-400 text-sm font-medium">System Status</p>
+                            <div className="flex items-center gap-2 mt-2">
+                                <span className="relative flex h-3 w-3">
+                                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${stats.isSystemLive ? 'bg-green-400' : 'bg-red-400'} opacity-75`}></span>
+                                    <span className={`relative inline-flex rounded-full h-3 w-3 ${stats.isSystemLive ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                                </span>
+                                <span className={`font-bold ${stats.isSystemLive ? 'text-green-400' : 'text-red-400'}`}>
+                                    {stats.isSystemLive ? 'Live' : 'Offline'}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center text-green-400">
+                            <Clock size={24} />
+                        </div>
+                    </Card>
+                </div>
+
+                {/* Game Modes */}
                 <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-                    <span className="w-2 h-8 bg-indigo-500 rounded-full" />
-                    Select Game Mode
+                    <Trophy className="text-indigo-400" size={28} />
+                    Available Games
                 </h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
