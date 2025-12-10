@@ -109,30 +109,6 @@ export default function Layout() {
                     </div>
                 </main>
             </div>
-
-            {/* Mobile Bottom Navigation */}
-            <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 z-50">
-                <div className="grid grid-cols-4 gap-1 p-2">
-                    {navItems.map((item) => {
-                        const isActive = location.pathname === item.path;
-                        return (
-                            <Link
-                                key={item.path}
-                                to={item.path}
-                                className={cn(
-                                    "flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition-all",
-                                    isActive
-                                        ? "bg-indigo-600 text-white"
-                                        : "text-slate-400 hover:text-white hover:bg-slate-800"
-                                )}
-                            >
-                                <item.icon size={20} />
-                                <span className="text-[10px] font-medium">{item.label.split(' ')[0]}</span>
-                            </Link>
-                        );
-                    })}
-                </div>
-            </nav>
         </div>
     );
 }

@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const CHAPA_SECRET_KEY = process.env.CHAPA_SECRET_KEY || 'CHASECK_TEST-your-key-here';
+const CHAPA_SECRET_KEY = process.env.CHAPA_SECRET_KEY || 'CHASECK_TEST-3uteD329HSKOHaUqxxAK8qN4VU7QJgDF';
+const CHAPA_PUBLIC_KEY = process.env.CHAPA_PUBLIC_KEY || 'CHAPUBK_TEST-eBkWiTm9nVjZ6t9Lfwlo4pHQwaeLZeRc';
+const CHAPA_ENCRYPTION_KEY = process.env.CHAPA_ENCRYPTION_KEY || 'kGCcmvvazLOKv6Tn7Pw6nlx8';
 const CHAPA_API_URL = 'https://api.chapa.co/v1';
 
 interface ChapaPaymentRequest {

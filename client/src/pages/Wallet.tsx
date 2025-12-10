@@ -8,6 +8,41 @@ const Wallet = () => {
     const { user } = useAuth();
     const [showDepositModal, setShowDepositModal] = useState(false);
     const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+    const [depositAmount, setDepositAmount] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    const handleDeposit = async () => {
+        if (!depositAmount || parseFloat(depositAmount) < 10) {
+            alert('Minimum deposit is 10 Birr');
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/payment/deposit`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                },
+                body: JSON.stringify({ amount: parseFloat(depositAmount) }),
+            });
+
+            const data = await response.json();
+
+            if (data.success && data.checkout_url) {
+                // Redirect to Chapa checkout
+                window.location.href = data.checkout_url;
+            } else {
+                alert(data.error || 'Failed to initialize payment');
+                setIsProcessing(false);
+            }
+        } catch (error) {
+            console.error('Deposit error:', error);
+            alert('Failed to process deposit. Please try again.');
+            setIsProcessing(false);
+        }
+    };
 
     // Mock transaction history
     const transactions = [
