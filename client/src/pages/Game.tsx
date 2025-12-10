@@ -470,7 +470,7 @@ const GamePage: React.FC = () => {
                     Refresh
                 </Button>
                 <Button
-                    className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-black font-black rounded-lg shadow-lg text-sm">
+                    className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-black font-black rounded-lg shadow-lg text-sm"
                 >
                     BINGO!
                 </Button>
