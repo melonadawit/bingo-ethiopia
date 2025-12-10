@@ -125,7 +125,7 @@ export default function Lobby() {
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: idx * 0.1 }}
                             >
-                                <Card variant="interactive" className="group h-full flex flex-col relative overflow-hidden">
+                                <div className="group h-full flex flex-col relative overflow-hidden bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
                                     <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${mode.color} opacity-10 blur-2xl group-hover:opacity-20 transition-opacity`} />
 
                                     <div className="relative z-10 flex flex-col h-full">
@@ -151,7 +151,10 @@ export default function Lobby() {
                                                 type="button"
                                                 className="w-full relative z-20"
                                                 onClick={(e) => {
-                                                    e.stopPropagation(); // Prevent card click if any
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    console.log('Join Room clicked!', mode.id);
+                                                    console.log('Navigating to:', `/game/${mode.id}`);
                                                     navigate(`/game/${mode.id}`);
                                                 }}
                                             >
@@ -159,7 +162,7 @@ export default function Lobby() {
                                             </Button>
                                         </div>
                                     </div>
-                                </Card>
+                                </div>
                             </motion.div>
                         );
                     })}
