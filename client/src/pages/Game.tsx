@@ -143,8 +143,8 @@ const GamePage: React.FC = () => {
     const [timeLeft] = useState(25);
     const [history, setHistory] = useState<number[]>([]);
 
-    // Mock initial data
-    const availableCards = useMemo(() => Array.from({ length: 56 }, (_, i) => i + 1), []);
+    // Mock initial data - 300 cards
+    const availableCards = useMemo(() => Array.from({ length: 300 }, (_, i) => i + 1), []);
 
     useEffect(() => {
         if (!user) {
@@ -224,38 +224,36 @@ const GamePage: React.FC = () => {
         return (
             <div className="min-h-screen bg-[#1a1b2e] flex flex-col text-white">
                 {/* Header */}
-                <header className="bg-slate-900 p-4 shadow-lg z-10">
-                    <div className="flex justify-between items-center mb-4">
+                <header className="bg-slate-900 p-3 shadow-lg z-10">
+                    <div className="flex justify-between items-center mb-2">
                         <X className="text-slate-400" onClick={() => navigate('/lobby')} />
                         <h1 className="font-bold text-lg">Online Bingo</h1>
                         <MoreVertical className="text-slate-400" />
                     </div>
 
-                    <div className="bg-gradient-to-r from-orange-500 to-red-600 rounded-xl p-4 text-center shadow-lg relative overflow-hidden">
-                        <div className="flex items-center justify-center gap-2 text-white/90 mb-2">
-                            <Clock size={16} />
-                            <span className="font-medium text-sm">Time Remaining</span>
+                    {/* Compact Time Display */}
+                    <div className="bg-gradient-to-r from-orange-500 to-red-600 rounded-lg p-2 text-center shadow-lg flex items-center justify-center gap-4">
+                        <div className="flex items-center gap-1">
+                            <Clock size={14} />
+                            <span className="font-medium text-xs">Time:</span>
+                            <span className="text-xl font-black">{timeLeft}s</span>
                         </div>
-                        <div className="text-4xl font-black text-white mb-4">{timeLeft}s</div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                            <div className="bg-black/20 rounded-lg p-2">
-                                <div className="text-xs text-white/70">Players</div>
-                                <div className="font-bold">24</div>
-                            </div>
-                            <div className="bg-black/20 rounded-lg p-2">
-                                <div className="text-xs text-white/70">Derash</div>
-                                <div className="font-bold">1,200 Birr</div>
-                            </div>
+                        <div className="h-4 w-px bg-white/20" />
+                        <div className="text-xs">
+                            <span className="text-white/70">Players:</span> <span className="font-bold">24</span>
+                        </div>
+                        <div className="h-4 w-px bg-white/20" />
+                        <div className="text-xs">
+                            <span className="text-white/70">Prize:</span> <span className="font-bold">1,200 Birr</span>
                         </div>
                     </div>
                 </header>
 
                 {/* Selection Grid */}
-                <div className="flex-1 p-4 overflow-y-auto">
+                <div className="flex-1 p-4 overflow-y-auto pb-32">
                     <h2 className="text-center font-bold text-lg mb-4">Select Your Cards (Max 2)</h2>
 
-                    <div className="grid grid-cols-7 gap-2">
+                    <div className="grid grid-cols-7 gap-2 mb-4">
                         {availableCards.map(num => (
                             <button
                                 key={num}
@@ -273,8 +271,22 @@ const GamePage: React.FC = () => {
                     </div>
                 </div>
 
+                {/* Selected Cards Preview - Fixed at Bottom */}
+                {selectedCards.length > 0 && (
+                    <div className="fixed bottom-16 left-0 right-0 bg-slate-900/95 backdrop-blur-lg border-t border-slate-700 p-4 z-20">
+                        <h3 className="text-sm font-bold mb-2 text-center">Your Selected Cards</h3>
+                        <div className="flex gap-2 justify-center">
+                            {selectedCards.map(id => (
+                                <div key={id} className="bg-gradient-to-br from-yellow-400 to-orange-500 text-slate-900 rounded-lg px-4 py-2 font-bold shadow-lg">
+                                    #{id}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Bottom Action */}
-                <div className="p-4 bg-slate-900 border-t border-slate-800">
+                <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-900 border-t border-slate-800 z-30">
                     <Button
                         onClick={startGame}
                         disabled={selectedCards.length === 0}
@@ -318,51 +330,64 @@ const GamePage: React.FC = () => {
             </div>
 
             <div className="flex-1 overflow-hidden flex relative">
-                {/* Left Panel: Master Board (Tracker) */}
-                <div className="w-[70px] sm:w-[80px] h-full p-2 bg-[#201530] border-r border-white/5 z-10 shrink-0">
+                {/* Left Panel: Master Board (50%) */}
+                <div className="w-1/2 h-full p-2 bg-[#201530] border-r border-white/5 z-10 shrink-0">
                     <MasterBoard calledNumbers={calledNumbers} lastCalled={currentNumber} />
                 </div>
 
-                {/* Right Panel: Play Area */}
-                <div className="flex-1 relative flex flex-col h-full overflow-hidden">
+                {/* Right Panel: Play Area (50%) */}
+                <div className="w-1/2 relative flex flex-col h-full overflow-hidden">
 
-                    {/* Top Section: Current Call & History */}
-                    <div className="h-[25%] min-h-[140px] bg-[#1a1b2e] p-4 flex items-center justify-between relative overflow-hidden">
-                        {/* Background Gradients */}
-                        <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-b from-indigo-900/20 to-transparent pointer-events-none" />
+                    {/* Top Section: Impressive Animated Call Display */}
+                    <div className="h-[30%] min-h-[160px] bg-gradient-to-br from-purple-900/40 via-indigo-900/40 to-blue-900/40 p-4 flex items-center justify-center relative overflow-hidden">
+                        {/* Animated Background */}
+                        <div className="absolute inset-0 overflow-hidden">
+                            <div className="absolute w-96 h-96 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-full blur-3xl animate-pulse" style={{ top: '-50%', left: '-25%' }} />
+                            <div className="absolute w-96 h-96 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-full blur-3xl animate-pulse animation-delay-1000" style={{ bottom: '-50%', right: '-25%' }} />
+                        </div>
 
-                        {/* Current Call (Big Circle) */}
+                        {/* Current Call (Big Impressive Circle) */}
                         <div className="flex-1 flex justify-center items-center z-10">
                             <AnimatePresence mode='wait'>
                                 <motion.div
                                     key={currentNumber}
-                                    initial={{ scale: 0.5, opacity: 0 }}
-                                    animate={{ scale: 1, opacity: 1 }}
-                                    exit={{ scale: 1.5, opacity: 0 }}
-                                    className="w-24 h-24 rounded-full bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500 shadow-[0_0_30px_rgba(255,165,0,0.4)] flex items-center justify-center border-4 border-white/10"
+                                    initial={{ scale: 0, rotate: -180, opacity: 0 }}
+                                    animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                                    exit={{ scale: 0, rotate: 180, opacity: 0 }}
+                                    transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                                    className="relative"
                                 >
-                                    <div className="text-center">
-                                        <div className="text-xs font-bold text-black/50 uppercase mb-[-4px]">
-                                            {currentNumber && ['B', 'I', 'N', 'G', 'O'][Math.floor((currentNumber - 1) / 15)]}
-                                        </div>
-                                        <div className="text-4xl font-black text-white shadow-sm">
-                                            {currentNumber || '-'}
+                                    {/* Outer glow ring */}
+                                    <div className="absolute inset-0 rounded-full bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 blur-2xl opacity-60 animate-pulse" />
+
+                                    {/* Main circle */}
+                                    <div className="relative w-32 h-32 rounded-full bg-gradient-to-br from-yellow-300 via-orange-400 to-red-500 shadow-[0_0_60px_rgba(255,165,0,0.6)] flex items-center justify-center border-4 border-white/20">
+                                        <div className="text-center">
+                                            <div className="text-sm font-bold text-black/40 uppercase mb-[-6px] tracking-wider">
+                                                {currentNumber && ['B', 'I', 'N', 'G', 'O'][Math.floor((currentNumber - 1) / 15)]}
+                                            </div>
+                                            <div className="text-5xl font-black text-white drop-shadow-lg">
+                                                {currentNumber || '-'}
+                                            </div>
                                         </div>
                                     </div>
                                 </motion.div>
                             </AnimatePresence>
                         </div>
 
-                        {/* Recent History (Top Right) */}
-                        <div className="flex flex-col gap-2 absolute top-4 right-4 items-end">
-                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Previous</span>
-                            <div className="flex gap-2">
-                                {history.map((num, i) => (
-                                    <div key={i} className="px-2 py-1 rounded bg-slate-800 text-slate-300 font-mono text-xs border border-slate-700">
-                                        {num}
-                                    </div>
-                                ))}
-                            </div>
+                        {/* Recent History */}
+                        <div className="absolute top-2 right-2 flex flex-col gap-1">
+                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Recent</span>
+                            {history.map((num, i) => (
+                                <motion.div
+                                    key={i}
+                                    initial={{ x: 20, opacity: 0 }}
+                                    animate={{ x: 0, opacity: 1 }}
+                                    className="px-2 py-1 rounded bg-slate-800/80 text-slate-200 font-mono text-xs border border-slate-600/50 backdrop-blur-sm"
+                                >
+                                    {num}
+                                </motion.div>
+                            ))}
                         </div>
                     </div>
 

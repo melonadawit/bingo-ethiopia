@@ -19,13 +19,13 @@ export default function Layout() {
 
     return (
         <div className="min-h-screen bg-[#0B1120] text-slate-100 font-sans selection:bg-indigo-500/30">
-            {/* Mobile Nav Header */}
-            <div className="lg:hidden flex items-center justify-between p-4 bg-slate-900/50 backdrop-blur-lg border-b border-slate-800 sticky top-0 z-50">
-                <span className="text-xl font-black bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">BINGO.ET</span>
-                <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-slate-400 hover:text-white">
-                    {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
-                </button>
-            </div>
+            {/* Floating Mobile Menu Button */}
+            <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="lg:hidden fixed top-4 right-4 z-50 p-3 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-500 transition-all"
+            >
+                {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
 
             <div className="flex">
                 {/* Sidebar */}
@@ -42,13 +42,6 @@ export default function Layout() {
                             )}
                         >
                             <div>
-                                <div className="hidden lg:flex items-center gap-3 mb-12">
-                                    <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                                        <span className="text-xl font-bold text-white">B</span>
-                                    </div>
-                                    <span className="text-2xl font-black tracking-tight text-white">BINGO<span className="text-indigo-400">.ET</span></span>
-                                </div>
-
                                 <nav className="space-y-2">
                                     {navItems.map((item) => {
                                         const isActive = location.pathname === item.path;
