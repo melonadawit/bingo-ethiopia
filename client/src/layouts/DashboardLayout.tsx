@@ -17,15 +17,19 @@ export default function Layout() {
         { icon: Settings, label: 'Settings', path: '/settings' },
     ];
 
+    const isGamePage = location.pathname.startsWith('/game');
+
     return (
         <div className="min-h-screen bg-[#0B1120] text-slate-100 font-sans selection:bg-indigo-500/30">
-            {/* Floating Mobile Menu Button */}
-            <button
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="lg:hidden fixed top-4 right-4 z-50 p-3 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-500 transition-all"
-            >
-                {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
+            {/* Floating Mobile Menu Button - Hidden on game pages */}
+            {!isGamePage && (
+                <button
+                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                    className="lg:hidden fixed top-4 right-4 z-50 p-3 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-500 transition-all"
+                >
+                    {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+                </button>
+            )}
 
             <div className="flex">
                 {/* Sidebar */}
