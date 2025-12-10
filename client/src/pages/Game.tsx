@@ -369,20 +369,40 @@ const GamePage: React.FC = () => {
                 {/* Right Panel: Play Area - 50% */}
                 <div className="w-1/2 h-full flex flex-col overflow-hidden bg-[#1a1b2e]">
 
-                    {/* Top Section: Current Call Display - Compact */}
-                    <div className="bg-[#2A1B3D] p-1 border-b border-white/5 shrink-0">
-                        <div className="flex items-center justify-between mb-0.5">
+                    {/* Top Section: Current Call Display - Very Compact */}
+                    <div className="bg-[#2A1B3D] p-0.5 border-b border-white/5 shrink-0">
+                        <div className="flex items-center justify-between px-1">
                             {/* Current Number Badge */}
-                            <div className="bg-purple-600 text-white px-2 py-0.5 rounded-full font-bold text-xs">
+                            <div className="bg-purple-600 text-white px-1.5 py-0.5 rounded-full font-bold text-[10px]">
                                 {currentNumber ? `${getLetter(currentNumber)}-${currentNumber}` : 'N-45'}
                             </div>
 
                             {/* Volume Icon */}
-                            <Volume2 size={16} className="text-slate-400" />
+                            <Volume2 size={14} className="text-slate-400" />
                         </div>
 
-                        {/* Large Current Number Circle + 3 Recent */}
-                        <div className="flex justify-center items-center gap-1 mb-0.5">
+                        {/* Large Current Number Circle + 3 Recent - All in one line */}
+                        <div className="flex justify-center items-center gap-1 py-0.5">
+                            {/* 3 Recent Numbers - Left side */}
+                            <div className="flex gap-0.5">
+                                {[...calledNumbers].slice(-4, -1).reverse().slice(0, 2).map((num, i) => {
+                                    const letter = getLetter(num);
+                                    const colors = {
+                                        'B': 'from-blue-500 to-blue-600',
+                                        'I': 'from-purple-500 to-purple-600',
+                                        'N': 'from-pink-500 to-pink-600',
+                                        'G': 'from-emerald-500 to-emerald-600',
+                                        'O': 'from-orange-500 to-orange-600'
+                                    };
+                                    return (
+                                        <div key={i} className={`px-1 py-0.5 rounded-full bg-gradient-to-r ${colors[letter as keyof typeof colors]} text-white text-[8px] font-bold`}>
+                                            {letter}-{num}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Current Number Circle - Smaller */}
                             <AnimatePresence mode='wait'>
                                 <motion.div
                                     key={currentNumber}
@@ -390,34 +410,34 @@ const GamePage: React.FC = () => {
                                     animate={{ scale: 1, opacity: 1 }}
                                     exit={{ scale: 1.2, opacity: 0 }}
                                     transition={{ duration: 0.3 }}
-                                    className="relative w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 shadow-[0_0_20px_rgba(255,200,0,0.4)] flex items-center justify-center border-2 border-yellow-600/30"
+                                    className="relative w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 shadow-[0_0_15px_rgba(255,200,0,0.4)] flex items-center justify-center border border-yellow-600/30"
                                 >
                                     <div className="text-center">
-                                        <div className="text-purple-700 font-black text-xl drop-shadow-lg">
+                                        <div className="text-purple-700 font-black text-base drop-shadow-lg">
                                             {currentNumber ? `${getLetter(currentNumber)}-${currentNumber}` : 'N-45'}
                                         </div>
                                     </div>
                                 </motion.div>
                             </AnimatePresence>
-                        </div>
 
-                        {/* 3 Recent Numbers - Side by Side */}
-                        <div className="flex gap-1 justify-center">
-                            {[...calledNumbers].slice(-4, -1).reverse().map((num, i) => {
-                                const letter = getLetter(num);
-                                const colors = {
-                                    'B': 'from-blue-500 to-blue-600',
-                                    'I': 'from-purple-500 to-purple-600',
-                                    'N': 'from-pink-500 to-pink-600',
-                                    'G': 'from-emerald-500 to-emerald-600',
-                                    'O': 'from-orange-500 to-orange-600'
-                                };
-                                return (
-                                    <div key={i} className={`px-1.5 py-0.5 rounded-full bg-gradient-to-r ${colors[letter as keyof typeof colors]} text-white text-[10px] font-bold`}>
-                                        {letter}-{num}
-                                    </div>
-                                );
-                            })}
+                            {/* Last Recent Number - Right side */}
+                            <div className="flex gap-0.5">
+                                {[...calledNumbers].slice(-4, -1).reverse().slice(2, 3).map((num, i) => {
+                                    const letter = getLetter(num);
+                                    const colors = {
+                                        'B': 'from-blue-500 to-blue-600',
+                                        'I': 'from-purple-500 to-purple-600',
+                                        'N': 'from-pink-500 to-pink-600',
+                                        'G': 'from-emerald-500 to-emerald-600',
+                                        'O': 'from-orange-500 to-orange-600'
+                                    };
+                                    return (
+                                        <div key={i} className={`px-1 py-0.5 rounded-full bg-gradient-to-r ${colors[letter as keyof typeof colors]} text-white text-[8px] font-bold`}>
+                                            {letter}-{num}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
 
