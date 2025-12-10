@@ -18,12 +18,23 @@ function App() {
       console.log('Telegram initData:', initData ? 'Present' : 'Missing');
 
       if (initData && !user) {
-        // Attempt auto-login via Context
+        // Attempt auto-login via Context with real data
         console.log('Attempting Telegram login...');
         login().catch(err => {
           console.error('Login failed:', err);
-          // Even if login fails, show the app
         });
+      } else if (!initData && !user) {
+        // Create mock user for testing when initData is missing
+        console.log('Creating mock user for Telegram WebApp testing');
+        const mockUser = {
+          id: 'telegram-user-' + Date.now(),
+          username: telegram.initDataUnsafe?.user?.username || 'TelegramUser',
+          firstName: telegram.initDataUnsafe?.user?.first_name || 'Player',
+          balance: 1000
+        };
+        localStorage.setItem('user', JSON.stringify(mockUser));
+        // Trigger a re-render by calling login (which will read from localStorage)
+        window.location.reload();
       }
     } else {
       console.log('Not running in Telegram WebApp');
