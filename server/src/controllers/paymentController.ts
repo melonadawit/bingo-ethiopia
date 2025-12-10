@@ -27,8 +27,8 @@ export const initializeDeposit = async (req: Request, res: Response) => {
             callback_url: `${process.env.API_URL || 'https://bingo-ethiopia-api.onrender.com'}/api/payment/callback`,
             return_url: `${process.env.FRONTEND_URL || 'https://bingo-ethiopia.vercel.app'}/wallet?payment=success`,
             customization: {
-                title: 'Bingo Ethiopia - Deposit',
-                description: `Deposit ${amount} Birr to your wallet`,
+                title: 'Bingo Deposit',
+                description: `Deposit ${amount} Birr`,
             },
         });
 

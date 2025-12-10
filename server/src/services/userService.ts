@@ -45,10 +45,20 @@ class UserService {
         // Store in Firebase if available
         if (this.useFirebase) {
             try {
-                await db.collection('users').doc(data.telegramId.toString()).set({
-                    ...user,
-                    registeredAt: user.registeredAt.toISOString()
-                });
+                // Remove undefined values for Firebase
+                const firebaseData: any = {
+                    telegramId: user.telegramId,
+                    phoneNumber: user.phoneNumber,
+                    firstName: user.firstName,
+                    registeredAt: user.registeredAt.toISOString(),
+                    balance: user.balance
+                };
+
+                // Only add optional fields if they exist
+                if (user.lastName) firebaseData.lastName = user.lastName;
+                if (user.username) firebaseData.username = user.username;
+
+                await db.collection('users').doc(data.telegramId.toString()).set(firebaseData);
                 console.log(`✅ User registered in Firebase: ${data.firstName} (${data.telegramId})`);
             } catch (error) {
                 console.error('Firebase registration error:', error);
