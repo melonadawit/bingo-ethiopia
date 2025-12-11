@@ -486,7 +486,7 @@ const GamePage: React.FC = () => {
                                 )}>
                                     {myCards.slice(0, 2).map(card => (
                                         <div key={card.id} className={cn(
-                                            myCards.length === 1 ? "w-[96%] h-[60%]" : "flex-1 min-h-0"
+                                            myCards.length === 1 ? "w-full h-1/2" : "flex-1 min-h-0"
                                         )}>
                                             <PlayingCard
                                                 card={card}
