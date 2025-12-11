@@ -205,12 +205,14 @@ const GamePage: React.FC = () => {
     // Use refs to store latest values for closure in countdown
     const previewCardsRef = useRef<BingoCard[]>([]);
     const selectedCardsRef = useRef<number[]>([]);
+    const latestIsMuted = useRef(isMuted); // Ref to track mute state in closures
 
     // Update refs whenever state changes
     useEffect(() => {
         previewCardsRef.current = previewCards;
         selectedCardsRef.current = selectedCards;
-    }, [previewCards, selectedCards]);
+        latestIsMuted.current = isMuted;
+    }, [previewCards, selectedCards, isMuted]);
 
     useEffect(() => {
         if (!user) {
@@ -298,13 +300,34 @@ const GamePage: React.FC = () => {
 
         setStatus('playing');
 
+        // Announce Game Start if not muted (Wait a bit for the UI to transition)
+        setTimeout(() => {
+            if (!latestIsMuted.current) {
+                voiceCaller.announceGameStart();
+            }
+        }, 500);
+
         // MOCK GAME LOGIC
         let count = 0;
         const usedNumbers = new Set<number>();
+
+        // Pick a random time to win (between 10 and 30 calls for demo purposes)
+        const winningCallIndex = Math.floor(Math.random() * (30 - 10 + 1)) + 10;
+        const mockWinnerCard = Math.floor(Math.random() * 300) + 1;
+
         const interval = setInterval(() => {
             if (count >= 75) {
                 clearInterval(interval);
                 return;
+            }
+
+            // Mock Winner Simulation
+            if (count === winningCallIndex) {
+                if (!latestIsMuted.current) {
+                    voiceCaller.announceWinner(mockWinnerCard);
+                }
+                // Don't stop the game for the user, just announce it like someone else won
+                // Or maybe end the game? Let's just announce for now as requested
             }
 
             let num;
@@ -317,12 +340,13 @@ const GamePage: React.FC = () => {
             setCalledNumbers(prev => new Set(prev).add(num));
 
             // Call number in Amharic if not muted
-            if (!isMuted) {
+            // Use ref for isMuted to ensure we get latest value inside interval
+            if (!latestIsMuted.current) {
                 voiceCaller.callNumber(num);
             }
 
             count++;
-        }, 3000);
+        }, 4000); // Slower interval (4s) to allow for voice announcements
 
         return () => clearInterval(interval);
     };
