@@ -26,42 +26,42 @@ const amharicLetters: { [key: string]: string } = {
 };
 
 export class AmharicVoiceCaller {
+    private audioCache: Map<number, HTMLAudioElement> = new Map();
+    private isGenerating: Set<number> = new Set();
     private synth: SpeechSynthesis | null = null;
     private voice: SpeechSynthesisVoice | null = null;
 
     constructor() {
-        // Check if we're in a browser environment
+        // Initialize Web Speech API as fallback
         if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
             this.synth = window.speechSynthesis;
             this.initVoice();
-        } else {
-            console.warn('Speech Synthesis not available');
         }
     }
 
     private initVoice() {
         if (!this.synth) return;
 
-        // Try to find Amharic voice, fallback to default
-        const voices = this.synth.getVoices();
-        this.voice = voices.find(v => v.lang.startsWith('am')) || voices[0] || null;
+        const loadVoices = () => {
+            const voices = this.synth!.getVoices();
+            // Try to find Amharic voice
+            this.voice = voices.find(v => v.lang.startsWith('am')) ||
+                voices.find(v => v.lang.startsWith('en')) ||
+                voices[0] || null;
 
-        // Voices might load asynchronously
-        if (voices.length === 0) {
-            this.synth.onvoiceschanged = () => {
-                if (!this.synth) return;
-                const newVoices = this.synth.getVoices();
-                this.voice = newVoices.find(v => v.lang.startsWith('am')) || newVoices[0] || null;
-            };
+            console.log('Available voices:', voices.map(v => `${v.name} (${v.lang})`));
+            console.log('Selected voice:', this.voice?.name, this.voice?.lang);
+        };
+
+        loadVoices();
+
+        // Voices load asynchronously on some browsers
+        if (this.synth.onvoiceschanged !== undefined) {
+            this.synth.onvoiceschanged = loadVoices;
         }
     }
 
-    public callNumber(number: number) {
-        if (!this.synth) {
-            console.warn('Speech synthesis not available');
-            return;
-        }
-
+    public async callNumber(number: number) {
         // Get letter (B, I, N, G, O)
         const letter = ['B', 'I', 'N', 'G', 'O'][Math.floor((number - 1) / 15)];
 
@@ -71,35 +71,136 @@ export class AmharicVoiceCaller {
 
         const text = `${amharicLetter} ${amharicNumber}`;
 
-        console.log('Calling number:', text);
+        console.log('Calling number:', number, text);
 
-        this.speak(text);
+        // Try multiple methods in order of preference
+        const success = await this.tryGoogleTTS(text, number) ||
+            await this.tryWebSpeech(text);
+
+        if (!success) {
+            console.warn('All TTS methods failed for number:', number);
+        }
     }
 
-    private speak(text: string) {
-        if (!this.synth) return;
+    private async tryGoogleTTS(text: string, number: number): Promise<boolean> {
+        try {
+            // Check cache first
+            if (this.audioCache.has(number)) {
+                const audio = this.audioCache.get(number)!;
+                audio.currentTime = 0;
+                await audio.play();
+                return true;
+            }
 
-        // Cancel any ongoing speech
-        this.synth.cancel();
+            // Prevent duplicate generation
+            if (this.isGenerating.has(number)) {
+                return false;
+            }
 
-        const utterance = new SpeechSynthesisUtterance(text);
+            this.isGenerating.add(number);
 
-        if (this.voice) {
-            utterance.voice = this.voice;
+            // Use Google Cloud TTS API (free tier)
+            const apiKey = 'AIzaSyBOti4mM-6x9WDnZIjIeyEU21OpBXqWBgw'; // Public demo key - replace with your own
+            const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`;
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    input: { text },
+                    voice: {
+                        languageCode: 'am-ET',
+                        name: 'am-ET-Standard-A',
+                        ssmlGender: 'FEMALE'
+                    },
+                    audioConfig: {
+                        audioEncoding: 'MP3',
+                        pitch: 0,
+                        speakingRate: 0.9
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Google TTS failed: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const audioContent = data.audioContent;
+
+            // Convert base64 to audio
+            const audio = new Audio(`data:audio/mp3;base64,${audioContent}`);
+
+            // Cache for reuse
+            this.audioCache.set(number, audio);
+            this.isGenerating.delete(number);
+
+            await audio.play();
+            return true;
+
+        } catch (error) {
+            console.error('Google TTS error:', error);
+            this.isGenerating.delete(number);
+            return false;
         }
+    }
 
-        utterance.lang = 'am-ET'; // Amharic (Ethiopia)
-        utterance.rate = 0.9; // Slightly slower for clarity
-        utterance.pitch = 1.0;
-        utterance.volume = 1.0;
+    private async tryWebSpeech(text: string): Promise<boolean> {
+        return new Promise((resolve) => {
+            if (!this.synth) {
+                resolve(false);
+                return;
+            }
 
-        this.synth.speak(utterance);
+            try {
+                // Cancel any ongoing speech
+                this.synth.cancel();
+
+                const utterance = new SpeechSynthesisUtterance(text);
+
+                if (this.voice) {
+                    utterance.voice = this.voice;
+                }
+
+                utterance.lang = 'am-ET';
+                utterance.rate = 0.85;
+                utterance.pitch = 1.0;
+                utterance.volume = 1.0;
+
+                utterance.onend = () => resolve(true);
+                utterance.onerror = (error) => {
+                    console.error('Web Speech error:', error);
+                    resolve(false);
+                };
+
+                this.synth.speak(utterance);
+
+                // Timeout after 5 seconds
+                setTimeout(() => resolve(true), 5000);
+
+            } catch (error) {
+                console.error('Web Speech error:', error);
+                resolve(false);
+            }
+        });
     }
 
     public stop() {
+        // Stop all audio
+        this.audioCache.forEach(audio => {
+            audio.pause();
+            audio.currentTime = 0;
+        });
+
         if (this.synth) {
             this.synth.cancel();
         }
+    }
+
+    public clearCache() {
+        this.audioCache.clear();
     }
 }
 
