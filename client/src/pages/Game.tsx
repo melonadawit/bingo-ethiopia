@@ -246,13 +246,23 @@ const GamePage: React.FC = () => {
     }, [status]); // Only depend on status, not startGame
 
     const handleSelectCard = (id: number) => {
+        console.log('handleSelectCard called with id:', id);
+        console.log('Current selectedCards:', selectedCards);
+        console.log('Current previewCards:', previewCards);
+
         if (selectedCards.includes(id)) {
+            console.log('Deselecting card', id);
             setSelectedCards(prev => prev.filter(c => c !== id));
             setPreviewCards(prev => prev.filter(c => c.id !== id));
         } else {
             if (selectedCards.length < 2) {
+                console.log('Selecting card', id);
+                const newCard = generateBingoCard(id);
+                console.log('Generated card:', newCard);
                 setSelectedCards(prev => [...prev, id]);
-                setPreviewCards(prev => [...prev, generateBingoCard(id)]);
+                setPreviewCards(prev => [...prev, newCard]);
+            } else {
+                console.log('Cannot select more than 2 cards');
             }
         }
     };
