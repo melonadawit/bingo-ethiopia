@@ -4,101 +4,102 @@
 export class AmharicVoiceCaller {
     private audioCache: Map<string, HTMLAudioElement> = new Map();
     private currentAudio: HTMLAudioElement | null = null;
+    private isEnabled: boolean = true;
 
     constructor() {
-        // Preload all audio files for instant playback
-        this.preloadAudio();
-    }
-
-    private preloadAudio() {
-        // Preload number audio files (1-75)
-        for (let i = 1; i <= 75; i++) {
-            const audio = new Audio(`/audio/numbers/${i}.mp3`);
-            audio.preload = 'auto';
-            this.audioCache.set(`number_${i}`, audio);
-        }
-
-        // Preload announcement audio files
-        const gameStart = new Audio('/audio/announcements/game_start.mp3');
-        gameStart.preload = 'auto';
-        this.audioCache.set('game_start', gameStart);
-
-        const winnerTemplate = new Audio('/audio/announcements/winner.mp3');
-        winnerTemplate.preload = 'auto';
-        this.audioCache.set('winner', winnerTemplate);
-
-        console.log('✅ All audio files preloaded');
+        // We don't preload everything to save bandwidth/memory
+        // We will load on demand
     }
 
     public async callNumber(number: number): Promise<void> {
+        if (!this.isEnabled) return;
         return this.playAudio(`number_${number}`);
     }
 
     public async announceGameStart(): Promise<void> {
+        if (!this.isEnabled) return;
         console.log('🎮 Announcing: Game has started!');
         return this.playAudio('game_start');
     }
 
     public async announceWinner(cartelaNumber: number): Promise<void> {
+        if (!this.isEnabled) return;
         console.log(`🏆 Announcing: Cartela ${cartelaNumber} is the winner!`);
 
-        // Play winner announcement
-        await this.playAudio('winner');
+        try {
+            // Play winner announcement
+            await this.playAudio('winner');
 
-        // Small pause
-        await new Promise(resolve => setTimeout(resolve, 500));
+            // Small pause
+            await new Promise(resolve => setTimeout(resolve, 500));
 
-        // Say the cartela number
-        await this.callNumber(cartelaNumber);
+            // Say the cartela number
+            await this.callNumber(cartelaNumber);
+        } catch (err) {
+            console.error("Error in winner announcement sequence:", err);
+        }
     }
 
     private async playAudio(key: string): Promise<void> {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => { // Resolve only, don't reject to keep game flow
             try {
-                // Stop current audio if playing
-                if (this.currentAudio) {
-                    this.currentAudio.pause();
-                    this.currentAudio.currentTime = 0;
-                }
+                // Stop current audio if playing to prevent overlap
+                this.stop();
 
-                const audio = this.audioCache.get(key);
+                let audio = this.audioCache.get(key);
 
                 if (!audio) {
-                    console.warn(`Audio not found: ${key}`);
-                    // Try to load it dynamically
-                    const newAudio = new Audio(this.getAudioPath(key));
-                    newAudio.onended = () => resolve();
-                    newAudio.onerror = (error) => {
-                        console.error(`Error playing audio ${key}:`, error);
-                        reject(error);
-                    };
-                    newAudio.play().catch(reject);
-                    this.currentAudio = newAudio;
-                    return;
+                    const path = this.getAudioPath(key);
+                    // console.log(`Loading audio: ${key} from ${path}`);
+                    audio = new Audio(path);
+                    audio.preload = 'auto'; // Load it now that we need it
+                    this.audioCache.set(key, audio);
                 }
 
                 this.currentAudio = audio;
+
+                // Reset playback position
                 audio.currentTime = 0;
 
-                audio.onended = () => {
-                    this.currentAudio = null;
+                const handleEnded = () => {
+                    cleanup();
                     resolve();
                 };
 
-                audio.onerror = (error) => {
-                    console.error(`Error playing audio ${key}:`, error);
-                    this.currentAudio = null;
-                    reject(error);
+                const handleError = (e: Event | string) => {
+                    console.error(`Error playing audio ${key}:`, e);
+                    cleanup();
+                    // Resolve anyway to continue game flow
+                    resolve();
                 };
 
-                audio.play().catch((error) => {
-                    console.error(`Play failed for ${key}:`, error);
-                    reject(error);
-                });
+                const cleanup = () => {
+                    if (audio) {
+                        audio.removeEventListener('ended', handleEnded);
+                        audio.removeEventListener('error', handleError);
+                    }
+                    if (this.currentAudio === audio) {
+                        this.currentAudio = null;
+                    }
+                };
+
+                audio.addEventListener('ended', handleEnded);
+                audio.addEventListener('error', handleError);
+
+                const playPromise = audio.play();
+
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.warn(`Autoplay prevented or failed for ${key}:`, error);
+                        cleanup();
+                        resolve(); // Resolve anyway
+                    });
+                }
 
             } catch (error) {
-                console.error(`Error in playAudio for ${key}:`, error);
-                reject(error);
+                console.error(`Critical error in playAudio for ${key}:`, error);
+                this.stop();
+                resolve(); // Resolve anyway
             }
         });
     }
@@ -113,15 +114,19 @@ export class AmharicVoiceCaller {
 
     public stop() {
         if (this.currentAudio) {
-            this.currentAudio.pause();
-            this.currentAudio.currentTime = 0;
+            try {
+                this.currentAudio.pause();
+                this.currentAudio.currentTime = 0;
+            } catch (e) {
+                // Ignore pause errors
+            }
             this.currentAudio = null;
         }
     }
 
     public clearCache() {
+        this.stop();
         this.audioCache.clear();
-        this.preloadAudio();
     }
 }
 
