@@ -253,10 +253,18 @@ const GamePage: React.FC = () => {
     };
 
     const startGame = () => {
-        // If no cards selected, start as watching only
-        if (selectedCards.length > 0) {
-            setMyCards(previewCards);
+        console.log('Starting game with selectedCards:', selectedCards);
+        console.log('PreviewCards:', previewCards);
+
+        // Set myCards from previewCards if any cards were selected
+        if (previewCards.length > 0) {
+            console.log('Setting myCards to:', previewCards);
+            setMyCards([...previewCards]); // Create a new array to ensure state update
+        } else {
+            console.log('No cards selected - watching mode');
+            setMyCards([]);
         }
+
         setStatus('playing');
 
         // MOCK GAME LOGIC
@@ -422,7 +430,10 @@ const GamePage: React.FC = () => {
 
                     {/* Cards Area - WATCHING ONLY or PLAYING CARDS */}
                     <div className="flex-1 overflow-hidden p-2 bg-gradient-to-b from-[#1a1b2e] to-[#2A1B3D] flex flex-col">
-                        {myCards.length === 0 ? (
+                        {(() => {
+                            console.log('Rendering cards area. myCards.length:', myCards.length, 'myCards:', myCards);
+                            return myCards.length === 0;
+                        })() ? (
                             // WATCHING ONLY MODE
                             <div className="flex-1 flex items-center justify-center">
                                 <div className="text-center">
