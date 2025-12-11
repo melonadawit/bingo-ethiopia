@@ -31,4 +31,5 @@ if (!admin.apps.length) {
 
 // Export database instances (null if initialization failed)
 export const db = admin.apps.length ? admin.firestore() : null;
-export const rtdb = admin.apps.length ? admin.database() : null;
+// Note: We only use Firestore, not Realtime Database
+export const rtdb = null;
