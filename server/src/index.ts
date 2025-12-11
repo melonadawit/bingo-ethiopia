@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { initSocket } from './socket';
 import { db, rtdb } from './firebase';
+import { setupWebhook, bot } from './bot';
 
 dotenv.config();
 
@@ -38,9 +39,8 @@ if (bot) {
     app.use(bot.webhookCallback('/telegram-webhook'));
 }
 
-import { setupWebhook, bot } from './bot';
-
 httpServer.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     setupWebhook().catch(err => console.error('Failed to setup webhook:', err));
 });
+
