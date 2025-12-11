@@ -2,10 +2,11 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { socket } from '../services/socket';
 import { Button } from '../components/ui/Button';
-import { Loader2, Volume2, RefreshCw } from 'lucide-react';
+import { Loader2, Volume2, RefreshCw, VolumeX } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../utils/cn';
 import { motion, AnimatePresence } from 'framer-motion';
+import { voiceCaller } from '../services/voiceCaller';
 
 // --- Types ---
 type GameStatus = 'connecting' | 'selection' | 'playing' | 'ended';
@@ -196,6 +197,7 @@ const GamePage: React.FC = () => {
     const [calledNumbers, setCalledNumbers] = useState<Set<number>>(new Set());
     const [currentNumber, setCurrentNumber] = useState<number | null>(null);
     const [countdown, setCountdown] = useState(30);
+    const [isMuted, setIsMuted] = useState(false);
 
     // Mock initial data - 300 cards
     const availableCards = useMemo(() => Array.from({ length: 300 }, (_, i) => i + 1), []);
@@ -313,6 +315,11 @@ const GamePage: React.FC = () => {
             usedNumbers.add(num);
             setCurrentNumber(num);
             setCalledNumbers(prev => new Set(prev).add(num));
+
+            // Call number in Amharic if not muted
+            if (!isMuted) {
+                voiceCaller.callNumber(num);
+            }
 
             count++;
         }, 3000);
@@ -453,8 +460,18 @@ const GamePage: React.FC = () => {
                                 </motion.div>
                             </AnimatePresence>
 
-                            {/* Volume Icon */}
-                            <Volume2 size={16} className="text-slate-400" />
+                            {/* Mute/Unmute Button */}
+                            <button
+                                onClick={() => setIsMuted(!isMuted)}
+                                className="p-1 hover:bg-slate-700/50 rounded transition-colors"
+                                title={isMuted ? "Unmute voice" : "Mute voice"}
+                            >
+                                {isMuted ? (
+                                    <VolumeX size={16} className="text-red-400" />
+                                ) : (
+                                    <Volume2 size={16} className="text-green-400" />
+                                )}
+                            </button>
                         </div>
                     </div>
 
