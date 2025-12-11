@@ -97,16 +97,16 @@ const MasterBoard = ({ calledNumbers, lastCalled }: { calledNumbers: Set<number>
 
 const PlayingCard = ({ card, calledNumbers }: { card: BingoCard, calledNumbers: Set<number> }) => {
     return (
-        <div className="bg-gradient-to-br from-purple-900/80 to-purple-800/60 rounded-2xl p-3 border-2 border-purple-500/40 h-full flex flex-col shadow-xl">
-            <div className="bg-gradient-to-r from-yellow-500 to-orange-500 rounded-xl py-1.5 px-3 mb-2 text-center shrink-0">
-                <span className="text-slate-900 font-black text-sm">Cartela No: {card.id}</span>
+        <div className="bg-gradient-to-br from-indigo-900/90 to-blue-900/80 rounded-2xl p-2 border border-indigo-500/30 h-full flex flex-col shadow-2xl">
+            <div className="bg-gradient-to-r from-yellow-600 to-orange-600 rounded-xl py-1 px-3 mb-2 text-center shrink-0">
+                <span className="text-white font-bold text-xs">Cartela No: {card.id}</span>
             </div>
 
             <div className="grid grid-cols-5 gap-1 flex-1">
                 {/* Headers */}
                 {['B', 'I', 'N', 'G', 'O'].map((letter, i) => (
                     <div key={letter} className={cn(
-                        "aspect-square flex items-center justify-center rounded-xl font-black text-white text-base shadow-md",
+                        "aspect-square flex items-center justify-center rounded-lg font-black text-white text-sm",
                         ['bg-blue-500', 'bg-purple-500', 'bg-pink-500', 'bg-emerald-500', 'bg-orange-500'][i]
                     )}>
                         {letter}
@@ -125,9 +125,9 @@ const PlayingCard = ({ card, calledNumbers }: { card: BingoCard, calledNumbers: 
                                     key={`${r}-${c}`}
                                     disabled={isCenter || !isCalled}
                                     className={cn(
-                                        "aspect-square flex items-center justify-center rounded-xl text-base font-bold transition-all shadow-md",
+                                        "aspect-square flex items-center justify-center rounded-lg text-sm font-bold transition-all",
                                         isCenter
-                                            ? "bg-emerald-500 text-white text-2xl"
+                                            ? "bg-emerald-500 text-white text-xl"
                                             : isCalled
                                                 ? "bg-purple-600 text-white"
                                                 : "bg-white text-slate-900"
@@ -478,15 +478,15 @@ const GamePage: React.FC = () => {
                                 </div>
                             </div>
                         ) : (
-                            // PLAYING CARDS - Show with header
+                            // PLAYING CARDS - Show with layout matching images
                             <>
                                 <div className={cn(
                                     "flex-1 flex gap-1",
-                                    myCards.length === 1 ? "justify-center items-center" : "flex-row"
+                                    myCards.length === 1 ? "justify-start items-center pl-2" : "flex-col"
                                 )}>
                                     {myCards.slice(0, 2).map(card => (
                                         <div key={card.id} className={cn(
-                                            myCards.length === 1 ? "w-4/5 h-4/5" : "flex-1 min-h-0"
+                                            myCards.length === 1 ? "w-3/4 h-4/5" : "flex-1 min-h-0"
                                         )}>
                                             <PlayingCard
                                                 card={card}
