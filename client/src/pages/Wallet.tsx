@@ -53,7 +53,7 @@ const Wallet = () => {
     ];
 
     return (
-        <div className="min-h-screen bg-[#0B1120] p-4 pb-20">
+        <div className="min-h-screen bg-[#0B1120]">
             {/* Balance Card */}
             <motion.div
                 initial={{ y: -20, opacity: 0 }}
@@ -127,8 +127,8 @@ const Wallet = () => {
                         >
                             <div className="flex items-center gap-3">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tx.type === 'win' ? 'bg-green-500/20 text-green-400' :
-                                        tx.type === 'deposit' ? 'bg-blue-500/20 text-blue-400' :
-                                            'bg-red-500/20 text-red-400'
+                                    tx.type === 'deposit' ? 'bg-blue-500/20 text-blue-400' :
+                                        'bg-red-500/20 text-red-400'
                                     }`}>
                                     {tx.type === 'win' ? <TrendingUp size={20} /> :
                                         tx.type === 'deposit' ? <ArrowDownCircle size={20} /> :

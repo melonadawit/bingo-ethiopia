@@ -56,8 +56,8 @@ export default function Lobby() {
     const stats = mockStats;
 
     return (
-        <div className="min-h-screen p-6">
-            <div className="max-w-7xl mx-auto">
+        <div className="min-h-screen">
+            <div className="w-full">
                 {/* Header */}
                 <div className="mb-8">
                     <h1 className="text-4xl font-black text-white mb-2 bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">

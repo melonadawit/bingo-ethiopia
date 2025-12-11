@@ -28,7 +28,7 @@ const History = () => {
     };
 
     return (
-        <div className="min-h-screen bg-[#0B1120] p-4 pb-20">
+        <div className="min-h-screen bg-[#0B1120]">
             {/* Stats Overview */}
             <motion.div
                 initial={{ y: -20, opacity: 0 }}

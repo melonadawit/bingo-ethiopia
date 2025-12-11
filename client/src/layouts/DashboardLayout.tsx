@@ -104,9 +104,7 @@ export default function Layout() {
                         <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[120px] mix-blend-screen animate-blob animation-delay-2000" />
                     </div>
 
-                    <div className="p-4 lg:p-8 max-w-7xl mx-auto">
-                        <Outlet />
-                    </div>
+                    <Outlet />
                 </main>
             </div>
         </div>
