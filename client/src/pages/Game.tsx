@@ -206,8 +206,10 @@ const GamePage: React.FC = () => {
             return;
         }
 
+        console.log('Game component mounted, starting connection phase');
         // Simulate Connection
         const timer = setTimeout(() => {
+            console.log('Connection complete, switching to selection phase');
             setStatus('selection');
         }, 1000);
 
@@ -225,11 +227,14 @@ const GamePage: React.FC = () => {
     // Countdown timer for selection - AUTO START GAME
     useEffect(() => {
         if (status === 'selection') {
+            console.log('Selection phase started, countdown:', countdown);
             const timer = setInterval(() => {
                 setCountdown(prev => {
+                    console.log('Countdown:', prev);
                     if (prev <= 1) {
                         clearInterval(timer);
                         // AUTO START GAME when countdown reaches 0
+                        console.log('Countdown finished, starting game');
                         startGame();
                         return 0;
                     }
@@ -238,7 +243,7 @@ const GamePage: React.FC = () => {
             }, 1000);
             return () => clearInterval(timer);
         }
-    }, [status]);
+    }, [status]); // Only depend on status, not startGame
 
     const handleSelectCard = (id: number) => {
         if (selectedCards.includes(id)) {
