@@ -19,7 +19,17 @@ if (!admin.apps.length) {
             // Fallback to individual environment variables
             const projectId = process.env.FIREBASE_PROJECT_ID;
             const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-            const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+            let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+            if (privateKey) {
+                // Formatting fixes for common env var issues:
+                // 1. Remove wrapping quotes if user pasted them
+                if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+                    privateKey = privateKey.slice(1, -1);
+                }
+                // 2. Convert literal \n string to actual newlines (Render often escapes them)
+                privateKey = privateKey.replace(/\\n/g, '\n');
+            }
 
             if (projectId && clientEmail && privateKey) {
                 admin.initializeApp({
