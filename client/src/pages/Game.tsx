@@ -482,11 +482,11 @@ const GamePage: React.FC = () => {
                             <>
                                 <div className={cn(
                                     "flex-1 flex gap-1",
-                                    myCards.length === 1 ? "justify-start items-center pl-1" : "flex-col"
+                                    myCards.length === 1 ? "justify-center items-center" : "flex-col"
                                 )}>
                                     {myCards.slice(0, 2).map(card => (
                                         <div key={card.id} className={cn(
-                                            myCards.length === 1 ? "w-1/2 h-full" : "flex-1 min-h-0"
+                                            myCards.length === 1 ? "w-2/5 h-3/4" : "flex-1 min-h-0"
                                         )}>
                                             <PlayingCard
                                                 card={card}
