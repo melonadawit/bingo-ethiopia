@@ -181,7 +181,7 @@ if (bot) {
     });
 }
 
-export async function launchBot() {
+export async function setupWebhook() {
     if (!bot) {
         console.log('⚠️  Telegram bot is disabled (no BOT_TOKEN)');
         console.log('✅ Server will run without Telegram integration');
@@ -189,16 +189,28 @@ export async function launchBot() {
     }
 
     try {
-        await bot.launch();
-        console.log('✅ Telegram Bot launched successfully!');
-        console.log(`📱 Bot is ready to receive messages`);
-        console.log(`🌐 Web App URL: ${WEBAPP_URL}`);
+        const webhookDomain = process.env.WEBHOOK_DOMAIN;
 
-        // Graceful shutdown
-        process.once('SIGINT', () => bot!.stop('SIGINT'));
-        process.once('SIGTERM', () => bot!.stop('SIGTERM'));
+        if (!webhookDomain) {
+            console.warn('⚠️  WEBHOOK_DOMAIN not set, bot will not receive updates');
+            console.warn('⚠️  Set WEBHOOK_DOMAIN to your Render URL (e.g., https://your-app.onrender.com)');
+            return;
+        }
+
+        const webhookUrl = `${webhookDomain}/telegram-webhook`;
+
+        // Set webhook
+        await bot.telegram.setWebhook(webhookUrl);
+
+        console.log('✅ Telegram Bot webhook configured successfully!');
+        console.log(`📱 Webhook URL: ${webhookUrl}`);
+        console.log(`🌐 Web App URL: ${WEBAPP_URL}`);
     } catch (error) {
-        console.error('❌ Failed to launch Telegram Bot:', error);
+        console.error('❌ Failed to setup Telegram webhook:', error);
         console.error('⚠️  Continuing without Telegram bot...');
     }
 }
+
+// Export bot instance for webhook handling
+export { bot };
+

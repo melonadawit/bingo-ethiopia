@@ -33,9 +33,14 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-import { launchBot } from './bot';
+// Telegram Webhook
+if (bot) {
+    app.use(bot.webhookCallback('/telegram-webhook'));
+}
+
+import { setupWebhook, bot } from './bot';
 
 httpServer.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    launchBot().catch(err => console.error('Failed to launch bot:', err));
+    setupWebhook().catch(err => console.error('Failed to setup webhook:', err));
 });
