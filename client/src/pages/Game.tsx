@@ -15,9 +15,19 @@ type BingoCard = {
 };
 
 // --- Mock Data Generators ---
+// Seeded random number generator for consistent card generation
+const seededRandom = (seed: number) => {
+    let state = seed;
+    return () => {
+        state = (state * 1103515245 + 12345) & 0x7fffffff;
+        return state / 0x7fffffff;
+    };
+};
+
 const generateBingoCard = (id: number): BingoCard => {
     const card: number[][] = Array(5).fill(0).map(() => Array(5).fill(0));
     const used = new Set<number>();
+    const random = seededRandom(id); // Use card ID as seed for consistency
 
     // B (1-15), I (16-30), N (31-45), G (46-60), O (61-75)
     for (let col = 0; col < 5; col++) {
@@ -28,8 +38,11 @@ const generateBingoCard = (id: number): BingoCard => {
             if (col === 2 && row === 2) continue; // Free space
 
             let num;
+            let attempts = 0;
             do {
-                num = Math.floor(Math.random() * (max - min + 1)) + min;
+                num = Math.floor(random() * (max - min + 1)) + min;
+                attempts++;
+                if (attempts > 100) break; // Safety check
             } while (used.has(num));
 
             used.add(num);
@@ -426,10 +439,9 @@ const GamePage: React.FC = () => {
                         ) : (
                             // PLAYING CARDS - Show with header
                             <>
-                                <h2 className="text-white text-center font-bold text-lg mb-2 shrink-0">Your Selected Cards</h2>
                                 <div className={cn(
-                                    "flex-1 flex gap-2",
-                                    myCards.length === 1 ? "justify-center items-center" : "flex-col"
+                                    "flex-1 flex gap-1",
+                                    myCards.length === 1 ? "justify-center items-center" : "flex-row"
                                 )}>
                                     {myCards.slice(0, 2).map(card => (
                                         <div key={card.id} className={cn(
