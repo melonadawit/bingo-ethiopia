@@ -1,19 +1,41 @@
 import * as admin from 'firebase-admin';
 
 // Initialize Firebase Admin SDK
-// In a real environment, you would use serviceAccountKey.json
-// For now, we will mock or expect a valid environment setup
-
-// const serviceAccount = require('../serviceAccountKey.json');
-
 if (!admin.apps.length) {
     try {
-        admin.initializeApp({
-            credential: admin.credential.applicationDefault(), // or cert(serviceAccount)
-            databaseURL: process.env.FIREBASE_DB_URL || "https://your-project.firebaseio.com"
-        });
+        // Check if we have a base64 encoded service account
+        const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
+
+        if (serviceAccountBase64) {
+            // Decode base64 service account
+            const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
+            const serviceAccount = JSON.parse(serviceAccountJson);
+
+            admin.initializeApp({
+                credential: admin.credential.cert(serviceAccount)
+            });
+            console.log('✅ Firebase initialized with base64 service account');
+        } else {
+            // Fallback to individual environment variables
+            const projectId = process.env.FIREBASE_PROJECT_ID;
+            const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+            const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+            if (projectId && clientEmail && privateKey) {
+                admin.initializeApp({
+                    credential: admin.credential.cert({
+                        projectId,
+                        clientEmail,
+                        privateKey
+                    })
+                });
+                console.log('✅ Firebase initialized with environment variables');
+            } else {
+                console.warn('⚠️  Firebase credentials not found - using in-memory storage');
+            }
+        }
     } catch (error) {
-        console.warn("Firebase Admin Initialization Failed (Expected during setup):", error);
+        console.warn('⚠️  Firebase initialization failed:', error);
     }
 }
 
