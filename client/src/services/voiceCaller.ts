@@ -26,15 +26,22 @@ const amharicLetters: { [key: string]: string } = {
 };
 
 export class AmharicVoiceCaller {
-    private synth: SpeechSynthesis;
+    private synth: SpeechSynthesis | null = null;
     private voice: SpeechSynthesisVoice | null = null;
 
     constructor() {
-        this.synth = window.speechSynthesis;
-        this.initVoice();
+        // Check if we're in a browser environment
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+            this.synth = window.speechSynthesis;
+            this.initVoice();
+        } else {
+            console.warn('Speech Synthesis not available');
+        }
     }
 
     private initVoice() {
+        if (!this.synth) return;
+
         // Try to find Amharic voice, fallback to default
         const voices = this.synth.getVoices();
         this.voice = voices.find(v => v.lang.startsWith('am')) || voices[0] || null;
@@ -42,6 +49,7 @@ export class AmharicVoiceCaller {
         // Voices might load asynchronously
         if (voices.length === 0) {
             this.synth.onvoiceschanged = () => {
+                if (!this.synth) return;
                 const newVoices = this.synth.getVoices();
                 this.voice = newVoices.find(v => v.lang.startsWith('am')) || newVoices[0] || null;
             };
@@ -49,6 +57,11 @@ export class AmharicVoiceCaller {
     }
 
     public callNumber(number: number) {
+        if (!this.synth) {
+            console.warn('Speech synthesis not available');
+            return;
+        }
+
         // Get letter (B, I, N, G, O)
         const letter = ['B', 'I', 'N', 'G', 'O'][Math.floor((number - 1) / 15)];
 
@@ -64,6 +77,8 @@ export class AmharicVoiceCaller {
     }
 
     private speak(text: string) {
+        if (!this.synth) return;
+
         // Cancel any ongoing speech
         this.synth.cancel();
 
@@ -82,7 +97,9 @@ export class AmharicVoiceCaller {
     }
 
     public stop() {
-        this.synth.cancel();
+        if (this.synth) {
+            this.synth.cancel();
+        }
     }
 }
 
