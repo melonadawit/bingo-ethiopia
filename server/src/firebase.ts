@@ -3,31 +3,32 @@ import * as admin from 'firebase-admin';
 // Initialize Firebase Admin SDK
 if (!admin.apps.length) {
     try {
-        console.log('Attempting to initialize Firebase using Reversed Obfuscation...');
+        const projectId = process.env.FIREBASE_PROJECT_ID;
+        const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+        const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-        // REVERSED Base64 string to bypass GitHub Secret Scanning
-        // This string is the Base64 representation of the serviceAccountKey.json, BUT REVERSED character by character.
-        // This breaks all known signatures (headers, JSON keys).
-        const reversedB64 = "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";
+        if (!projectId || !clientEmail || !privateKey) {
+            throw new Error('Missing Firebase credentials in environment variables');
+        }
 
-        // Reverse back to get original Base64
-        const b64 = reversedB64.split('').reverse().join('');
-
-        const jsonContent = Buffer.from(b64, 'base64').toString('utf-8');
-        const serviceAccount = JSON.parse(jsonContent);
+        // Replace escaped newlines if they exist (some platforms escape them)
+        const formattedPrivateKey = privateKey.replace(/\\n/g, '\n');
 
         admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
+            credential: admin.credential.cert({
+                projectId,
+                clientEmail,
+                privateKey: formattedPrivateKey,
+            }),
         });
 
-        console.log('✅ Firebase initialized successfully using REVERSED Obfuscation');
-
+        console.log('✅ Firebase initialized successfully');
     } catch (error) {
-        console.error('❌ Firebase initialization FAILED:', error);
-        console.warn('⚠️  Continuing with In-Memory storage only.');
+        console.error('❌ Firebase initialization failed:', error);
+        console.warn('⚠️  Continuing with in-memory storage only');
     }
 }
 
-// Export instances
+// Export database instances (null if initialization failed)
 export const db = admin.apps.length ? admin.firestore() : null;
 export const rtdb = admin.apps.length ? admin.database() : null;
