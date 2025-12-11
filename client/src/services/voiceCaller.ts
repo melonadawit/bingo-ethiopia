@@ -112,8 +112,8 @@ export class AmharicVoiceCaller {
                     input: { text },
                     voice: {
                         languageCode: 'am-ET',
-                        name: 'am-ET-Standard-A',
-                        ssmlGender: 'FEMALE'
+                        name: 'am-ET-Standard-B',
+                        ssmlGender: 'MALE'
                     },
                     audioConfig: {
                         audioEncoding: 'MP3',
