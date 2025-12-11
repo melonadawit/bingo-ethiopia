@@ -43,17 +43,17 @@ const generateBingoCard = (id: number): BingoCard => {
 
 const MasterBoard = ({ calledNumbers, lastCalled }: { calledNumbers: Set<number>, lastCalled: number | null }) => {
     return (
-        <div className="bg-[#2A1B3D] rounded-lg p-2 h-full overflow-hidden flex flex-col">
-            <div className="grid grid-cols-5 gap-1 mb-2">
+        <div className="bg-[#2A1B3D] rounded-lg p-1 h-full overflow-hidden flex flex-col">
+            <div className="grid grid-cols-5 gap-0.5 mb-1">
                 {['B', 'I', 'N', 'G', 'O'].map((letter, i) => (
                     <div key={letter} className={cn(
-                        "text-center text-white font-bold py-1 text-sm rounded",
+                        "text-center text-white font-bold py-0.5 text-xs rounded",
                         ['bg-blue-500', 'bg-purple-500', 'bg-pink-500', 'bg-emerald-500', 'bg-orange-500'][i]
                     )}>{letter}</div>
                 ))}
             </div>
             <div className="flex-1 overflow-y-auto custom-scrollbar">
-                <div className="grid grid-cols-5 gap-1">
+                <div className="grid grid-cols-5 gap-0.5">
                     {Array.from({ length: 15 }, (_, i) => (
                         <React.Fragment key={i}>
                             {['B', 'I', 'N', 'G', 'O'].map((_, colIndex) => {
@@ -65,7 +65,7 @@ const MasterBoard = ({ calledNumbers, lastCalled }: { calledNumbers: Set<number>
                                     <div
                                         key={num}
                                         className={cn(
-                                            "aspect-square flex items-center justify-center text-xs font-bold rounded transition-colors",
+                                            "aspect-square flex items-center justify-center text-[10px] font-bold rounded transition-colors",
                                             isLast ? "bg-green-500 text-white scale-110" :
                                                 isCalled ? "bg-green-500 text-white" : "bg-slate-700/50 text-slate-400"
                                         )}
@@ -84,16 +84,16 @@ const MasterBoard = ({ calledNumbers, lastCalled }: { calledNumbers: Set<number>
 
 const PlayingCard = ({ card, calledNumbers }: { card: BingoCard, calledNumbers: Set<number> }) => {
     return (
-        <div className="bg-[#2A1B3D] rounded-lg p-2 mb-3 border border-slate-700/50">
-            <div className="bg-gradient-to-r from-yellow-600 to-orange-600 rounded-lg py-1 px-3 mb-2 text-center">
-                <span className="text-white font-bold text-xs">Cartela No: {card.id}</span>
+        <div className="bg-[#2A1B3D] rounded-lg p-1 border border-slate-700/50 h-full flex flex-col">
+            <div className="bg-gradient-to-r from-yellow-600 to-orange-600 rounded py-0.5 px-2 mb-1 text-center shrink-0">
+                <span className="text-white font-bold text-[10px]">Cartela No: {card.id}</span>
             </div>
 
-            <div className="grid grid-cols-5 gap-1">
+            <div className="grid grid-cols-5 gap-0.5 flex-1">
                 {/* Headers */}
                 {['B', 'I', 'N', 'G', 'O'].map((letter, i) => (
                     <div key={letter} className={cn(
-                        "aspect-square flex items-center justify-center rounded font-black text-white text-sm",
+                        "aspect-square flex items-center justify-center rounded font-black text-white text-[10px]",
                         ['bg-blue-500', 'bg-purple-500', 'bg-pink-500', 'bg-emerald-500', 'bg-orange-500'][i]
                     )}>
                         {letter}
@@ -112,7 +112,7 @@ const PlayingCard = ({ card, calledNumbers }: { card: BingoCard, calledNumbers: 
                                     key={`${r}-${c}`}
                                     disabled={isCenter || !isCalled}
                                     className={cn(
-                                        "aspect-square flex items-center justify-center rounded text-sm font-bold transition-all",
+                                        "aspect-square flex items-center justify-center rounded text-[10px] font-bold transition-all",
                                         isCenter
                                             ? "bg-green-500 text-white"
                                             : isCalled
@@ -133,14 +133,14 @@ const PlayingCard = ({ card, calledNumbers }: { card: BingoCard, calledNumbers: 
 
 const MiniCard = ({ card }: { card: BingoCard }) => {
     return (
-        <div className="bg-[#2A1B3D] rounded-lg p-2 border border-purple-500/30">
-            <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-t-lg py-0.5 px-2 mb-1">
-                <span className="text-slate-900 font-bold text-[10px] uppercase">Cartela No: {card.id}</span>
+        <div className="bg-[#2A1B3D] rounded-lg p-1.5 border border-purple-500/30">
+            <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-t py-0.5 px-2 mb-1">
+                <span className="text-slate-900 font-bold text-[9px] uppercase">Cartela No: {card.id}</span>
             </div>
             <div className="grid grid-cols-5 gap-0.5">
                 {['B', 'I', 'N', 'G', 'O'].map((letter, i) => (
                     <div key={letter} className={cn(
-                        "aspect-square flex items-center justify-center rounded text-white text-[8px] font-bold",
+                        "aspect-square flex items-center justify-center rounded text-white text-[7px] font-bold",
                         ['bg-blue-500', 'bg-purple-500', 'bg-pink-500', 'bg-emerald-500', 'bg-orange-500'][i]
                     )}>
                         {letter}
@@ -154,7 +154,7 @@ const MiniCard = ({ card }: { card: BingoCard }) => {
                                 <div
                                     key={`${r}-${c}`}
                                     className={cn(
-                                        "aspect-square flex items-center justify-center rounded text-[8px] font-bold",
+                                        "aspect-square flex items-center justify-center rounded text-[7px] font-bold",
                                         isCenter ? "bg-emerald-500 text-white" : "bg-white text-slate-800"
                                     )}
                                 >
@@ -209,13 +209,15 @@ const GamePage: React.FC = () => {
         };
     }, []);
 
-    // Countdown timer for selection
+    // Countdown timer for selection - AUTO START GAME
     useEffect(() => {
         if (status === 'selection') {
             const timer = setInterval(() => {
                 setCountdown(prev => {
                     if (prev <= 1) {
                         clearInterval(timer);
+                        // AUTO START GAME when countdown reaches 0
+                        startGame();
                         return 0;
                     }
                     return prev - 1;
@@ -238,9 +240,10 @@ const GamePage: React.FC = () => {
     };
 
     const startGame = () => {
-        if (selectedCards.length === 0) return;
-
-        setMyCards(previewCards);
+        // If no cards selected, start as watching only
+        if (selectedCards.length > 0) {
+            setMyCards(previewCards);
+        }
         setStatus('playing');
 
         // MOCK GAME LOGIC
@@ -291,7 +294,7 @@ const GamePage: React.FC = () => {
                 </div>
 
                 {/* Selection Grid */}
-                <div className="flex-1 p-2 overflow-y-auto pb-[280px]">
+                <div className="flex-1 p-2 overflow-y-auto pb-[200px]">
                     <h2 className="text-center font-bold text-base mb-2">Select Your Cards (Max 2)</h2>
 
                     <div className="grid grid-cols-7 gap-1.5">
@@ -314,7 +317,7 @@ const GamePage: React.FC = () => {
 
                 {/* Selected Cards Preview - Fixed at Bottom */}
                 {previewCards.length > 0 && (
-                    <div className="fixed bottom-12 left-0 right-0 bg-slate-900/98 backdrop-blur-lg border-t border-slate-700 p-2 z-20">
+                    <div className="fixed bottom-0 left-0 right-0 bg-slate-900/98 backdrop-blur-lg border-t border-slate-700 p-2 z-20">
                         <h3 className="text-xs font-bold mb-2 text-center">Your Selected Cards</h3>
                         <div className="flex gap-2 justify-center overflow-x-auto">
                             {previewCards.map(card => (
@@ -323,34 +326,24 @@ const GamePage: React.FC = () => {
                         </div>
                     </div>
                 )}
-
-                {/* Bottom Action */}
-                <div className="fixed bottom-0 left-0 right-0 p-2 bg-slate-900 border-t border-slate-800 z-30">
-                    <Button
-                        onClick={startGame}
-                        disabled={selectedCards.length === 0}
-                        className="w-full bg-indigo-600 hover:bg-indigo-500 h-10 text-base font-bold"
-                    >
-                        Confirm Selection ({selectedCards.length})
-                    </Button>
-                </div>
             </div>
         );
     }
 
-    // PLAYING STATE - Match the screenshot exactly
+    // PLAYING STATE - Redesigned per requirements
     const getLetter = (num: number) => ['B', 'I', 'N', 'G', 'O'][Math.floor((num - 1) / 15)];
+    const recentCalls = [...calledNumbers].slice(-4, -1).reverse();
 
     return (
         <div className="h-screen bg-[#1a1b2e] flex flex-col text-white overflow-hidden">
             {/* Game Info Bar - Compact */}
-            <div className="bg-[#2A1B3D] grid grid-cols-5 gap-0.5 p-0.5 border-b border-white/5 h-14 shrink-0">
+            <div className="bg-[#2A1B3D] grid grid-cols-5 gap-0.5 p-0.5 border-b border-white/5 h-12 shrink-0">
                 {[
-                    { label: 'Game ID', val: gameId?.slice(-8) || 'BB543258' },
-                    { label: 'Players', val: '22' },
-                    { label: 'Bet', val: '10' },
-                    { label: 'Derash', val: '176' },
-                    { label: 'Called', val: calledNumbers.size.toString() },
+                    { label: 'GAME ID', val: gameId?.slice(0, 8) || 'ic-bingo' },
+                    { label: 'PLAYERS', val: '22' },
+                    { label: 'BET', val: '10' },
+                    { label: 'DERASH', val: '176' },
+                    { label: 'CALLED', val: calledNumbers.size.toString() },
                 ].map((item, i) => (
                     <div key={i} className="bg-slate-800/50 rounded p-0.5 text-center">
                         <div className="text-[8px] text-slate-400 uppercase font-medium">{item.label}</div>
@@ -359,7 +352,7 @@ const GamePage: React.FC = () => {
                 ))}
             </div>
 
-            {/* Main Game Area - Takes remaining space */}
+            {/* Main Game Area */}
             <div className="flex-1 overflow-hidden flex relative gap-0.5">
                 {/* Left Panel: Master Board - 50% */}
                 <div className="w-1/2 h-full p-0.5 bg-[#1a1b2e] shrink-0">
@@ -369,23 +362,12 @@ const GamePage: React.FC = () => {
                 {/* Right Panel: Play Area - 50% */}
                 <div className="w-1/2 h-full flex flex-col overflow-hidden bg-[#1a1b2e]">
 
-                    {/* Top Section: Current Call Display - Very Compact */}
-                    <div className="bg-[#2A1B3D] p-0.5 border-b border-white/5 shrink-0">
-                        <div className="flex items-center justify-between px-1">
-                            {/* Current Number Badge */}
-                            <div className="bg-purple-600 text-white px-1.5 py-0.5 rounded-full font-bold text-[10px]">
-                                {currentNumber ? `${getLetter(currentNumber)}-${currentNumber}` : 'N-45'}
-                            </div>
-
-                            {/* Volume Icon */}
-                            <Volume2 size={14} className="text-slate-400" />
-                        </div>
-
-                        {/* Large Current Number Circle + 3 Recent - All in one line */}
-                        <div className="flex justify-center items-center gap-1 py-0.5">
-                            {/* 3 Recent Numbers - Left side */}
-                            <div className="flex gap-0.5">
-                                {[...calledNumbers].slice(-4, -1).reverse().slice(0, 2).map((num, i) => {
+                    {/* Current Call Display - MINIMIZED */}
+                    <div className="bg-[#2A1B3D] p-1 border-b border-white/5 shrink-0">
+                        <div className="flex items-center justify-between gap-1">
+                            {/* 3 Recent Numbers - Vertical Stack */}
+                            <div className="flex flex-col gap-0.5">
+                                {recentCalls.slice(0, 3).map((num, i) => {
                                     const letter = getLetter(num);
                                     const colors = {
                                         'B': 'from-blue-500 to-blue-600',
@@ -395,14 +377,14 @@ const GamePage: React.FC = () => {
                                         'O': 'from-orange-500 to-orange-600'
                                     };
                                     return (
-                                        <div key={i} className={`px-1 py-0.5 rounded-full bg-gradient-to-r ${colors[letter as keyof typeof colors]} text-white text-[8px] font-bold`}>
+                                        <div key={i} className={`px-1.5 py-0.5 rounded-full bg-gradient-to-r ${colors[letter as keyof typeof colors]} text-white text-[8px] font-bold text-center`}>
                                             {letter}-{num}
                                         </div>
                                     );
                                 })}
                             </div>
 
-                            {/* Current Number Circle - Smaller */}
+                            {/* Current Number Circle - Compact */}
                             <AnimatePresence mode='wait'>
                                 <motion.div
                                     key={currentNumber}
@@ -410,47 +392,48 @@ const GamePage: React.FC = () => {
                                     animate={{ scale: 1, opacity: 1 }}
                                     exit={{ scale: 1.2, opacity: 0 }}
                                     transition={{ duration: 0.3 }}
-                                    className="relative w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 shadow-[0_0_15px_rgba(255,200,0,0.4)] flex items-center justify-center border border-yellow-600/30"
+                                    className="relative w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 shadow-[0_0_15px_rgba(255,200,0,0.4)] flex items-center justify-center border-2 border-yellow-600/30"
                                 >
                                     <div className="text-center">
-                                        <div className="text-purple-700 font-black text-base drop-shadow-lg">
-                                            {currentNumber ? `${getLetter(currentNumber)}-${currentNumber}` : 'N-45'}
+                                        <div className="text-purple-700 font-black text-lg drop-shadow-lg">
+                                            {currentNumber ? `${getLetter(currentNumber)}-${currentNumber}` : 'I-24'}
                                         </div>
                                     </div>
                                 </motion.div>
                             </AnimatePresence>
 
-                            {/* Last Recent Number - Right side */}
-                            <div className="flex gap-0.5">
-                                {[...calledNumbers].slice(-4, -1).reverse().slice(2, 3).map((num, i) => {
-                                    const letter = getLetter(num);
-                                    const colors = {
-                                        'B': 'from-blue-500 to-blue-600',
-                                        'I': 'from-purple-500 to-purple-600',
-                                        'N': 'from-pink-500 to-pink-600',
-                                        'G': 'from-emerald-500 to-emerald-600',
-                                        'O': 'from-orange-500 to-orange-600'
-                                    };
-                                    return (
-                                        <div key={i} className={`px-1 py-0.5 rounded-full bg-gradient-to-r ${colors[letter as keyof typeof colors]} text-white text-[8px] font-bold`}>
-                                            {letter}-{num}
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                            {/* Volume Icon */}
+                            <Volume2 size={16} className="text-slate-400" />
                         </div>
                     </div>
 
-                    {/* Cards Area - Takes remaining space, NO SCROLL */}
-                    <div className="flex-1 overflow-hidden p-0.5 bg-gradient-to-b from-[#1a1b2e] to-[#2A1B3D] flex flex-col gap-1">
-                        {myCards.slice(0, 2).map(card => (
-                            <div key={card.id} className="flex-1">
-                                <PlayingCard
-                                    card={card}
-                                    calledNumbers={calledNumbers}
-                                />
+                    {/* Cards Area - WATCHING ONLY or PLAYING CARDS */}
+                    <div className="flex-1 overflow-hidden p-1 bg-gradient-to-b from-[#1a1b2e] to-[#2A1B3D] flex flex-col gap-1">
+                        {myCards.length === 0 ? (
+                            // WATCHING ONLY MODE
+                            <div className="flex-1 flex items-center justify-center">
+                                <div className="text-center">
+                                    <h2 className="text-3xl font-black text-white mb-4">Watching</h2>
+                                    <h2 className="text-3xl font-black text-white mb-6">Only</h2>
+                                    <p className="text-slate-400 text-sm leading-relaxed">
+                                        ዝህ ዘር ፍቅርያት<br />
+                                        ተደምራል፡፡ እልቦ ዘር<br />
+                                        አስኪጅምር አዚሁ<br />
+                                        ይጠብቁ፡፡
+                                    </p>
+                                </div>
                             </div>
-                        ))}
+                        ) : (
+                            // PLAYING CARDS - Pushed upward, takes full space
+                            myCards.slice(0, 2).map(card => (
+                                <div key={card.id} className="flex-1 min-h-0">
+                                    <PlayingCard
+                                        card={card}
+                                        calledNumbers={calledNumbers}
+                                    />
+                                </div>
+                            ))
+                        )}
                     </div>
                 </div>
             </div>
