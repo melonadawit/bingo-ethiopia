@@ -133,14 +133,14 @@ const PlayingCard = ({ card, calledNumbers }: { card: BingoCard, calledNumbers: 
 
 const MiniCard = ({ card }: { card: BingoCard }) => {
     return (
-        <div className="bg-[#2A1B3D] rounded-lg p-1.5 border border-purple-500/30">
-            <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-t py-0.5 px-2 mb-1">
-                <span className="text-slate-900 font-bold text-[9px] uppercase">Cartela No: {card.id}</span>
+        <div className="bg-[#2A1B3D] rounded-lg p-2 border border-purple-500/30 w-44">
+            <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-t py-1 px-2 mb-1">
+                <span className="text-slate-900 font-bold text-[10px] uppercase">Cartela No: {card.id}</span>
             </div>
-            <div className="grid grid-cols-5 gap-0.5">
+            <div className="grid grid-cols-5 gap-1">
                 {['B', 'I', 'N', 'G', 'O'].map((letter, i) => (
                     <div key={letter} className={cn(
-                        "aspect-square flex items-center justify-center rounded text-white text-[7px] font-bold",
+                        "aspect-square flex items-center justify-center rounded text-white text-[9px] font-bold",
                         ['bg-blue-500', 'bg-purple-500', 'bg-pink-500', 'bg-emerald-500', 'bg-orange-500'][i]
                     )}>
                         {letter}
@@ -154,7 +154,7 @@ const MiniCard = ({ card }: { card: BingoCard }) => {
                                 <div
                                     key={`${r}-${c}`}
                                     className={cn(
-                                        "aspect-square flex items-center justify-center rounded text-[7px] font-bold",
+                                        "aspect-square flex items-center justify-center rounded text-[9px] font-bold",
                                         isCenter ? "bg-emerald-500 text-white" : "bg-white text-slate-800"
                                     )}
                                 >
@@ -317,9 +317,9 @@ const GamePage: React.FC = () => {
 
                 {/* Selected Cards Preview - Fixed at Bottom */}
                 {previewCards.length > 0 && (
-                    <div className="fixed bottom-0 left-0 right-0 bg-slate-900/98 backdrop-blur-lg border-t border-slate-700 p-2 z-20">
-                        <h3 className="text-xs font-bold mb-2 text-center">Your Selected Cards</h3>
-                        <div className="flex gap-2 justify-center overflow-x-auto">
+                    <div className="fixed bottom-0 left-0 right-0 bg-slate-900/98 backdrop-blur-lg border-t border-slate-700 p-3 z-20">
+                        <h3 className="text-sm font-bold mb-2 text-center">Your Selected Cards</h3>
+                        <div className="flex gap-3 justify-center overflow-x-auto px-2">
                             {previewCards.map(card => (
                                 <MiniCard key={card.id} card={card} />
                             ))}
