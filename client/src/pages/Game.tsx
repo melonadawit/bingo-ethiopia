@@ -306,6 +306,7 @@ const GamePage: React.FC = () => {
     }
 
     if (status === 'selection') {
+        console.log('RENDERING SELECTION SCREEN');
         return (
             <div className="min-h-screen bg-[#1a1b2e] flex flex-col text-white overflow-hidden">
                 {/* Header with Timer */}
