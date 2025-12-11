@@ -33,17 +33,22 @@ export const initializeDeposit = async (req: Request, res: Response) => {
         });
 
         // Store pending transaction (skip if Firebase not configured)
-        try {
-            await db.collection('transactions').doc(txRef).set({
-                userId,
-                type: 'deposit',
-                amount,
-                status: 'pending',
-                txRef,
-                createdAt: new Date(),
-            });
-        } catch (dbError) {
-            console.warn('Firebase not configured, skipping transaction storage');
+        // Store pending transaction (skip if Firebase not configured)
+        if (db) {
+            try {
+                await db.collection('transactions').doc(txRef).set({
+                    userId,
+                    type: 'deposit',
+                    amount,
+                    status: 'pending',
+                    txRef,
+                    createdAt: new Date(),
+                });
+            } catch (dbError) {
+                console.warn('Firebase storage failed:', dbError);
+            }
+        } else {
+            console.warn('Firebase not configured - transaction not stored persistence');
         }
 
         res.json({
@@ -62,6 +67,11 @@ export const initializeDeposit = async (req: Request, res: Response) => {
  */
 export const handlePaymentCallback = async (req: Request, res: Response) => {
     try {
+        if (!db) {
+            console.error('Database not initialized - cannot handle payment callback');
+            return res.status(503).json({ error: 'Service Unavailable - Database not connected' });
+        }
+
         const { tx_ref } = req.query;
 
         if (!tx_ref) {
@@ -121,6 +131,9 @@ export const handlePaymentCallback = async (req: Request, res: Response) => {
  */
 export const getTransactionHistory = async (req: Request, res: Response) => {
     try {
+        if (!db) {
+            return res.json({ transactions: [] }); // Return empty if no DB
+        }
         const userId = (req as any).user?.id;
 
         if (!userId) {

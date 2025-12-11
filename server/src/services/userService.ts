@@ -20,6 +20,8 @@ class UserService {
             if (db) {
                 this.useFirebase = true;
                 console.log('✅ UserService: Using Firebase for storage');
+            } else {
+                console.log('⚠️  UserService: Using in-memory storage (Firebase not configured or db is null)');
             }
         } catch (error) {
             console.log('⚠️  UserService: Using in-memory storage (Firebase not configured)');
@@ -43,7 +45,7 @@ class UserService {
         this.users.set(data.telegramId, user);
 
         // Store in Firebase if available
-        if (this.useFirebase) {
+        if (this.useFirebase && db) {
             try {
                 // Remove undefined values for Firebase
                 const firebaseData: any = {
@@ -74,7 +76,7 @@ class UserService {
         let user = this.users.get(telegramId);
 
         // If not in memory and Firebase is available, check Firebase
-        if (!user && this.useFirebase) {
+        if (!user && this.useFirebase && db) {
             try {
                 const doc = await db.collection('users').doc(telegramId.toString()).get();
                 if (doc.exists) {
@@ -101,7 +103,7 @@ class UserService {
         }
 
         // Check Firebase if available
-        if (this.useFirebase) {
+        if (this.useFirebase && db) {
             try {
                 const doc = await db.collection('users').doc(telegramId.toString()).get();
                 if (doc.exists) {
@@ -130,7 +132,7 @@ class UserService {
         this.users.set(telegramId, user);
 
         // Update in Firebase if available
-        if (this.useFirebase) {
+        if (this.useFirebase && db) {
             try {
                 await db.collection('users').doc(telegramId.toString()).update({
                     balance: user.balance

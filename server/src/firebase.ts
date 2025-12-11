@@ -40,5 +40,6 @@ if (!admin.apps.length) {
 }
 
 // Export instances
-export const db = admin.apps.length ? admin.firestore() : {} as FirebaseFirestore.Firestore;
-export const rtdb = admin.apps.length ? admin.database() : {} as admin.database.Database;
+// Export instances
+export const db = admin.apps.length ? admin.firestore() : null;
+export const rtdb = admin.apps.length ? admin.database() : null;
