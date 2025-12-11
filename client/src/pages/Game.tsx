@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { socket } from '../services/socket';
 import { Button } from '../components/ui/Button';
@@ -200,6 +200,16 @@ const GamePage: React.FC = () => {
     // Mock initial data - 300 cards
     const availableCards = useMemo(() => Array.from({ length: 300 }, (_, i) => i + 1), []);
 
+    // Use refs to store latest values for closure in countdown
+    const previewCardsRef = useRef<BingoCard[]>([]);
+    const selectedCardsRef = useRef<number[]>([]);
+
+    // Update refs whenever state changes
+    useEffect(() => {
+        previewCardsRef.current = previewCards;
+        selectedCardsRef.current = selectedCards;
+    }, [previewCards, selectedCards]);
+
     useEffect(() => {
         if (!user) {
             navigate('/lobby');
@@ -268,13 +278,17 @@ const GamePage: React.FC = () => {
     };
 
     const startGame = () => {
-        console.log('Starting game with selectedCards:', selectedCards);
-        console.log('PreviewCards:', previewCards);
+        // Use refs to get the LATEST values, not the stale closure values
+        const latestSelectedCards = selectedCardsRef.current;
+        const latestPreviewCards = previewCardsRef.current;
+
+        console.log('Starting game with selectedCards:', latestSelectedCards);
+        console.log('PreviewCards:', latestPreviewCards);
 
         // Set myCards from previewCards if any cards were selected
-        if (previewCards.length > 0) {
-            console.log('Setting myCards to:', previewCards);
-            setMyCards([...previewCards]); // Create a new array to ensure state update
+        if (latestPreviewCards.length > 0) {
+            console.log('Setting myCards to:', latestPreviewCards);
+            setMyCards([...latestPreviewCards]); // Create a new array to ensure state update
         } else {
             console.log('No cards selected - watching mode');
             setMyCards([]);
