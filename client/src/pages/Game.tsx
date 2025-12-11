@@ -313,7 +313,8 @@ const GamePage: React.FC = () => {
 
         // Pick a random time to win (between 10 and 30 calls for demo purposes)
         const winningCallIndex = Math.floor(Math.random() * (30 - 10 + 1)) + 10;
-        const mockWinnerCard = Math.floor(Math.random() * 300) + 1;
+        // Limit winner card number to 75 for now because we only have audio files up to 75
+        const mockWinnerCard = Math.floor(Math.random() * 75) + 1;
 
         const interval = setInterval(() => {
             if (count >= 75) {
