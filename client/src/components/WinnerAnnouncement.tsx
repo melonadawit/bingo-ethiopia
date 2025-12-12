@@ -28,18 +28,17 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
 
     useEffect(() => {
         // Announce winners
+        // Announce winners
         const announceWinners = async () => {
-            // Play celebration sound
-            // Play celebration sound
-            await voiceCaller.announceWinner(winners[0]?.cartelaNumber || 0);
+            // Wait a brief moment for the visual reveal
+            await new Promise(resolve => setTimeout(resolve, 500));
 
-            // Wait a bit
-            await new Promise(resolve => setTimeout(resolve, 1500));
-
-            // Announce each winner's cartela number
+            // Announce each winner one by one
             for (const winner of winners) {
-                await voiceCaller.callNumber(winner.cartelaNumber);
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                // This plays 'cartelas/{number}.mp3' which says "The winner is cartela {number}"
+                await voiceCaller.announceWinner(winner.cartelaNumber);
+                // Wait for the announcement to finish before the next one (approx 3-4s)
+                await new Promise(resolve => setTimeout(resolve, 3500));
             }
         };
 
