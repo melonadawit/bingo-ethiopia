@@ -8,7 +8,14 @@ export class AmharicVoiceCaller {
     private voiceGender: 'female' | 'male' = 'male'; // Default to Male as requested
 
     constructor() {
-        // We don't preload everything to save bandwidth/memory
+        // Initialize voices immediately if possible
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+            window.speechSynthesis.getVoices();
+            // Ensure voices are loaded (chrome quirk)
+            window.speechSynthesis.onvoiceschanged = () => {
+                console.log("🎤 TTS Voices loaded:", window.speechSynthesis.getVoices().length);
+            };
+        }
     }
 
     public setGender(gender: 'female' | 'male') {
@@ -49,29 +56,42 @@ export class AmharicVoiceCaller {
     }
 
     private speak(text: string) {
-        if ('speechSynthesis' in window) {
-            // Cancel any current speech
-            window.speechSynthesis.cancel();
-
-            const utterance = new SpeechSynthesisUtterance(text);
-
-            // Try to find a male voice
-            const voices = window.speechSynthesis.getVoices();
-            // Prioritize "Male" or deep voices if possible, or common English voices
-            const maleVoice = voices.find(v =>
-                v.name.toLowerCase().includes('male') ||
-                v.name.toLowerCase().includes('david') ||
-                v.name.toLowerCase().includes('google us english')
-            );
-
-            if (maleVoice) utterance.voice = maleVoice;
-
-            // Adjust pitch/rate to sound more like a caller
-            utterance.rate = 0.9;
-            utterance.pitch = 0.9;
-
-            window.speechSynthesis.speak(utterance);
+        if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+            console.error("TTS not supported or running on server");
+            return;
         }
+
+        console.log(`🗣️ Speaking (TTS): "${text}"`);
+
+        // Cancel any current speech
+        window.speechSynthesis.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+
+        const voices = window.speechSynthesis.getVoices();
+
+        // Try to find a male voice
+        const maleVoice = voices.find(v =>
+            v.name.toLowerCase().includes('male') ||
+            v.name.toLowerCase().includes('david') ||
+            v.name.toLowerCase().includes('google us english')
+        );
+
+        if (maleVoice) {
+            console.log(`✅ Using voice: ${maleVoice.name}`);
+            utterance.voice = maleVoice;
+        } else {
+            console.warn("⚠️ No specific male voice found, using system default");
+        }
+
+        // Adjust pitch/rate to sound more like a caller
+        utterance.rate = 0.9;
+        utterance.pitch = 0.9;
+        utterance.volume = 1.0;
+
+        utterance.onerror = (e) => console.error("TTS Error:", e);
+
+        window.speechSynthesis.speak(utterance);
     }
 
     private async playAudio(key: string): Promise<void> {
@@ -170,7 +190,7 @@ export class AmharicVoiceCaller {
             this.currentAudio = null;
         }
         // Stop TTS
-        if ('speechSynthesis' in window) {
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
             window.speechSynthesis.cancel();
         }
     }
