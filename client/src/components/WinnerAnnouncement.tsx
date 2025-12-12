@@ -30,7 +30,8 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
         // Announce winners
         const announceWinners = async () => {
             // Play celebration sound
-            await voiceCaller.announceWinner();
+            // Play celebration sound
+            await voiceCaller.announceWinner(winners[0]?.cartelaNumber || 0);
 
             // Wait a bit
             await new Promise(resolve => setTimeout(resolve, 1500));
@@ -100,7 +101,7 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
 
                 {/* Winner List */}
                 <div className="winner-list">
-                    {winners.map((winner, index) => (
+                    {winners.map((winner) => (
                         <div key={winner.userId} className="winner-pill">
                             <div className="winner-avatar">
                                 {winner.name.charAt(0).toUpperCase()}
@@ -145,8 +146,8 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
                                                 <div
                                                     key={`${rowIndex}-${colIndex}`}
                                                     className={`card-cell ${isFree ? 'free' :
-                                                            isWinning ? 'winning' :
-                                                                isCalled ? 'called' : ''
+                                                        isWinning ? 'winning' :
+                                                            isCalled ? 'called' : ''
                                                         }`}
                                                 >
                                                     {isFree ? '⭐' : num}

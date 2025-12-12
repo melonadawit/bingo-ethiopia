@@ -22,7 +22,7 @@ export class AmharicVoiceCaller {
         return this.playAudio('game_start');
     }
 
-    public async announceWinner(cartelaNumber: number): Promise<void> {
+    public async announceWinner(cartelaNumber?: number): Promise<void> {
         if (!this.isEnabled) return;
         console.log(`🏆 Announcing: Cartela ${cartelaNumber} is the winner!`);
 

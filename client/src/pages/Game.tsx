@@ -8,7 +8,7 @@ import { cn } from '../utils/cn';
 import { motion, AnimatePresence } from 'framer-motion';
 import { voiceCaller } from '../services/voiceCaller';
 import { WinnerAnnouncement } from '../components/WinnerAnnouncement';
-import { checkWinningPattern, GameMode } from '../utils/bingoLogic';
+import { checkWinningPattern, type GameMode } from '../utils/bingoLogic';
 import toast from 'react-hot-toast';
 
 // --- Types ---
