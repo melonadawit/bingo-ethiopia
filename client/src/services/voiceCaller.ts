@@ -189,7 +189,9 @@ export class AmharicVoiceCaller {
             try {
                 this.currentAudio.pause();
                 this.currentAudio.currentTime = 0;
-            } catch (e) { }
+            } catch (e) {
+                console.warn("Error stopping audio:", e);
+            }
             this.currentAudio = null;
         }
         // Stop TTS
