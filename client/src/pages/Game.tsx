@@ -216,7 +216,7 @@ const GamePage: React.FC = () => {
     const latestIsMuted = useRef(isMuted); // Ref to track mute state in closures
 
     // Interval Ref for cleaning up the game loop
-    const gameIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const gameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Update refs whenever state changes
     useEffect(() => {

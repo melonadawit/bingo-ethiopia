@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Copy, Users, Trophy, ExternalLink, Loader2 } from 'lucide-react';
 import { Button } from './ui/Button';
