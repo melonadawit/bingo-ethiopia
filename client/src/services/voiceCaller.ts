@@ -43,6 +43,7 @@ export class AmharicVoiceCaller {
         console.log(`🏆 Announcing: Cartela ${cartelaNumber} is the winner!`);
 
         // If Male voice, we can use TTS for simple "Winner is Cartela X"
+        // BUT we are using 'female' setting to force MP3 usage now.
         if (this.voiceGender === 'male') {
             this.speak(`The winner is cartela number ${cartelaNumber}`);
             return;
@@ -95,7 +96,7 @@ export class AmharicVoiceCaller {
     }
 
     private async playAudio(key: string): Promise<void> {
-        // Male Voice (TTS) Handler
+        // Male Voice (TTS) Handler - DISABLED if voiceGender is 'female'
         if (this.voiceGender === 'male') {
             if (key.startsWith('number_')) {
                 const num = parseInt(key.replace('number_', ''));
@@ -110,7 +111,7 @@ export class AmharicVoiceCaller {
             // Fallback for other keys or mixed mode
         }
 
-        // Female Voice (MP3) Handler
+        // Female/MP3 Voice Handler
         return new Promise((resolve) => {
             try {
                 this.stop();
@@ -119,6 +120,7 @@ export class AmharicVoiceCaller {
 
                 if (!audio) {
                     const path = this.getAudioPath(key);
+                    console.log(`🎵 Loading Audio: ${key} -> ${path}`); // DEBUG LOG
                     audio = new Audio(path);
                     audio.preload = 'auto';
                     this.audioCache.set(key, audio);
@@ -128,12 +130,13 @@ export class AmharicVoiceCaller {
                 audio.currentTime = 0;
 
                 const handleEnded = () => {
+                    console.log(`✅ Audio finished: ${key}`); // DEBUG LOG
                     cleanup();
                     resolve();
                 };
 
                 const handleError = (e: Event | string) => {
-                    console.error(`Error playing audio ${key}:`, e);
+                    console.error(`❌ Error playing audio ${key}:`, e); // DEBUG LOG
                     cleanup();
                     resolve();
                 };
@@ -155,14 +158,14 @@ export class AmharicVoiceCaller {
 
                 if (playPromise !== undefined) {
                     playPromise.catch(error => {
-                        console.warn(`Autoplay prevented or failed for ${key}:`, error);
+                        console.warn(`⚠️ Autoplay prevented/failed for ${key}:`, error); // DEBUG LOG
                         cleanup();
                         resolve();
                     });
                 }
 
             } catch (error) {
-                console.error(`Critical error in playAudio for ${key}:`, error);
+                console.error(`💥 Critical error in playAudio for ${key}:`, error);
                 this.stop();
                 resolve();
             }
