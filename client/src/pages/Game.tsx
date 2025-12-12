@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { cn } from '../utils/cn';
 import { motion, AnimatePresence } from 'framer-motion';
 import { voiceCaller } from '../services/voiceCaller';
+import { WinnerAnnouncement } from '../components/WinnerAnnouncement';
 
 // --- Types ---
 type GameStatus = 'connecting' | 'selection' | 'playing' | 'ended';
@@ -198,6 +199,7 @@ const GamePage: React.FC = () => {
     const [currentNumber, setCurrentNumber] = useState<number | null>(null);
     const [countdown, setCountdown] = useState(30);
     const [isMuted, setIsMuted] = useState(false);
+    const [winners, setWinners] = useState<any[]>([]);
 
     // Mock initial data - 300 cards
     const availableCards = useMemo(() => Array.from({ length: 300 }, (_, i) => i + 1), []);
@@ -235,7 +237,17 @@ const GamePage: React.FC = () => {
         return () => {
             socket.off('game_started');
             socket.off('number_drawn');
+            socket.off('game_won');
         };
+    }, []);
+
+    // Listen for real game win events
+    useEffect(() => {
+        socket.on('game_won', (data) => {
+            console.log('Game Won!', data);
+            setWinners(data.winners);
+            setStatus('ended');
+        });
     }, []);
 
     // Countdown timer for selection - AUTO START GAME
@@ -258,6 +270,15 @@ const GamePage: React.FC = () => {
             return () => clearInterval(timer);
         }
     }, [status]); // Only depend on status, not startGame
+
+    const handleNextGame = () => {
+        console.log('Resetting game...');
+        setWinners([]);
+        setCalledNumbers(new Set());
+        setCurrentNumber(null);
+        setStatus('selection');
+        setCountdown(10);
+    };
 
     const handleSelectCard = (id: number) => {
         console.log('handleSelectCard called with id:', id);
@@ -324,11 +345,21 @@ const GamePage: React.FC = () => {
 
             // Mock Winner Simulation
             if (count === winningCallIndex) {
-                if (!latestIsMuted.current) {
-                    voiceCaller.announceWinner(mockWinnerCard);
-                }
-                // Don't stop the game for the user, just announce it like someone else won
-                // Or maybe end the game? Let's just announce for now as requested
+                // Game Over - Mock Winner
+                const mockWinner = {
+                    userId: 'mock-1',
+                    name: 'Abel Tesfaye',
+                    cartelaNumber: mockWinnerCard,
+                    card: generateBingoCard(mockWinnerCard).numbers,
+                    winningPattern: Array(5).fill(0).map(() => Array(5).fill(true)) // Full card
+                };
+
+                setWinners([mockWinner]);
+                setStatus('ended');
+
+                // Stop the interval
+                clearInterval(interval);
+                return;
             }
 
             let num;
@@ -563,8 +594,17 @@ const GamePage: React.FC = () => {
                     BINGO!
                 </Button>
             </div>
+            {/* Winner Announcement Overlay */}
+            {status === 'ended' && winners.length > 0 && (
+                <WinnerAnnouncement
+                    winners={winners}
+                    calledNumbers={Array.from(calledNumbers)}
+                    onNextGame={handleNextGame}
+                />
+            )}
         </div>
     );
 };
 
 export default GamePage;
+```

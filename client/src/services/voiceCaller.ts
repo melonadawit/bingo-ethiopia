@@ -27,14 +27,14 @@ export class AmharicVoiceCaller {
         console.log(`🏆 Announcing: Cartela ${cartelaNumber} is the winner!`);
 
         try {
-            // Play winner announcement
-            await this.playAudio('winner');
+            // Play celebration sound first
+            // await this.playAudio('winner_sound'); // Optional: if you have a sound effect
 
-            // Small pause
-            await new Promise(resolve => setTimeout(resolve, 500));
+            // Play the pre-generated Amharic announcement
+            // File format: /audio/cartelas/{number}.mp3
+            // Content: "The winner cartela number is {number}" (in Amharic)
+            await this.playAudio(`cartelas/${cartelaNumber}`);
 
-            // Say the cartela number
-            await this.callNumber(cartelaNumber);
         } catch (err) {
             console.error("Error in winner announcement sequence:", err);
         }
