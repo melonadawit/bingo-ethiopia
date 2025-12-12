@@ -392,6 +392,9 @@ const GamePage: React.FC = () => {
 
         if (hasWinner) {
             // Valid Claim!
+            // Stop calling numbers immediately
+            voiceCaller.stop();
+
             voiceCaller.announceWinner(newWinners[0].cartelaNumber); // Announce first card
             setWinners(newWinners);
             setStatus('ended');
@@ -601,7 +604,10 @@ const GamePage: React.FC = () => {
             <div className="grid grid-cols-3 gap-0.5 p-0.5 bg-[#1a1b2e] border-t border-white/5 h-12 shrink-0">
                 <Button
                     className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-bold rounded-lg shadow-lg text-sm"
-                    onClick={() => navigate('/lobby')}
+                    onClick={() => {
+                        voiceCaller.stop();
+                        navigate('/lobby');
+                    }}
                 >
                     Leave
                 </Button>

@@ -63,6 +63,7 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
         return () => {
             clearInterval(timer);
             clearTimeout(confettiTimer);
+            voiceCaller.stop(); // Stop any announcement audio if skipped/exited
         };
     }, [winners, onNextGame]);
 
@@ -114,18 +115,18 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
 
                 {/* Display first winner's cartela (or all if space permits) */}
                 {winners.slice(0, 1).map((winner) => (
-                    <div key={winner.userId} className="winning-cartela-container">
-                        <div className="cartela-header">
+                    <div key={winner.userId} className="winning-cartela-container scale-90 origin-top">
+                        <div className="cartela-header text-sm py-1">
                             🏆 Winning Cartela: {winner.cartelaNumber}
                         </div>
 
-                        <div className="bingo-card">
+                        <div className="bingo-card transform scale-90">
                             {/* Column Headers */}
-                            <div className="card-header">
+                            <div className="card-header h-8">
                                 {COLUMN_LETTERS.map((letter, i) => (
                                     <div
                                         key={letter}
-                                        className="column-letter"
+                                        className="column-letter text-xs"
                                         style={{ backgroundColor: COLUMN_COLORS[i] }}
                                     >
                                         {letter}
@@ -134,7 +135,7 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
                             </div>
 
                             {/* Card Grid */}
-                            <div className="card-grid">
+                            <div className="card-grid gap-0.5 p-0.5">
                                 {winner.card.map((row, rowIndex) => (
                                     <React.Fragment key={rowIndex}>
                                         {row.map((num, colIndex) => {
@@ -145,7 +146,7 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
                                             return (
                                                 <div
                                                     key={`${rowIndex}-${colIndex}`}
-                                                    className={`card-cell ${isFree ? 'free' :
+                                                    className={`card-cell text-sm h-8 w-8 ${isFree ? 'free' :
                                                         isWinning ? 'winning' :
                                                             isCalled ? 'called' : ''
                                                         }`}
