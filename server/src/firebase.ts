@@ -8,21 +8,23 @@ if (!admin.apps.length) {
         const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
         if (!projectId || !clientEmail || !privateKey) {
-            throw new Error('Missing Firebase credentials in environment variables');
+            console.warn('⚠️  Missing Firebase credentials - running in memory-only mode');
+            // Don't throw, just skip initialization
+        } else {
+
+            // Replace escaped newlines if they exist (some platforms escape them)
+            const formattedPrivateKey = privateKey.replace(/\\n/g, '\n');
+
+            admin.initializeApp({
+                credential: admin.credential.cert({
+                    projectId,
+                    clientEmail,
+                    privateKey: formattedPrivateKey,
+                }),
+            });
+
+            console.log('✅ Firebase initialized successfully');
         }
-
-        // Replace escaped newlines if they exist (some platforms escape them)
-        const formattedPrivateKey = privateKey.replace(/\\n/g, '\n');
-
-        admin.initializeApp({
-            credential: admin.credential.cert({
-                projectId,
-                clientEmail,
-                privateKey: formattedPrivateKey,
-            }),
-        });
-
-        console.log('✅ Firebase initialized successfully');
     } catch (error) {
         console.error('❌ Firebase initialization failed:', error);
         console.warn('⚠️  Continuing with in-memory storage only');

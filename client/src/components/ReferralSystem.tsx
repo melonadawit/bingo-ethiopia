@@ -16,7 +16,8 @@ export const ReferralSystem = () => {
             try {
                 // In production, use axios/fetch with auth header. 
                 // Here passing userId as query param as per controller.
-                const res = await fetch(`http://localhost:5000/api/auth/referrals/stats?userId=${user.id}`);
+                // Here passing userId as query param as per controller.
+                const res = await fetch(`/api/auth/referrals/stats?userId=${user.id}`);
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
                 setStats(data);
