@@ -8,8 +8,6 @@ interface UserData {
     username?: string;
     registeredAt: Date;
     balance: number;
-    referralCode: string;
-    referredBy?: number; // telegramId of referrer
 }
 
 class UserService {
@@ -32,29 +30,17 @@ class UserService {
         }
     }
 
-    private generateReferralCode(firstName: string): string {
-        const prefix = firstName.slice(0, 3).toUpperCase().replace(/[^A-Z]/g, 'X');
-        const random = Math.floor(1000 + Math.random() * 9000);
-        return `${prefix}-${random}`;
-    }
-
     async registerUser(data: {
         telegramId: number;
         phoneNumber: string;
         firstName: string;
         lastName?: string;
         username?: string;
-        referralCode?: string; // Code they used to sign up
     }): Promise<UserData> {
         // Check if already registered
         if (await this.isRegistered(data.telegramId)) {
             throw new Error('User already registered');
         }
-
-        // Generate *their* unique referral code
-        let newReferralCode = this.generateReferralCode(data.firstName);
-        // Ensure uniqueness (simple check)
-        // In prod, would query DB. For now, assume collision unlikely enough for 4 digits
 
         const newUser: UserData = {
             telegramId: data.telegramId,
@@ -63,22 +49,8 @@ class UserService {
             lastName: data.lastName,
             username: data.username,
             registeredAt: new Date(),
-            balance: 100, // Welcome bonus
-            referralCode: newReferralCode
+            balance: 100 // Welcome bonus
         };
-
-        // Process Referral *used* by this user
-        if (data.referralCode) {
-            const referrer = await this.findUserByReferralCode(data.referralCode);
-            if (referrer && referrer.telegramId !== newUser.telegramId) {
-                console.log(`🎁 Referral valid! ${referrer.firstName} referred ${newUser.firstName}`);
-                newUser.referredBy = referrer.telegramId;
-
-                // Award Bonus to Referrer
-                await this.updateBalance(referrer.telegramId, 50);
-                console.log(`💰 Awarded 50 Birr to ${referrer.firstName}`);
-            }
-        }
 
         // Store in memory
         this.users.set(data.telegramId, newUser);
@@ -94,7 +66,7 @@ class UserService {
                 Object.keys(firebaseData).forEach(key => firebaseData[key] === undefined && delete firebaseData[key]);
 
                 await db.collection('users').doc(data.telegramId.toString()).set(firebaseData);
-                console.log(`✅ User registered in Firebase with Referral Code: ${newReferralCode}`);
+                console.log(`✅ User registered in Firebase`);
             } catch (error) {
                 console.error('Firebase registration error:', error);
             }
@@ -103,32 +75,7 @@ class UserService {
         return newUser;
     }
 
-    async findUserByReferralCode(code: string): Promise<UserData | null> {
-        // Memory search
-        for (const user of this.users.values()) {
-            if (user.referralCode === code) return user;
-        }
 
-        // Firebase search
-        if (this.useFirebase && db) {
-            try {
-                const snapshot = await db.collection('users').where('referralCode', '==', code).limit(1).get();
-                if (!snapshot.empty) {
-                    const data = snapshot.docs[0].data();
-                    const user = {
-                        ...data,
-                        registeredAt: new Date(data.registeredAt)
-                    } as UserData;
-                    // Cache
-                    this.users.set(user.telegramId, user);
-                    return user;
-                }
-            } catch (error) {
-                console.error('Firebase find by referral error:', error);
-            }
-        }
-        return null;
-    }
 
     // ... (rest of methods: getUser, isRegistered, updateBalance, getAllUsers)
 
@@ -152,21 +99,7 @@ class UserService {
             }
         }
 
-        // Lazy Migration: If user exists but has no referral code, generate one
-        if (user && !user.referralCode) {
-            console.log(`⚠️ User ${user.firstName} missing referral code. Generating...`);
-            user.referralCode = this.generateReferralCode(user.firstName);
-
-            // Update memory
-            this.users.set(telegramId, user);
-
-            // Update Firebase
-            if (this.useFirebase && db) {
-                db.collection('users').doc(telegramId.toString()).update({
-                    referralCode: user.referralCode
-                }).catch(e => console.error('Error saving lazy migration referral code:', e));
-            }
-        } else if (user) {
+        if (user) {
             // Cache in memory if found (and not just updated)
             this.users.set(telegramId, user);
         }
@@ -225,31 +158,7 @@ class UserService {
         return user.balance;
     }
 
-    async getReferralStats(telegramId: number): Promise<{ count: number; earnings: number }> {
-        let count = 0;
 
-        // Memory count
-        for (const user of this.users.values()) {
-            if (user.referredBy === telegramId) count++;
-        }
-
-        // Firebase count (if counting large datasets, this query is better)
-        if (this.useFirebase && db) {
-            try {
-                // If not everything is in memory, query DB
-                // For optimal perf, we'd cache this count on the user document, but query is fine for now
-                const snapshot = await db.collection('users').where('referredBy', '==', telegramId).get();
-                count = snapshot.size;
-            } catch (error) {
-                console.error('Error fetching referral stats:', error);
-            }
-        }
-
-        return {
-            count,
-            earnings: count * 50 // Assumes 50 Birr per referral
-        };
-    }
 
     async getAllUsers(): Promise<UserData[]> {
         return Array.from(this.users.values());

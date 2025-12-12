@@ -78,26 +78,4 @@ export const telegramLogin = async (req: Request, res: Response) => {
     }
 };
 
-export const getReferralStats = async (req: Request, res: Response) => {
-    try {
-        // Assume auth middleware populated req.user or similar, 
-        // OR pass telegramId in query for now (insecure but fast for prototype)
-        // Better: Extract from JWT. 
-        // For this task, I'll extract from query header or body if middleware exists.
-        // Assuming simple passing of ID for now as middleware isn't fully visible in my context
-        const telegramId = Number(req.query.userId);
 
-        if (!telegramId) return res.status(400).json({ error: 'User ID required' });
-
-        const stats = await userService.getReferralStats(telegramId);
-        const user = await userService.getUser(telegramId);
-
-        res.json({
-            referralCode: user?.referralCode,
-            ...stats
-        });
-    } catch (error) {
-        console.error('Get referral stats error:', error);
-        res.status(500).json({ error: 'Failed to fetch stats' });
-    }
-};
