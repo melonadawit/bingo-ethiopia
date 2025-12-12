@@ -13,7 +13,7 @@ export const getGameModes = async (req: Request, res: Response) => {
     const gameModes = [
         {
             id: 'and-zig',
-            title: 'አንድ ዝግ (And-zig)',
+            title: 'And-zig (አንድ ዝግ)',
             description: 'Complete 1 Line or 4 Corners',
             minBet: 10,
             activePlayers: 142, // Mocked live data
@@ -22,7 +22,7 @@ export const getGameModes = async (req: Request, res: Response) => {
         },
         {
             id: 'hulet-zig',
-            title: 'ሁለት ዝግ (Hulet-zig)',
+            title: 'Hulet-zig (ሁለት ዝግ)',
             description: 'Complete 2 Lines',
             minBet: 20,
             activePlayers: 89,
@@ -31,7 +31,7 @@ export const getGameModes = async (req: Request, res: Response) => {
         },
         {
             id: 'mulu-zig',
-            title: 'ሙሉ ዝግ (Mulu-zig)',
+            title: 'Mulu-zig (ሙሉ ዝግ)',
             description: 'Blackout: Mark All 25 Cells',
             minBet: 50,
             activePlayers: 215,

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { socket } from '../services/socket';
 import { Button } from '../components/ui/Button';
 import { Loader2, Volume2, RefreshCw, VolumeX } from 'lucide-react';
@@ -8,6 +8,8 @@ import { cn } from '../utils/cn';
 import { motion, AnimatePresence } from 'framer-motion';
 import { voiceCaller } from '../services/voiceCaller';
 import { WinnerAnnouncement } from '../components/WinnerAnnouncement';
+import { checkWinningPattern, GameMode } from '../utils/bingoLogic';
+import toast from 'react-hot-toast';
 
 // --- Types ---
 type GameStatus = 'connecting' | 'selection' | 'playing' | 'ended';
@@ -201,6 +203,10 @@ const GamePage: React.FC = () => {
     const [isMuted, setIsMuted] = useState(false);
     const [winners, setWinners] = useState<any[]>([]);
 
+    // Get game mode from URL or default to 'and-zig'
+    const [searchParams] = useSearchParams();
+    const gameMode = (searchParams.get('mode') as GameMode) || 'and-zig';
+
     // Mock initial data - 300 cards
     const availableCards = useMemo(() => Array.from({ length: 300 }, (_, i) => i + 1), []);
 
@@ -332,33 +338,10 @@ const GamePage: React.FC = () => {
         let count = 0;
         const usedNumbers = new Set<number>();
 
-        // Pick a random time to win (between 10 and 30 calls for demo purposes)
-        const winningCallIndex = Math.floor(Math.random() * (30 - 10 + 1)) + 10;
-        // Limit winner card number to 75 for now because we only have audio files up to 75
-        const mockWinnerCard = Math.floor(Math.random() * 75) + 1;
-
         const interval = setInterval(() => {
             if (count >= 75) {
                 clearInterval(interval);
-                return;
-            }
-
-            // Mock Winner Simulation
-            if (count === winningCallIndex) {
-                // Game Over - Mock Winner
-                const mockWinner = {
-                    userId: 'mock-1',
-                    name: 'Abel Tesfaye',
-                    cartelaNumber: mockWinnerCard,
-                    card: generateBingoCard(mockWinnerCard).numbers,
-                    winningPattern: Array(5).fill(0).map(() => Array(5).fill(true)) // Full card
-                };
-
-                setWinners([mockWinner]);
-                setStatus('ended');
-
-                // Stop the interval
-                clearInterval(interval);
+                setStatus('ended'); // Game ends if all numbers are called without a winner
                 return;
             }
 
@@ -383,6 +366,50 @@ const GamePage: React.FC = () => {
         return () => clearInterval(interval);
     };
 
+    const handleBingoClaim = () => {
+        // Validation: Verify if user actually has a bingo
+        const myCards = selectedCardsRef.current.map(id =>
+            previewCardsRef.current.find(c => c.id === id) || generateBingoCard(id)
+        );
+
+        const currentCalled = new Set(Array.from(calledNumbers)); // Snapshot
+        let hasWinner = false;
+        const newWinners: any[] = [];
+
+        myCards.forEach(card => {
+            const result = checkWinningPattern(card.numbers, currentCalled, gameMode);
+            if (result.isWinner) {
+                hasWinner = true;
+                newWinners.push({
+                    userId: 'me',
+                    name: user?.firstName || 'You',
+                    cartelaNumber: card.id,
+                    card: card.numbers,
+                    winningPattern: result.winningCells
+                });
+            }
+        });
+
+        if (hasWinner) {
+            // Valid Claim!
+            voiceCaller.announceWinner(newWinners[0].cartelaNumber); // Announce first card
+            setWinners(newWinners);
+            setStatus('ended');
+
+            // In a real app, emit socket event here
+            // socket.emit('claim_bingo', { gameId, winners: newWinners });
+        } else {
+            // Invalid Claim
+            toast.error("Bogus Bingo! Keep playing.", {
+                icon: '🚫',
+                style: {
+                    background: '#1f2937',
+                    color: '#fff',
+                }
+            });
+        }
+    };
+
     if (status === 'connecting') {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen bg-[#1a1b2e]">
@@ -393,7 +420,6 @@ const GamePage: React.FC = () => {
     }
 
     if (status === 'selection') {
-        console.log('RENDERING SELECTION SCREEN');
         return (
             <div className="min-h-screen bg-[#1a1b2e] flex flex-col text-white overflow-hidden">
                 {/* Header with Timer */}
@@ -444,7 +470,7 @@ const GamePage: React.FC = () => {
         );
     }
 
-    // PLAYING STATE - Redesigned per requirements
+    // PLAYING STATE
     const getLetter = (num: number) => ['B', 'I', 'N', 'G', 'O'][Math.floor((num - 1) / 15)];
     const recentCalls = [...calledNumbers].slice(-4, -1).reverse();
 
@@ -534,7 +560,6 @@ const GamePage: React.FC = () => {
                     {/* Cards Area - WATCHING ONLY or PLAYING CARDS */}
                     <div className="flex-1 overflow-hidden p-2 bg-gradient-to-b from-[#1a1b2e] to-[#2A1B3D] flex flex-col">
                         {(() => {
-                            console.log('Rendering cards area. myCards.length:', myCards.length, 'myCards:', myCards);
                             return myCards.length === 0;
                         })() ? (
                             // WATCHING ONLY MODE
@@ -551,24 +576,22 @@ const GamePage: React.FC = () => {
                                 </div>
                             </div>
                         ) : (
-                            // PLAYING CARDS - Show with layout matching images
-                            <>
-                                <div className={cn(
-                                    "flex-1 flex gap-1",
-                                    myCards.length === 1 ? "justify-center items-center" : "flex-col"
-                                )}>
-                                    {myCards.slice(0, 2).map(card => (
-                                        <div key={card.id} className={cn(
-                                            myCards.length === 1 ? "w-full h-1/2" : "flex-1 min-h-0"
-                                        )}>
-                                            <PlayingCard
-                                                card={card}
-                                                calledNumbers={calledNumbers}
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                            </>
+                            // PLAYING CARDS
+                            <div className={cn(
+                                "flex-1 flex gap-1",
+                                myCards.length === 1 ? "justify-center items-center" : "flex-col"
+                            )}>
+                                {myCards.slice(0, 2).map(card => (
+                                    <div key={card.id} className={cn(
+                                        myCards.length === 1 ? "w-full h-1/2" : "flex-1 min-h-0"
+                                    )}>
+                                        <PlayingCard
+                                            card={card}
+                                            calledNumbers={calledNumbers}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
                 </div>
@@ -589,11 +612,14 @@ const GamePage: React.FC = () => {
                     Refresh
                 </Button>
                 <Button
-                    className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-black font-black rounded-lg shadow-lg text-sm"
+                    className="w-full h-full text-2xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-black shadow-[0_0_20px_rgba(251,191,36,0.5)] animate-pulse border-none"
+                    onClick={handleBingoClaim}
+                    disabled={status !== 'playing'}
                 >
                     BINGO!
                 </Button>
             </div>
+
             {/* Winner Announcement Overlay */}
             {status === 'ended' && winners.length > 0 && (
                 <WinnerAnnouncement
@@ -607,4 +633,3 @@ const GamePage: React.FC = () => {
 };
 
 export default GamePage;
-```
