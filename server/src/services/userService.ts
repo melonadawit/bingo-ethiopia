@@ -133,7 +133,6 @@ class UserService {
     // ... (rest of methods: getUser, isRegistered, updateBalance, getAllUsers)
 
     async getUser(telegramId: number): Promise<UserData | null> {
-        // ... (keep existing implementation)
         // Check memory first
         let user = this.users.get(telegramId);
 
@@ -147,12 +146,29 @@ class UserService {
                         ...data,
                         registeredAt: new Date(data!.registeredAt)
                     } as UserData;
-                    // Cache in memory
-                    this.users.set(telegramId, user);
                 }
             } catch (error) {
                 console.error('Firebase get user error:', error);
             }
+        }
+
+        // Lazy Migration: If user exists but has no referral code, generate one
+        if (user && !user.referralCode) {
+            console.log(`⚠️ User ${user.firstName} missing referral code. Generating...`);
+            user.referralCode = this.generateReferralCode(user.firstName);
+
+            // Update memory
+            this.users.set(telegramId, user);
+
+            // Update Firebase
+            if (this.useFirebase && db) {
+                db.collection('users').doc(telegramId.toString()).update({
+                    referralCode: user.referralCode
+                }).catch(e => console.error('Error saving lazy migration referral code:', e));
+            }
+        } else if (user) {
+            // Cache in memory if found (and not just updated)
+            this.users.set(telegramId, user);
         }
 
         return user || null;
