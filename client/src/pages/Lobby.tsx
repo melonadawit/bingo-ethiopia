@@ -177,7 +177,7 @@ export default function Lobby() {
                                 transition={{ delay: 0.6 + (idx * 0.1), duration: 0.6 }}
                             >
                                 <div
-                                    className="group h-full flex flex-col relative overflow-hidden bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-3xl p-6 cursor-pointer hover:bg-white/[0.07] hover:border-indigo-500/50 hover:shadow-[0_0_40px_-10px_rgba(99,102,241,0.3)] transition-all duration-500 hover:-translate-y-2"
+                                    className="group h-full flex flex-col relative overflow-hidden bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-3xl p-5 cursor-pointer hover:bg-white/[0.07] hover:border-indigo-500/50 hover:shadow-[0_0_40px_-10px_rgba(99,102,241,0.3)] transition-all duration-500 hover:-translate-y-2"
                                     onClick={(e) => {
                                         e.preventDefault();
                                         console.log('Join Room clicked!', mode.id);
@@ -189,9 +189,9 @@ export default function Lobby() {
                                     <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20 pointer-events-none" />
 
                                     <div className="relative z-10 flex flex-col h-full">
-                                        <div className="flex items-start justify-between mb-6">
-                                            <div className={`p-4 rounded-2xl bg-gradient-to-br ${mode.color} text-white shadow-lg ring-1 ring-white/20 group-hover:scale-110 transition-transform duration-500`}>
-                                                <IconComponent size={28} />
+                                        <div className="flex items-start justify-between mb-4">
+                                            <div className={`p-3 rounded-2xl bg-gradient-to-br ${mode.color} text-white shadow-lg ring-1 ring-white/20 group-hover:scale-110 transition-transform duration-500`}>
+                                                <IconComponent size={24} />
                                             </div>
                                             <div className="flex items-center gap-2 text-xs font-bold text-indigo-200 bg-indigo-500/10 px-3 py-1.5 rounded-full border border-indigo-500/20 backdrop-blur-sm">
                                                 <Users size={12} className="animate-pulse" />
@@ -201,7 +201,7 @@ export default function Lobby() {
 
                                         <div className="mb-2">
                                             <div className="flex justify-between items-center mb-1">
-                                                <h3 className="text-2xl font-black text-white group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-white group-hover:to-indigo-300 transition-all duration-300">
+                                                <h3 className="text-xl font-black text-white group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-white group-hover:to-indigo-300 transition-all duration-300">
                                                     {mode.title}
                                                 </h3>
                                                 <span className="text-emerald-400 font-black bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 text-sm shadow-[0_0_10px_rgba(16,185,129,0.1)]">
@@ -213,7 +213,7 @@ export default function Lobby() {
 
                                         <p className="text-slate-400 text-sm leading-relaxed font-medium">{mode.description}</p>
 
-                                        <div className="mt-6 flex items-center text-xs font-semibold text-slate-500 group-hover:text-indigo-400 transition-colors">
+                                        <div className="mt-4 flex items-center text-xs font-semibold text-slate-500 group-hover:text-indigo-400 transition-colors">
                                             <span>Click to join room</span>
                                             <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0 duration-300">→</span>
                                         </div>
