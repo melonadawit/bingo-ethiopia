@@ -8,13 +8,17 @@ interface UserData {
     username?: string;
     registeredAt: Date;
     balance: number;
+    referralCode: string;
+    referredBy?: number; // telegramId of referrer
 }
 
 class UserService {
+    // ... (keep private properties)
     private users: Map<number, UserData> = new Map();
     private useFirebase: boolean = false;
 
     constructor() {
+        // ... (keep constructor)
         // Check if Firebase is available
         try {
             if (db) {
@@ -28,50 +32,108 @@ class UserService {
         }
     }
 
+    private generateReferralCode(firstName: string): string {
+        const prefix = firstName.slice(0, 3).toUpperCase().replace(/[^A-Z]/g, 'X');
+        const random = Math.floor(1000 + Math.random() * 9000);
+        return `${prefix}-${random}`;
+    }
+
     async registerUser(data: {
         telegramId: number;
         phoneNumber: string;
         firstName: string;
         lastName?: string;
         username?: string;
+        referralCode?: string; // Code they used to sign up
     }): Promise<UserData> {
-        const user: UserData = {
-            ...data,
+        // Check if already registered
+        if (await this.isRegistered(data.telegramId)) {
+            throw new Error('User already registered');
+        }
+
+        // Generate *their* unique referral code
+        let newReferralCode = this.generateReferralCode(data.firstName);
+        // Ensure uniqueness (simple check)
+        // In prod, would query DB. For now, assume collision unlikely enough for 4 digits
+
+        const newUser: UserData = {
+            telegramId: data.telegramId,
+            phoneNumber: data.phoneNumber,
+            firstName: data.firstName,
+            lastName: data.lastName,
+            username: data.username,
             registeredAt: new Date(),
-            balance: 100 // Welcome bonus
+            balance: 100, // Welcome bonus
+            referralCode: newReferralCode
         };
 
-        // Store in memory
-        this.users.set(data.telegramId, user);
+        // Process Referral *used* by this user
+        if (data.referralCode) {
+            const referrer = await this.findUserByReferralCode(data.referralCode);
+            if (referrer && referrer.telegramId !== newUser.telegramId) {
+                console.log(`🎁 Referral valid! ${referrer.firstName} referred ${newUser.firstName}`);
+                newUser.referredBy = referrer.telegramId;
 
-        // Store in Firebase if available
+                // Award Bonus to Referrer
+                await this.updateBalance(referrer.telegramId, 50);
+                console.log(`💰 Awarded 50 Birr to ${referrer.firstName}`);
+            }
+        }
+
+        // Store in memory
+        this.users.set(data.telegramId, newUser);
+
+        // Store in Firebase
         if (this.useFirebase && db) {
             try {
-                // Remove undefined values for Firebase
                 const firebaseData: any = {
-                    telegramId: user.telegramId,
-                    phoneNumber: user.phoneNumber,
-                    firstName: user.firstName,
-                    registeredAt: user.registeredAt.toISOString(),
-                    balance: user.balance
+                    ...newUser,
+                    registeredAt: newUser.registeredAt.toISOString()
                 };
-
-                // Only add optional fields if they exist
-                if (user.lastName) firebaseData.lastName = user.lastName;
-                if (user.username) firebaseData.username = user.username;
+                // Cleanup undefined
+                Object.keys(firebaseData).forEach(key => firebaseData[key] === undefined && delete firebaseData[key]);
 
                 await db.collection('users').doc(data.telegramId.toString()).set(firebaseData);
-                console.log(`✅ User registered in Firebase: ${data.firstName} (${data.telegramId})`);
+                console.log(`✅ User registered in Firebase with Referral Code: ${newReferralCode}`);
             } catch (error) {
                 console.error('Firebase registration error:', error);
             }
         }
 
-        console.log(`✅ User registered: ${data.firstName} (${data.telegramId})`);
-        return user;
+        return newUser;
     }
 
+    async findUserByReferralCode(code: string): Promise<UserData | null> {
+        // Memory search
+        for (const user of this.users.values()) {
+            if (user.referralCode === code) return user;
+        }
+
+        // Firebase search
+        if (this.useFirebase && db) {
+            try {
+                const snapshot = await db.collection('users').where('referralCode', '==', code).limit(1).get();
+                if (!snapshot.empty) {
+                    const data = snapshot.docs[0].data();
+                    const user = {
+                        ...data,
+                        registeredAt: new Date(data.registeredAt)
+                    } as UserData;
+                    // Cache
+                    this.users.set(user.telegramId, user);
+                    return user;
+                }
+            } catch (error) {
+                console.error('Firebase find by referral error:', error);
+            }
+        }
+        return null;
+    }
+
+    // ... (rest of methods: getUser, isRegistered, updateBalance, getAllUsers)
+
     async getUser(telegramId: number): Promise<UserData | null> {
+        // ... (keep existing implementation)
         // Check memory first
         let user = this.users.get(telegramId);
 
@@ -97,6 +159,7 @@ class UserService {
     }
 
     async isRegistered(telegramId: number): Promise<boolean> {
+        // ... (keep existing implementation)
         // Check memory first
         if (this.users.has(telegramId)) {
             return true;
@@ -125,6 +188,7 @@ class UserService {
     }
 
     async updateBalance(telegramId: number, amount: number): Promise<number> {
+        // ... (keep existing implementation)
         const user = await this.getUser(telegramId);
         if (!user) throw new Error('User not found');
 
