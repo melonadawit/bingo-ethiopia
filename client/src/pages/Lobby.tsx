@@ -125,7 +125,14 @@ export default function Lobby() {
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: idx * 0.1 }}
                             >
-                                <div className="group h-full flex flex-col relative overflow-hidden bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
+                                <div
+                                    className="group h-full flex flex-col relative overflow-hidden bg-slate-800/50 border border-slate-700 rounded-2xl p-6 cursor-pointer hover:border-indigo-500/50 hover:bg-slate-800/80 transition-all shadow-lg hover:shadow-indigo-500/10"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        console.log('Join Room clicked!', mode.id);
+                                        navigate(`/game/${mode.id}?mode=${mode.id}`);
+                                    }}
+                                >
                                     <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${mode.color} opacity-10 blur-2xl group-hover:opacity-20 transition-opacity`} />
 
                                     <div className="relative z-10 flex flex-col h-full">
@@ -139,28 +146,14 @@ export default function Lobby() {
                                             </div>
                                         </div>
 
-                                        <h3 className="text-xl font-bold text-white mb-1 group-hover:text-indigo-400 transition-colors">{mode.title}</h3>
-                                        <p className="text-slate-400 text-sm mb-6 flex-1">{mode.description}</p>
-
-                                        <div className="mt-auto">
-                                            <div className="flex items-center justify-between mb-4 p-3 bg-slate-900/50 rounded-lg border border-slate-800">
-                                                <span className="text-sm text-slate-400">Entry Bet</span>
-                                                <span className="text-lg font-bold text-white">{mode.minBet} Birr</span>
-                                            </div>
-                                            <Button
-                                                type="button"
-                                                className="w-full relative z-20"
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    console.log('Join Room clicked!', mode.id);
-                                                    // Pass mode in query params so Game.tsx can read it
-                                                    navigate(`/game/${mode.id}?mode=${mode.id}`);
-                                                }}
-                                            >
-                                                Join Room
-                                            </Button>
+                                        <div className="flex justify-between items-start mb-1">
+                                            <h3 className="text-xl font-bold text-white group-hover:text-indigo-400 transition-colors">{mode.title}</h3>
+                                            <span className="text-emerald-400 font-bold bg-emerald-400/10 px-2 py-0.5 rounded text-sm whitespace-nowrap">
+                                                {mode.minBet} Birr
+                                            </span>
                                         </div>
+
+                                        <p className="text-slate-400 text-sm">{mode.description}</p>
                                     </div>
                                 </div>
                             </motion.div>
