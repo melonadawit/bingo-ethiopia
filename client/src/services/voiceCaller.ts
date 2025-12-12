@@ -109,6 +109,11 @@ export class AmharicVoiceCaller {
             const num = key.replace('number_', '');
             return `/audio/numbers/${num}.mp3`;
         }
+        if (key.startsWith('cartelas/')) {
+            // key is 'cartelas/158' -> /audio/cartelas/158.mp3
+            return `/audio/${key}.mp3`;
+        }
+        // Default (game_start, etc) -> /audio/announcements/game_start.mp3
         return `/audio/announcements/${key}.mp3`;
     }
 
