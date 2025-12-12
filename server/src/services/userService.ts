@@ -209,6 +209,32 @@ class UserService {
         return user.balance;
     }
 
+    async getReferralStats(telegramId: number): Promise<{ count: number; earnings: number }> {
+        let count = 0;
+
+        // Memory count
+        for (const user of this.users.values()) {
+            if (user.referredBy === telegramId) count++;
+        }
+
+        // Firebase count (if counting large datasets, this query is better)
+        if (this.useFirebase && db) {
+            try {
+                // If not everything is in memory, query DB
+                // For optimal perf, we'd cache this count on the user document, but query is fine for now
+                const snapshot = await db.collection('users').where('referredBy', '==', telegramId).get();
+                count = snapshot.size;
+            } catch (error) {
+                console.error('Error fetching referral stats:', error);
+            }
+        }
+
+        return {
+            count,
+            earnings: count * 50 // Assumes 50 Birr per referral
+        };
+    }
+
     async getAllUsers(): Promise<UserData[]> {
         return Array.from(this.users.values());
     }
