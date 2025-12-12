@@ -5,7 +5,7 @@ export class AmharicVoiceCaller {
     private audioCache: Map<string, HTMLAudioElement> = new Map();
     private currentAudio: HTMLAudioElement | null = null;
     private isEnabled: boolean = true;
-    private voiceGender: 'female' | 'male' = 'male'; // Default to Male as requested
+    private voiceGender: 'female' | 'male' = 'female'; // Use generated Amharic MP3 files
 
     constructor() {
         // Initialize voices immediately if possible
