@@ -28,18 +28,14 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
 
     useEffect(() => {
         // Announce winners
-        // Announce winners
         const announceWinners = async () => {
             // Wait a brief moment for the visual reveal
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            // Announce each winner one by one
-            for (const winner of winners) {
-                // This plays 'cartelas/{number}.mp3' which says "The winner is cartela {number}"
-                await voiceCaller.announceWinner(winner.cartelaNumber);
-                // Wait for the announcement to finish before the next one (approx 3-4s)
-                await new Promise(resolve => setTimeout(resolve, 3500));
-            }
+            const winner = winners[0];
+            // Play strictly the BINGO shout or generic winner sound
+            // We removed the individual cartela calls to ensure stability with missing files
+            await voiceCaller.announceWinner(winner.cartelaNumber);
         };
 
         announceWinners();
