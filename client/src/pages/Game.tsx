@@ -215,6 +215,9 @@ const GamePage: React.FC = () => {
     const selectedCardsRef = useRef<number[]>([]);
     const latestIsMuted = useRef(isMuted); // Ref to track mute state in closures
 
+    // Interval Ref for cleaning up the game loop
+    const gameIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
     // Update refs whenever state changes
     useEffect(() => {
         previewCardsRef.current = previewCards;
@@ -238,9 +241,10 @@ const GamePage: React.FC = () => {
         return () => clearTimeout(timer);
     }, [user, navigate]);
 
-    // Cleanup socket on unmount
+    // Cleanup socket and interval on unmount
     useEffect(() => {
         return () => {
+            if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
             socket.off('game_started');
             socket.off('number_drawn');
             socket.off('game_won');
@@ -253,6 +257,7 @@ const GamePage: React.FC = () => {
             console.log('Game Won!', data);
             setWinners(data.winners);
             setStatus('ended');
+            if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
         });
     }, []);
 
@@ -279,6 +284,9 @@ const GamePage: React.FC = () => {
 
     const handleNextGame = () => {
         console.log('Resetting game loop...');
+        if (gameIntervalRef.current) clearInterval(gameIntervalRef.current); // STOP CALLER
+        voiceCaller.stop(); // STOP AUDIO
+
         setWinners([]);
         setCalledNumbers(new Set());
         setCurrentNumber(null);
@@ -316,6 +324,8 @@ const GamePage: React.FC = () => {
     };
 
     const startGame = () => {
+        if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
+
         // Use refs to get the LATEST values, not the stale closure values
         const latestSelectedCards = selectedCardsRef.current;
         const latestPreviewCards = previewCardsRef.current;
@@ -345,9 +355,9 @@ const GamePage: React.FC = () => {
         let count = 0;
         const usedNumbers = new Set<number>();
 
-        const interval = setInterval(() => {
+        gameIntervalRef.current = setInterval(() => {
             if (count >= 75) {
-                clearInterval(interval);
+                if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
                 setStatus('ended'); // Game ends if all numbers are called without a winner
                 return;
             }
@@ -369,11 +379,12 @@ const GamePage: React.FC = () => {
 
             count++;
         }, 4000); // Slower interval (4s) to allow for voice announcements
-
-        return () => clearInterval(interval);
     };
 
     const handleBingoClaim = () => {
+        if (gameIntervalRef.current) clearInterval(gameIntervalRef.current); // IMMEDIATE STOP
+        voiceCaller.stop(); // IMMEDIATE SILENCE
+
         // Validation: Verify if user actually has a bingo
         const myCards = selectedCardsRef.current.map(id =>
             previewCardsRef.current.find(c => c.id === id) || generateBingoCard(id)
@@ -400,6 +411,7 @@ const GamePage: React.FC = () => {
         if (hasWinner) {
             // Valid Claim!
             // Stop calling numbers immediately
+            if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
             voiceCaller.stop();
 
             voiceCaller.announceWinner(newWinners[0].cartelaNumber); // Announce first card
@@ -613,6 +625,7 @@ const GamePage: React.FC = () => {
                     className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-bold rounded-lg shadow-lg text-sm"
                     onClick={() => {
                         voiceCaller.stop();
+                        if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
                         navigate('/lobby');
                     }}
                 >
