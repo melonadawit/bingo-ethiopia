@@ -75,9 +75,19 @@ export default function Lobby() {
                                 BINGO ETHIOPIA
                             </span>
                         </h1>
-                        <p className="text-slate-400 text-lg max-w-2xl mx-auto font-light">
+                        <p className="text-slate-400 text-lg max-w-2xl mx-auto font-light mb-6">
                             Experience the thrill of real-time bingo. Choose your game mode below.
                         </p>
+
+                        <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => navigate('/referrals')}
+                            className="px-6 py-2 rounded-full bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold text-sm shadow-[0_0_20px_rgba(99,102,241,0.4)] flex items-center gap-2 mx-auto hover:from-indigo-500 hover:to-blue-500 transition-all border border-white/20"
+                        >
+                            <Users size={16} />
+                            Invite & Earn 50 Birr
+                        </motion.button>
                     </motion.div>
                 </div>
 

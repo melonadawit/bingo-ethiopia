@@ -7,17 +7,19 @@ import History from './pages/History';
 import Settings from './pages/Settings';
 import GamePage from './pages/Game';
 import DashboardLayout from './layouts/DashboardLayout';
+import ReferralPage from './pages/ReferralPage'; // Added import for ReferralPage
 
 const AppRoutes = () => {
     return (
         <Routes>
             <Route path="/" element={<DashboardLayout />}>
                 <Route index element={<HomePage />} />
-                <Route path="lobby" element={<Lobby />} />
+                <Route path="/lobby" element={<Lobby />} />
                 <Route path="wallet" element={<Wallet />} />
                 <Route path="history" element={<History />} />
                 <Route path="settings" element={<Settings />} />
-                <Route path="game/:gameId" element={<GamePage />} />
+                <Route path="/game/:gameId" element={<GamePage />} />
+                <Route path="/referrals" element={<ReferralPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
         </Routes>
