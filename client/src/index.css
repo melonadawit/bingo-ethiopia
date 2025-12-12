@@ -91,3 +91,300 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* Winner Announcement Styles */
+.winner-announcement {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.confetti-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1001;
+}
+
+.confetti {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  top: -10px;
+  animation: confetti-fall 3s linear infinite;
+}
+
+@keyframes confetti-fall {
+  to {
+    transform: translateY(100vh) rotate(360deg);
+  }
+}
+
+.winner-content {
+  max-width: 600px;
+  width: 100%;
+  text-align: center;
+  animation: scale-in 0.5s ease-out;
+  position: relative;
+  z-index: 1002;
+}
+
+@keyframes scale-in {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.crown-container {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 20px;
+}
+
+.crown-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.4) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.6;
+  }
+
+  50% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 0.8;
+  }
+}
+
+.crown {
+  font-size: 80px;
+  position: relative;
+  z-index: 1;
+  animation: bounce 1s ease-in-out infinite;
+}
+
+@keyframes bounce {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.bingo-text {
+  font-size: 64px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0 0 20px 0;
+  text-shadow: 0 4px 20px rgba(251, 191, 36, 0.5);
+  letter-spacing: 4px;
+}
+
+.winner-count {
+  font-size: 24px;
+  color: #f3f4f6;
+  margin-bottom: 30px;
+  font-weight: 600;
+}
+
+.winner-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 30px;
+  align-items: center;
+}
+
+.winner-pill {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50px;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 280px;
+  transition: transform 0.2s;
+}
+
+.winner-pill:hover {
+  transform: scale(1.05);
+}
+
+.winner-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.winner-name {
+  flex: 1;
+  color: #f3f4f6;
+  font-weight: 600;
+  font-size: 18px;
+  text-align: left;
+}
+
+.winner-cartela {
+  color: #9ca3af;
+  font-size: 16px;
+}
+
+.winning-cartela-container {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+.cartela-header {
+  color: #fbbf24;
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.bingo-card {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 16px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.card-header {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.column-letter {
+  padding: 12px;
+  border-radius: 8px;
+  color: white;
+  font-weight: 700;
+  font-size: 20px;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.card-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 18px;
+  color: #1f2937;
+  transition: all 0.3s;
+}
+
+.card-cell.free {
+  background: #fbbf24;
+  color: white;
+  font-size: 24px;
+}
+
+.card-cell.winning {
+  background: #10b981;
+  color: white;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
+  animation: pulse-winning 1s ease-in-out infinite;
+}
+
+.card-cell.called {
+  background: #f97316;
+  color: white;
+}
+
+@keyframes pulse-winning {
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.countdown {
+  color: #9ca3af;
+  font-size: 16px;
+  margin-top: 20px;
+}
+
+@media (max-width: 640px) {
+  .bingo-text {
+    font-size: 48px;
+  }
+
+  .winner-count {
+    font-size: 20px;
+  }
+
+  .crown {
+    font-size: 60px;
+  }
+
+  .card-cell {
+    font-size: 14px;
+  }
+}
