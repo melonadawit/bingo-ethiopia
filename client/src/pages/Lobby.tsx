@@ -4,43 +4,43 @@ import { Button } from '../components/ui/Button';
 import { Users, Clock, Trophy, PlayCircle, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-// Mock data - no backend needed
+// Mock data - aligned with backend
 const mockGameModes = [
     {
-        id: 'classic-bingo',
-        title: 'Classic Bingo',
-        description: 'Traditional 75-ball bingo with standard patterns',
+        id: 'and-zig',
+        title: 'And-zig (አንድ ዝግ)',
+        description: 'Complete 1 Line or 4 Corners',
         minBet: 10,
         maxBet: 100,
-        activePlayers: 24,
-        icon: 'PlayCircle',
+        activePlayers: 142,
+        icon: 'Zap',
         color: 'from-blue-500 to-cyan-500'
     },
     {
-        id: 'speed-bingo',
-        title: 'Speed Bingo',
-        description: 'Fast-paced 30-ball bingo for quick wins',
-        minBet: 5,
+        id: 'hulet-zig',
+        title: 'Hulet-zig (ሁለት ዝግ)',
+        description: 'Complete 2 Lines',
+        minBet: 20,
         maxBet: 50,
-        activePlayers: 18,
-        icon: 'Zap',
-        color: 'from-yellow-500 to-orange-500'
+        activePlayers: 89,
+        icon: 'PlayCircle',
+        color: 'from-purple-500 to-pink-500'
     },
     {
-        id: 'jackpot-bingo',
-        title: 'Jackpot Bingo',
-        description: 'Progressive jackpot with massive prizes',
-        minBet: 20,
+        id: 'mulu-zig',
+        title: 'Mulu-zig (ሙሉ ዝግ)',
+        description: 'Blackout: Mark All 25 Cells',
+        minBet: 50,
         maxBet: 200,
-        activePlayers: 42,
+        activePlayers: 215,
         icon: 'Trophy',
-        color: 'from-purple-500 to-pink-500'
+        color: 'from-amber-500 to-orange-500'
     }
 ];
 
 const mockStats = {
-    activePlayers: 84,
-    totalPrizePool: 12500,
+    activePlayers: 446,
+    totalPrizePool: 45200,
     isSystemLive: true
 };
 
@@ -154,8 +154,8 @@ export default function Lobby() {
                                                     e.preventDefault();
                                                     e.stopPropagation();
                                                     console.log('Join Room clicked!', mode.id);
-                                                    console.log('Navigating to:', `/game/${mode.id}`);
-                                                    navigate(`/game/${mode.id}`);
+                                                    // Pass mode in query params so Game.tsx can read it
+                                                    navigate(`/game/${mode.id}?mode=${mode.id}`);
                                                 }}
                                             >
                                                 Join Room
