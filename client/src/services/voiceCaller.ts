@@ -5,10 +5,19 @@ export class AmharicVoiceCaller {
     private audioCache: Map<string, HTMLAudioElement> = new Map();
     private currentAudio: HTMLAudioElement | null = null;
     private isEnabled: boolean = true;
+    private voiceGender: 'female' | 'male' = 'male'; // Default to Male as requested
 
     constructor() {
         // We don't preload everything to save bandwidth/memory
-        // We will load on demand
+    }
+
+    public setGender(gender: 'female' | 'male') {
+        this.voiceGender = gender;
+        this.stop(); // Stop any current audio when switching
+    }
+
+    public getGender() {
+        return this.voiceGender;
     }
 
     public async callNumber(number: number): Promise<void> {
@@ -26,39 +35,76 @@ export class AmharicVoiceCaller {
         if (!this.isEnabled) return;
         console.log(`🏆 Announcing: Cartela ${cartelaNumber} is the winner!`);
 
+        // If Male voice, we can use TTS for simple "Winner is Cartela X"
+        if (this.voiceGender === 'male') {
+            this.speak(`The winner is cartela number ${cartelaNumber}`);
+            return;
+        }
+
         try {
-            // Play celebration sound first
-            // await this.playAudio('winner_sound'); // Optional: if you have a sound effect
-
-            // Play the pre-generated Amharic announcement
-            // File format: /audio/cartelas/{number}.mp3
-            // Content: "The winner cartela number is {number}" (in Amharic)
             await this.playAudio(`cartelas/${cartelaNumber}`);
-
         } catch (err) {
             console.error("Error in winner announcement sequence:", err);
         }
     }
 
+    private speak(text: string) {
+        if ('speechSynthesis' in window) {
+            // Cancel any current speech
+            window.speechSynthesis.cancel();
+
+            const utterance = new SpeechSynthesisUtterance(text);
+
+            // Try to find a male voice
+            const voices = window.speechSynthesis.getVoices();
+            // Prioritize "Male" or deep voices if possible, or common English voices
+            const maleVoice = voices.find(v =>
+                v.name.toLowerCase().includes('male') ||
+                v.name.toLowerCase().includes('david') ||
+                v.name.toLowerCase().includes('google us english')
+            );
+
+            if (maleVoice) utterance.voice = maleVoice;
+
+            // Adjust pitch/rate to sound more like a caller
+            utterance.rate = 0.9;
+            utterance.pitch = 0.9;
+
+            window.speechSynthesis.speak(utterance);
+        }
+    }
+
     private async playAudio(key: string): Promise<void> {
-        return new Promise((resolve) => { // Resolve only, don't reject to keep game flow
+        // Male Voice (TTS) Handler
+        if (this.voiceGender === 'male') {
+            if (key.startsWith('number_')) {
+                const num = parseInt(key.replace('number_', ''));
+                const letter = num <= 15 ? 'B' : num <= 30 ? 'I' : num <= 45 ? 'N' : num <= 60 ? 'G' : 'O';
+                this.speak(`${letter} ${num}`);
+                return;
+            }
+            if (key === 'game_start') {
+                this.speak("The game is starting. Good luck!");
+                return;
+            }
+            // Fallback for other keys or mixed mode
+        }
+
+        // Female Voice (MP3) Handler
+        return new Promise((resolve) => {
             try {
-                // Stop current audio if playing to prevent overlap
                 this.stop();
 
                 let audio = this.audioCache.get(key);
 
                 if (!audio) {
                     const path = this.getAudioPath(key);
-                    // console.log(`Loading audio: ${key} from ${path}`);
                     audio = new Audio(path);
-                    audio.preload = 'auto'; // Load it now that we need it
+                    audio.preload = 'auto';
                     this.audioCache.set(key, audio);
                 }
 
                 this.currentAudio = audio;
-
-                // Reset playback position
                 audio.currentTime = 0;
 
                 const handleEnded = () => {
@@ -69,7 +115,6 @@ export class AmharicVoiceCaller {
                 const handleError = (e: Event | string) => {
                     console.error(`Error playing audio ${key}:`, e);
                     cleanup();
-                    // Resolve anyway to continue game flow
                     resolve();
                 };
 
@@ -92,14 +137,14 @@ export class AmharicVoiceCaller {
                     playPromise.catch(error => {
                         console.warn(`Autoplay prevented or failed for ${key}:`, error);
                         cleanup();
-                        resolve(); // Resolve anyway
+                        resolve();
                     });
                 }
 
             } catch (error) {
                 console.error(`Critical error in playAudio for ${key}:`, error);
                 this.stop();
-                resolve(); // Resolve anyway
+                resolve();
             }
         });
     }
@@ -110,22 +155,23 @@ export class AmharicVoiceCaller {
             return `/audio/numbers/${num}.mp3`;
         }
         if (key.startsWith('cartelas/')) {
-            // key is 'cartelas/158' -> /audio/cartelas/158.mp3
             return `/audio/${key}.mp3`;
         }
-        // Default (game_start, etc) -> /audio/announcements/game_start.mp3
         return `/audio/announcements/${key}.mp3`;
     }
 
     public stop() {
+        // Stop MP3
         if (this.currentAudio) {
             try {
                 this.currentAudio.pause();
                 this.currentAudio.currentTime = 0;
-            } catch (e) {
-                // Ignore pause errors
-            }
+            } catch (e) { }
             this.currentAudio = null;
+        }
+        // Stop TTS
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
         }
     }
 

@@ -278,12 +278,19 @@ const GamePage: React.FC = () => {
     }, [status]); // Only depend on status, not startGame
 
     const handleNextGame = () => {
-        console.log('Resetting game...');
+        console.log('Resetting game loop...');
         setWinners([]);
         setCalledNumbers(new Set());
         setCurrentNumber(null);
+
+        // Reset selections
+        setSelectedCards([]);
+        setPreviewCards([]);
+        setMyCards([]);
+
+        // Reset to Selection Phase
         setStatus('selection');
-        setCountdown(10);
+        setCountdown(30); // 30s countdown as requested
     };
 
     const handleSelectCard = (id: number) => {
