@@ -90,13 +90,13 @@ export class StartCommand extends BaseCommand {
                 console.log(`✅ Referral: ${referrerId} referred ${newUserId}`);
 
                 // Send notification to new user
-                await this.bot.telegram.sendMessage(
+                await ctx.telegram.sendMessage(
                     newUserId,
                     `🎁 Welcome bonus! You received ${result.refereeReward} Birr from your friend's referral!`
                 ).catch(console.error);
 
                 // Send notification to referrer
-                await this.bot.telegram.sendMessage(
+                await ctx.telegram.sendMessage(
                     referrerId,
                     `🎉 ${firstName} joined using your referral link! You earned ${result.referrerReward} Birr!`
                 ).catch(console.error);
