@@ -1,0 +1,228 @@
+import { Context, Telegraf } from 'telegraf';
+import { CALLBACKS, EMOJI } from '../../config/constants';
+import { KeyboardBuilder } from '../../utils/KeyboardBuilder';
+
+/**
+ * Callback Query Handler
+ * Handles all inline keyboard button presses
+ */
+export class CallbackHandler {
+    constructor(
+        private bot: Telegraf,
+        private webAppUrl: string
+    ) {
+        this.registerHandlers();
+    }
+
+    private registerHandlers(): void {
+        // Game mode selection
+        this.bot.action(/^mode_(.+)$/, this.handleGameMode.bind(this));
+
+        // Deposit amount selection
+        this.bot.action(/^deposit_(.+)$/, this.handleDeposit.bind(this));
+
+        // Simple actions
+        this.bot.action('balance', this.handleBalance.bind(this));
+        this.bot.action('stats', this.handleStats.bind(this));
+        this.bot.action('daily', this.handleDaily.bind(this));
+        this.bot.action('refer', this.handleRefer.bind(this));
+        this.bot.action('main_menu', this.handleMainMenu.bind(this));
+    }
+
+    /**
+     * Handle game mode selection
+     */
+    private async handleGameMode(ctx: Context): Promise<void> {
+        if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) return;
+
+        const mode = ctx.callbackQuery.data.replace('mode_', '');
+        const modeNames = {
+            'and-zig': 'Ande Zeg (አንድ ዘግ)',
+            'hulet-zig': 'Hulet Zeg (ሁለት ዘግ)',
+            'mulu-zig': 'Mulu Zeg (ሙሉ ዘግ)'
+        };
+
+        const message = `
+${EMOJI.GAME} *${modeNames[mode] || mode}*
+
+Loading available games...
+    `.trim();
+
+        await ctx.answerCbQuery();
+        await ctx.editMessageText(message, { parse_mode: 'Markdown' });
+
+        // TODO: Fetch actual games from database
+        setTimeout(async () => {
+            const games = await this.getGamesByMode(mode);
+            await this.showGameList(ctx, mode, games);
+        }, 500);
+    }
+
+    /**
+     * Handle deposit amount selection  
+     */
+    private async handleDeposit(ctx: Context): Promise<void> {
+        if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) return;
+
+        const amount = ctx.callbackQuery.data.replace('deposit_', '');
+
+        await ctx.answerCbQuery('Processing payment...');
+
+        if (amount === 'custom') {
+            await ctx.editMessageText(
+                `${EMOJI.MONEY} Enter the amount you want to deposit:\n\n*Reply with a number* (minimum 10 Birr)`,
+                { parse_mode: 'Markdown' }
+            );
+            return;
+        }
+
+        // Generate payment link
+        const paymentUrl = await this.generatePaymentLink(
+            ctx.from!.id,
+            parseInt(amount)
+        );
+
+        const keyboard = new KeyboardBuilder()
+            .addUrlButton('💳 Pay Now', paymentUrl)
+            .addButton('🔙 Back', 'deposit_menu')
+            .build();
+
+        await ctx.editMessageText(
+            `${EMOJI.MONEY} *Deposit ${amount} Birr*\n\nClick "Pay Now" to complete payment via Chapa.`,
+            { parse_mode: 'Markdown', ...keyboard }
+        );
+    }
+
+    /**
+     * Handle balance check
+     */
+    private async handleBalance(ctx: Context): Promise<void> {
+        await ctx.answerCbQuery();
+
+        const balance = await this.getUserBalance(ctx.from!.id);
+
+        await ctx.reply(
+            `${EMOJI.MONEY} Your balance: *${balance} Birr*`,
+            { parse_mode: 'Markdown' }
+        );
+    }
+
+    /**
+     * Handle stats view
+     */
+    private async handleStats(ctx: Context): Promise<void> {
+        await ctx.answerCbQuery();
+
+        const stats = {
+            wins: 12,
+            games: 45,
+            earnings: 2500
+        };
+
+        const winRate = ((stats.wins / stats.games) * 100).toFixed(1);
+
+        const message = `
+${EMOJI.CHART} *Your Statistics*
+
+${EMOJI.WIN} Wins: ${stats.wins}/${stats.games} (${winRate}%)
+${EMOJI.MONEY} Total Earnings: ${stats.earnings} Birr
+
+${EMOJI.GAME} Keep playing to improve your stats!
+    `.trim();
+
+        await ctx.reply(message, { parse_mode: 'Markdown' });
+    }
+
+    /**
+     * Handle daily reward claim
+     */
+    private async handleDaily(ctx: Context): Promise<void> {
+        await ctx.answerCbQuery('Checking daily reward...');
+
+        // TODO: implement daily reward logic
+        await ctx.reply(
+            `${EMOJI.GIFT} Daily reward feature coming soon!\n\nStay tuned for daily bonuses!`
+        );
+    }
+
+    /**
+     * Handle referral
+     */
+    private async handleRefer(ctx: Context): Promise<void> {
+        await ctx.answerCbQuery();
+
+        const referralCode = `REF${ctx.from!.id}`;
+        const referralLink = `https://t.me/${this.bot.botInfo?.username}?start=${referralCode}`;
+
+        const message = `
+${EMOJI.GIFT} *Invite Friends & Earn!*
+
+Share your referral link:
+\`${referralLink}\`
+
+*Rewards:*
+${EMOJI.CHECK} You: 50 Birr per referral
+${EMOJI.CHECK} Friend: 25 Birr welcome bonus
+
+The more friends, the more you earn!
+    `.trim();
+
+        const keyboard = new KeyboardBuilder()
+            .addUrlButton('📤 Share Link', `https://t.me/share/url?url=${encodeURIComponent(referralLink)}`)
+            .build();
+
+        await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+    }
+
+    /**
+     * Handle main menu
+     */
+    private async handleMainMenu(ctx: Context): Promise<void> {
+        await ctx.answerCbQuery();
+
+        const keyboard = KeyboardBuilder.mainMenuKeyboard(this.webAppUrl);
+
+        await ctx.reply(
+            `${EMOJI.GAME} *Main Menu*\n\nWhat would you like to do?`,
+            { parse_mode: 'Markdown', ...keyboard }
+        );
+    }
+
+    // Helper methods
+    private async getGamesByMode(mode: string): Promise<any[]> {
+        // TODO: Fetch from database
+        return [
+            { id: '1', entry: 10, players: 15 },
+            { id: '2', entry: 20, players: 8 },
+            { id: '3', entry: 50, players: 23 },
+        ];
+    }
+
+    private async showGameList(ctx: Context, mode: string, games: any[]): Promise<void> {
+        const keyboard = new KeyboardBuilder();
+
+        games.forEach(game => {
+            keyboard.addButton(
+                `Entry: ${game.entry} Birr | Players: ${game.players}/100`,
+                `join_${game.id}`
+            );
+        });
+
+        keyboard.addWebAppButton('🎮 Open Game', this.webAppUrl + '/lobby');
+
+        await ctx.editMessageText(
+            `${EMOJI.GAME} *Available Games*\n\nTap to join or open full game:`,
+            { parse_mode: 'Markdown', ...keyboard.build() }
+        );
+    }
+
+    private async generatePaymentLink(userId: number, amount: number): Promise<string> {
+        // TODO: Implement Chapa payment link generation
+        return `https://payment.chapa.co/pay/demo-${userId}-${amount}`;
+    }
+
+    private async getUserBalance(userId: number): Promise<number> {
+        // TODO: Get from database
+        return 150;
+    }
+}
