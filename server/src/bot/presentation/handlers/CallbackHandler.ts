@@ -142,12 +142,53 @@ ${EMOJI.GAME} Keep playing to improve your stats!
      * Handle daily reward claim
      */
     private async handleDaily(ctx: Context): Promise<void> {
-        await ctx.answerCbQuery('Checking daily reward...');
+        if (!ctx.from) return;
 
-        // TODO: implement daily reward logic
-        await ctx.reply(
-            `${EMOJI.GIFT} Daily reward feature coming soon!\n\nStay tuned for daily bonuses!`
-        );
+        try {
+            await ctx.answerCbQuery('Loading...');
+
+            // Get streak info
+            const streakInfo = await dailyRewardService.getStreakInfo(ctx.from.id);
+
+            if (streakInfo.canClaim) {
+                // Show claim button
+                const message = `
+${EMOJI.GIFT} *Daily Reward Available!*
+
+${EMOJI.FIRE} *Current Streak:* ${streakInfo.streakDays} day${streakInfo.streakDays !== 1 ? 's' : ''}
+${EMOJI.MONEY} *Today's Reward:* ${streakInfo.nextReward} Birr
+${EMOJI.CHART} *Total Claimed:* ${streakInfo.totalClaimed} Birr
+
+Click below to claim your reward!
+                `.trim();
+
+                const keyboard = new KeyboardBuilder()
+                    .addButton(`🎁 Claim ${streakInfo.nextReward} Birr`, 'daily_claim')
+                    .addButton('🔙 Back to Menu', 'main_menu')
+                    .build();
+
+                await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+            } else {
+                // Already claimed
+                const message = `
+${EMOJI.CHECK} *Already Claimed Today!*
+
+${EMOJI.FIRE} *Current Streak:* ${streakInfo.streakDays} day${streakInfo.streakDays !== 1 ? 's' : ''}
+${EMOJI.MONEY} *Next Reward:* ${streakInfo.nextReward} Birr
+
+⏰ *Come back in:* ${streakInfo.timeUntilNext}
+                `.trim();
+
+                const keyboard = new KeyboardBuilder()
+                    .addButton('🔙 Back to Menu', 'main_menu')
+                    .build();
+
+                await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+            }
+        } catch (error) {
+            console.error('Error in handleDaily:', error);
+            await ctx.reply('❌ Error loading daily rewards. Please try /daily command.');
+        }
     }
 
     /**
