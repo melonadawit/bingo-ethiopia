@@ -204,8 +204,10 @@ const GamePage: React.FC = () => {
     const [winners, setWinners] = useState<any[]>([]);
 
     // Real-time multiplayer card selection state
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [selectedCardsByPlayer, setSelectedCardsByPlayer] = useState<Record<number, string>>({});  // cardId -> userId
-    const [realPlayerCount, setRealPlayerCount] = useState(0); // Real-time player count from server
+    const [realPlayerCount, setRealPlayerCount] = useState(0); // Real-time player count from server (USED in UI)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [isSpectator, setIsSpectator] = useState(false); // True if joined after game started
 
 
@@ -535,9 +537,9 @@ const GamePage: React.FC = () => {
             <div className="bg-[#2A1B3D] grid grid-cols-5 gap-0.5 p-0.5 border-b border-white/5 h-12 shrink-0">
                 {[
                     { label: 'GAME ID', val: gameId?.slice(0, 8) || 'ic-bingo' },
-                    { label: 'PLAYERS', val: '22' },
-                    { label: 'BET', val: '10' },
-                    { label: 'DERASH', val: '176' },
+                    { label: 'PLAYERS', val: realPlayerCount.toString() || '0' }, // REAL-TIME player count
+                    { label: 'BET', val: gameMode === 'and-zig' ? '50' : gameMode === 'hulet-zig' ? '100' : '150' }, // Entry fee by mode
+                    { label: 'DERASH', val: (realPlayerCount * (gameMode === 'and-zig' ? 50 : gameMode === 'hulet-zig' ? 100 : 150)).toString() }, // Prize pool
                     { label: 'CALLED', val: calledNumbers.size.toString() },
                 ].map((item, i) => (
                     <div key={i} className="bg-slate-800/50 rounded p-0.5 text-center">
