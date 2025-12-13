@@ -284,34 +284,6 @@ The more friends, the more you earn!
         );
     }
 
-    // Helper methods
-    private async getGamesByMode(mode: string): Promise<any[]> {
-        // TODO: Fetch from database
-        return [
-            { id: '1', entry: 10, players: 15 },
-            { id: '2', entry: 20, players: 8 },
-            { id: '3', entry: 50, players: 23 },
-        ];
-    }
-
-    private async showGameList(ctx: Context, mode: string, games: any[]): Promise<void> {
-        const keyboard = new KeyboardBuilder();
-
-        games.forEach(game => {
-            keyboard.addButton(
-                `Entry: ${game.entry} Birr | Players: ${game.players}/100`,
-                `join_${game.id}`
-            );
-        });
-
-        keyboard.addWebAppButton('🎮 Open Game', this.webAppUrl + '/lobby');
-
-        await ctx.editMessageText(
-            `${EMOJI.GAME} *Available Games*\n\nTap to join or open full game:`,
-            { parse_mode: 'Markdown', ...keyboard.build() }
-        );
-    }
-
     private async generatePaymentLink(userId: number, amount: number): Promise<string> {
         const { botPaymentService, botUserService } = await import('../../infrastructure/services/BotIntegrationService');
 
@@ -343,5 +315,50 @@ The more friends, the more you earn!
     private async getUserBalance(userId: number): Promise<number> {
         const { botUserService } = await import('../../infrastructure/services/BotIntegrationService');
         return await botUserService.getBalance(userId);
+    }
+
+    /**
+     * Get games by mode from BotGameService
+     */
+    private async getGamesByMode(mode: 'and-zig' | 'hulet-zig' | 'mulu-zig'): Promise<any[]> {
+        return await botGameService.getGamesByMode(mode);
+    }
+
+    /**
+     * Show list of available games
+     */
+    private async showGameList(ctx: Context, mode: string, games: any[]): Promise<void> {
+        if (games.length === 0) {
+            await ctx.editMessageText(
+                `${EMOJI.WARNING} No games available for this mode.\n\nCheck back later or try another mode!`,
+                { parse_mode: 'Markdown' }
+            );
+            return;
+        }
+
+        const modeNames: Record<string, string> = {
+            'and-zig': 'Ande Zeg',
+            'hulet-zig': 'Hulet Zeg',
+            'mulu-zig': 'Mulu Zeg'
+        };
+
+        const entryFee = botGameService.getEntryFee(mode as any);
+
+        let message = `${EMOJI.GAME} *${modeNames[mode]} Games*\n\n`;
+        message += `💰 Entry Fee: ${entryFee} Birr\n\n`;
+        message += `*Available Games:*\n`;
+
+        games.forEach((game, index) => {
+            message += `\n${index + 1}. Game #${game.id.slice(0, 6)}\n`;
+            message += `   👥 Players: ${game.currentPlayers}/${game.maxPlayers}\n`;
+            message += `   ${game.status === 'waiting' ? '⏳ Waiting' : '🎮 In Progress'}\n`;
+        });
+
+        const keyboard = new KeyboardBuilder()
+            .addWebAppButton(`${EMOJI.GAME} Open Game Lobby`, this.webAppUrl + '/lobby')
+            .addButton('🔙 Back to Modes', 'back_to_modes')
+            .build();
+
+        await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
     }
 }
