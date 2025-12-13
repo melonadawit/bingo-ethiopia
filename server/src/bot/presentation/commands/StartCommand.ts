@@ -48,7 +48,7 @@ export class StartCommand extends BaseCommand {
 
             // Handle referral for new users
             if (isNewUser && startPayload && startPayload.startsWith('REF')) {
-                await this.handleReferral(startPayload, user.id, firstName);
+                await this.handleReferral(ctx, startPayload, user.id, firstName);
             }
 
             const welcomeMessage = isNewUser
@@ -73,7 +73,7 @@ export class StartCommand extends BaseCommand {
     /**
      * Handle referral registration
      */
-    private async handleReferral(referralCode: string, newUserId: number, firstName: string): Promise<void> {
+    private async handleReferral(ctx: Context, referralCode: string, newUserId: number, firstName: string): Promise<void> {
         try {
             // Extract referrer ID from code (REF123456 -> 123456)
             const referrerId = parseInt(referralCode.replace('REF', ''));
