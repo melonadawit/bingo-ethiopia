@@ -28,12 +28,20 @@ export class StartCommand extends BaseCommand {
                 lastName: user.last_name
             });
 
+            if (!userData) {
+                throw new Error('Failed to get or create user');
+            }
+
             const firstName = user.first_name || 'Player';
-            const isNewUser = !userData || userData.registeredAt > new Date(Date.now() - 60000); // Registered in last minute
+
+            // Simple check: if registered today, treat as new user
+            const today = new Date().toDateString();
+            const registrationDate = new Date(userData.registeredAt).toDateString();
+            const isNewUser = today === registrationDate;
 
             const welcomeMessage = isNewUser
-                ? this.getWelcomeMessage(firstName, userData?.balance || 0)
-                : this.getReturningMessage(firstName, userData?.balance || 0);
+                ? this.getWelcomeMessage(firstName, userData.balance)
+                : this.getReturningMessage(firstName, userData.balance);
 
             const keyboard = KeyboardBuilder.mainMenuKeyboard(this.webAppUrl);
 
@@ -43,6 +51,9 @@ export class StartCommand extends BaseCommand {
             console.log(`User ${user.id} (${firstName}) used /start`);
         } catch (error) {
             console.error('Error in start command:', error);
+            // More specific error message
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            console.error('StartCommand error details:', errorMsg);
             await ctx.reply('❌ Error starting bot. Please try again.');
         }
     }
