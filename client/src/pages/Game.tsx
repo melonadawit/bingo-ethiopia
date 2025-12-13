@@ -382,9 +382,6 @@ const GamePage: React.FC = () => {
     };
 
     const handleBingoClaim = () => {
-        if (gameIntervalRef.current) clearInterval(gameIntervalRef.current); // IMMEDIATE STOP
-        voiceCaller.stop(); // IMMEDIATE SILENCE
-
         // Validation: Verify if user actually has a bingo
         const myCards = selectedCardsRef.current.map(id =>
             previewCardsRef.current.find(c => c.id === id) || generateBingoCard(id)
@@ -409,19 +406,18 @@ const GamePage: React.FC = () => {
         });
 
         if (hasWinner) {
-            // Valid Claim!
-            // Stop calling numbers immediately
+            // Valid Claim! Stop the game
             if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
             voiceCaller.stop();
 
-            voiceCaller.announceWinner(newWinners[0].cartelaNumber); // Announce first card
+            voiceCaller.announceWinner(); // Play generic BINGO shout
             setWinners(newWinners);
             setStatus('ended');
 
             // In a real app, emit socket event here
             // socket.emit('claim_bingo', { gameId, winners: newWinners });
         } else {
-            // Invalid Claim
+            // Invalid Claim - game continues
             toast.error("Bogus Bingo! Keep playing.", {
                 icon: '🚫',
                 style: {

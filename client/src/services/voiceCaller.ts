@@ -40,6 +40,13 @@ export class AmharicVoiceCaller {
 
     public async announceWinner(cartelaNumber?: number): Promise<void> {
         if (!this.isEnabled) return;
+
+        // If no cartela number provided, play generic winner sound
+        if (!cartelaNumber) {
+            console.log('🏆 Announcing: Generic BINGO winner!');
+            return this.playAudio('announcements/winner');
+        }
+
         console.log(`🏆 Announcing: Cartela ${cartelaNumber} is the winner!`);
 
         // If Male voice, we can use TTS for simple "Winner is Cartela X"

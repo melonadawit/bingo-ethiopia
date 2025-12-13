@@ -32,10 +32,8 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
             // Wait a brief moment for the visual reveal
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            const winner = winners[0];
-            // Play strictly the BINGO shout or generic winner sound
-            // We removed the individual cartela calls to ensure stability with missing files
-            await voiceCaller.announceWinner(winner.cartelaNumber);
+            // Play generic BINGO shout sound
+            await voiceCaller.announceWinner();
         };
 
         announceWinners();
