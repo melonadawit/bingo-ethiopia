@@ -18,11 +18,42 @@ export class BotGameService {
     constructor(private gameManager?: GameManager) { }
 
     /**
-     * Get available games by mode
+     * Get available games by mode from Firebase
      */
     async getGamesByMode(mode: 'and-zig' | 'hulet-zig' | 'mulu-zig'): Promise<BotGame[]> {
-        // For now, return mock data
-        // TODO: Connect to Firebase 'games' collection when available
+        // Try Firebase first
+        if (db) {
+            try {
+                const gamesSnapshot = await db.collection('games')
+                    .where('mode', '==', mode)
+                    .where('status', '==', 'waiting')
+                    .limit(10)
+                    .get();
+
+                if (!gamesSnapshot.empty) {
+                    const games: BotGame[] = gamesSnapshot.docs.map(doc => {
+                        const data = doc.data();
+                        return {
+                            id: doc.id,
+                            mode: data.mode || mode,
+                            entryFee: data.entryFee || this.getEntryFee(mode),
+                            currentPlayers: (data.players || []).length,
+                            maxPlayers: data.maxPlayers || 20,
+                            status: data.status || 'waiting'
+                        };
+                    });
+
+                    console.log(`✅ Found ${games.length} real ${mode} games from Firebase`);
+                    return games;
+                }
+
+                console.log(`ℹ️ No real ${mode} games in Firebase, using mock data`);
+            } catch (error) {
+                console.error('Error fetching games from Firebase:', error);
+            }
+        }
+
+        // Fallback to mock data if Firebase unavailable or no games found
         return this.getMockGames(mode);
     }
 
