@@ -217,12 +217,35 @@ The more friends, the more you earn!
     }
 
     private async generatePaymentLink(userId: number, amount: number): Promise<string> {
-        // TODO: Implement Chapa payment link generation
-        return `https://payment.chapa.co/pay/demo-${userId}-${amount}`;
+        const { botPaymentService, botUserService } = await import('../../infrastructure/services/BotIntegrationService');
+
+        try {
+            // Get user data for payment
+            const user = await botUserService.getUserByTelegramId(userId);
+            if (!user) {
+                return 'https://payment.chapa.co/pay/error-no-user';
+            }
+
+            // Generate real Chapa payment link
+            const paymentUrl = await botPaymentService.createDepositLink(
+                userId,
+                amount,
+                {
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    email: `user${userId}@bingoethiopia.com`
+                }
+            );
+
+            return paymentUrl;
+        } catch (error) {
+            console.error('Error generating payment link:', error);
+            return 'https://payment.chapa.co/pay/error';
+        }
     }
 
     private async getUserBalance(userId: number): Promise<number> {
-        // TODO: Get from database
-        return 150;
+        const { botUserService } = await import('../../infrastructure/services/BotIntegrationService');
+        return await botUserService.getBalance(userId);
     }
 }

@@ -2,9 +2,11 @@ import { Context } from 'telegraf';
 import { BaseCommand } from './BaseCommand';
 import { KeyboardBuilder } from '../../utils/KeyboardBuilder';
 import { EMOJI } from '../../config/constants';
+import { botUserService } from '../../infrastructure/services/BotIntegrationService';
 
 /**
  * /start command - Welcome new users and show main menu
+ * Automatically registers new users in Firebase
  */
 export class StartCommand extends BaseCommand {
     readonly name = 'start';
@@ -18,22 +20,34 @@ export class StartCommand extends BaseCommand {
         const user = ctx.from;
         if (!user) return;
 
-        const firstName = user.first_name || 'Player';
-        const isNewUser = !ctx.message; // Check if user exists in your DB
+        try {
+            // Get or create user in Firebase
+            const userData = await botUserService.getUserByTelegramId(user.id, {
+                username: user.username,
+                firstName: user.first_name,
+                lastName: user.last_name
+            });
 
-        const welcomeMessage = isNewUser
-            ? this.getWelcomeMessage(firstName)
-            : this.getReturningMessage(firstName);
+            const firstName = user.first_name || 'Player';
+            const isNewUser = !userData || userData.registeredAt > new Date(Date.now() - 60000); // Registered in last minute
 
-        const keyboard = KeyboardBuilder.mainMenuKeyboard(this.webAppUrl);
+            const welcomeMessage = isNewUser
+                ? this.getWelcomeMessage(firstName, userData?.balance || 0)
+                : this.getReturningMessage(firstName, userData?.balance || 0);
 
-        await this.sendReply(ctx, welcomeMessage, keyboard);
+            const keyboard = KeyboardBuilder.mainMenuKeyboard(this.webAppUrl);
 
-        // Log user activity
-        await this.logUserActivity(user.id);
+            await this.sendReply(ctx, welcomeMessage, keyboard);
+
+            // Log user activity
+            console.log(`User ${user.id} (${firstName}) used /start`);
+        } catch (error) {
+            console.error('Error in start command:', error);
+            await ctx.reply('❌ Error starting bot. Please try again.');
+        }
     }
 
-    private getWelcomeMessage(firstName: string): string {
+    private getWelcomeMessage(firstName: string, balance: number): string {
         return `
 ${EMOJI.CELEBRATE} *Welcome to Bingo Ethiopia, ${firstName}!* ${EMOJI.CELEBRATE}
 
@@ -48,27 +62,19 @@ ${EMOJI.CELEBRATE} *Welcome to Bingo Ethiopia, ${firstName}!* ${EMOJI.CELEBRATE}
 3️⃣ Watch the numbers
 4️⃣ Shout BINGO when you win!
 
-${EMOJI.GIFT} *Welcome Bonus:* Get 25 Birr FREE to start!
+${EMOJI.GIFT} *Your Starting Balance:* ${balance} Birr
 
 Tap a button below to begin:
     `.trim();
     }
 
-    private getReturningMessage(firstName: string): string {
+    private getReturningMessage(firstName: string, balance: number): string {
         return `
 ${EMOJI.FIRE} *Welcome back, ${firstName}!*
 
+💰 Your balance: ${balance} Birr
+
 Ready to play? Choose an option below:
     `.trim();
-    }
-
-    private async logUserActivity(telegramId: number): Promise<void> {
-        try {
-            // Update last active timestamp
-            // This will be implemented when we connect to the database
-            console.log(`User ${telegramId} used /start`);
-        } catch (error) {
-            console.error('Failed to log user activity:', error);
-        }
     }
 }

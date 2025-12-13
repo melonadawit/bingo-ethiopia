@@ -2,9 +2,10 @@ import { Context } from 'telegraf';
 import { BaseCommand } from './BaseCommand';
 import { KeyboardBuilder } from '../../utils/KeyboardBuilder';
 import { EMOJI } from '../../config/constants';
+import { botUserService } from '../../infrastructure/services/BotIntegrationService';
 
 /**
- * /balance command - Show user's wallet balance
+ * /balance command - Show real user's wallet balance from Firebase
  */
 export class BalanceCommand extends BaseCommand {
     readonly name = 'balance';
@@ -14,35 +15,36 @@ export class BalanceCommand extends BaseCommand {
         const user = ctx.from;
         if (!user) return;
 
-        // TODO: Get actual balance from database
-        const balance = await this.getUserBalance(user.id);
-        const stats = await this.getUserStats(user.id);
+        try {
+            // Get real user data from Firebase
+            const userData = await botUserService.getUserByTelegramId(user.id, {
+                username: user.username,
+                firstName: user.first_name,
+                lastName: user.last_name
+            });
 
-        const message = this.formatBalanceMessage(balance, stats);
-        const keyboard = this.createBalanceKeyboard();
+            if (!userData) {
+                await ctx.reply('❌ User not found. Please use /start to register.');
+                return;
+            }
 
-        await this.sendReply(ctx, message, keyboard);
-    }
+            // Get real stats
+            const stats = await botUserService.getUserStats(user.id);
+            const balance = userData.balance;
 
-    private async getUserBalance(telegramId: number): Promise<number> {
-        // TODO: Implement actual database query
-        // For now, return mock data
-        return 150;
-    }
+            const message = this.formatBalanceMessage(balance, stats);
+            const keyboard = this.createBalanceKeyboard();
 
-    private async getUserStats(telegramId: number): Promise<any> {
-        // TODO: Implement actual database query
-        return {
-            totalWins: 12,
-            totalGames: 45,
-            totalEarnings: 2500,
-            totalDeposits: 1000,
-        };
+            await this.sendReply(ctx, message, keyboard);
+        } catch (error) {
+            console.error('Error in balance command:', error);
+            await ctx.reply('❌ Error loading balance. Please try again.');
+        }
     }
 
     private formatBalanceMessage(balance: number, stats: any): string {
-        const winRate = stats.totalGames > 0
-            ? ((stats.totalWins / stats.totalGames) * 100).toFixed(1)
+        const winRate = stats.gamesPlayed > 0
+            ? ((stats.wins / stats.gamesPlayed) * 100).toFixed(1)
             : '0.0';
 
         return `
@@ -51,9 +53,8 @@ ${EMOJI.MONEY} *Your Wallet*
 💵 *Balance:* ${balance} Birr
 
 📊 *Your Stats:*
-${EMOJI.WIN} Wins: ${stats.totalWins}/${stats.totalGames} (${winRate}%)
+${EMOJI.WIN} Wins: ${stats.wins}/${stats.gamesPlayed} (${winRate}%)
 ${EMOJI.CHART} Total Earnings: ${stats.totalEarnings} Birr
-${EMOJI.MONEY} Total Deposits: ${stats.totalDeposits} Birr
 
 ${EMOJI.POINT_RIGHT} What would you like to do?
     `.trim();

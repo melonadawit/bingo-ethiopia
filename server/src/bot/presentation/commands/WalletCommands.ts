@@ -2,9 +2,10 @@ import { Context } from 'telegraf';
 import { BaseCommand } from './BaseCommand';
 import { KeyboardBuilder } from '../../utils/KeyboardBuilder';
 import { EMOJI } from '../../config/constants';
+import { botUserService, botPaymentService } from '../../infrastructure/services/BotIntegrationService';
 
 /**
- * /deposit command - Initiate deposit flow
+ * /deposit command - Initiate deposit flow with real Chapa payment
  */
 export class DepositCommand extends BaseCommand {
     readonly name = 'deposit';
@@ -40,17 +41,19 @@ export class WithdrawCommand extends BaseCommand {
         const user = ctx.from;
         if (!user) return;
 
-        const balance = await this.getUserBalance(user.id);
+        try {
+            // Get real balance
+            const balance = await botUserService.getBalance(user.id);
 
-        if (balance < 50) {
-            await this.sendReply(
-                ctx,
-                `${EMOJI.WARNING} Minimum withdrawal is 50 Birr.\n\nYour balance: ${balance} Birr\n\n${EMOJI.GAME} Play more games to increase your balance!`
-            );
-            return;
-        }
+            if (balance < 50) {
+                await this.sendReply(
+                    ctx,
+                    `${EMOJI.WARNING} Minimum withdrawal is 50 Birr.\n\nYour balance: ${balance} Birr\n\n${EMOJI.GAME} Play more games to increase your balance!`
+                );
+                return;
+            }
 
-        const message = `
+            const message = `
 ${EMOJI.MONEY} *Withdraw Funds*
 
 Available Balance: *${balance} Birr*
@@ -63,17 +66,15 @@ ${EMOJI.CHECK} No fees for withdrawals
 How much would you like to withdraw?
 
 *Reply with the amount* (e.g., 100)
-    `.trim();
+      `.trim();
 
-        await this.sendReply(ctx, message);
+            await this.sendReply(ctx, message);
 
-        // Set user state to expect withdrawal amount
-        // TODO: Implement state management
-    }
-
-    private async getUserBalance(telegramId: number): Promise<number> {
-        // TODO: Implement actual database query
-        return 150;
+            // TODO: Implement state management for withdrawal amount
+        } catch (error) {
+            console.error('Error in withdraw command:', error);
+            await ctx.reply('❌ Error loading balance. Please try again.');
+        }
     }
 }
 
