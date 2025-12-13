@@ -11,9 +11,40 @@ const iconMap: Record<string, any> = {
     'Trophy': Trophy
 };
 
+// Fallback mode definitions - ALWAYS show these 3 modes
+const defaultModes = [
+    {
+        id: 'and-zig',
+        title: 'And-zig (አንድ ዝግ)',
+        description: 'Complete 1 Line or 4 Corners',
+        minBet: 50,
+        activePlayers: 0,
+        icon: 'Zap',
+        color: 'from-blue-500 to-cyan-500'
+    },
+    {
+        id: 'hulet-zig',
+        title: 'Hulet-zig (ሁለት ዝግ)',
+        description: 'Complete 2 Lines',
+        minBet: 100,
+        activePlayers: 0,
+        icon: 'PlayCircle',
+        color: 'from-purple-500 to-pink-500'
+    },
+    {
+        id: 'mulu-zig',
+        title: 'Mulu-zig (ሙሉ ዝግ)',
+        description: 'Blackout: Mark All 25 Cells',
+        minBet: 150,
+        activePlayers: 0,
+        icon: 'Trophy',
+        color: 'from-amber-500 to-orange-500'
+    }
+];
+
 export default function Lobby() {
     const navigate = useNavigate();
-    const [gameModes, setGameModes] = useState<any[]>([]);
+    const [gameModes, setGameModes] = useState<any[]>(defaultModes); // Start with default modes
     const [stats, setStats] = useState<any>({ activePlayers: 0, totalPrizePool: 0, isSystemLive: true });
 
     // Fetch real data from API
@@ -22,15 +53,17 @@ export default function Lobby() {
             try {
                 // Fetch game modes with real player counts
                 const modesResponse = await api.get('/game/modes');
-                setGameModes(modesResponse.data);
+                // If API returns data, use it; otherwise keep default modes
+                if (modesResponse.data && modesResponse.data.length > 0) {
+                    setGameModes(modesResponse.data);
+                }
 
                 // Fetch global stats
                 const statsResponse = await api.get('/game/stats');
                 setStats(statsResponse.data);
             } catch (error) {
                 console.error('Error fetching game data:', error);
-                // Fallback to empty array if error
-                setGameModes([]);
+                // Keep default modes on error - don't change gameModes
             }
         };
 
