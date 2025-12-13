@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { voiceCaller } from '../services/voiceCaller';
+import { voiceCaller } from '../../services/voiceCaller';
 
 interface Winner {
     userId: string;

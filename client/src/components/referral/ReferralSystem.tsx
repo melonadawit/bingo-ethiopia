@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import { Copy, Users, Trophy, ExternalLink, Loader2 } from 'lucide-react';
-import { Button } from './ui/Button';
+import { Button } from '../ui/Button';
 import toast from 'react-hot-toast';
 
 export const ReferralSystem = () => {
