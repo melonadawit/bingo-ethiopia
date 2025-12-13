@@ -204,11 +204,10 @@ const GamePage: React.FC = () => {
     const [winners, setWinners] = useState<any[]>([]);
 
     // Real-time multiplayer card selection state
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [selectedCardsByPlayer, setSelectedCardsByPlayer] = useState<Record<number, string>>({});  // cardId -> userId
+    const [_selectedCardsByPlayer, setSelectedCardsByPlayer] = useState<Record<number, string>>({});  // cardId -> userId
     const [realPlayerCount, setRealPlayerCount] = useState(0); // Real-time player count from server (USED in UI)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [isSpectator, setIsSpectator] = useState(false); // True if joined after game started
+    const [_isSpectator, _setIsSpectator] = useState(false); // True if joined after game started
+
 
 
 
