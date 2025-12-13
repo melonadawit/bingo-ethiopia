@@ -87,6 +87,12 @@ export class GameManager {
         // Broadcast to all players in the room
         this.io.to(gameId).emit('card_selected', { cardId, userId, playerCount: this.getPlayerCount(gameId) });
 
+        // AUTO-TRIGGER: Start countdown when first card is selected
+        if (game.selectedCards.size === 1 && game.status === 'selecting') {
+            console.log(`🎯 First card selected - auto-starting countdown in 2 seconds`);
+            setTimeout(() => this.startCountdown(gameId), 2000);
+        }
+
         return { success: true, playerCount: this.getPlayerCount(gameId) };
     }
 
