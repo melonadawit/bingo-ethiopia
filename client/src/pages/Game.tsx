@@ -302,10 +302,38 @@ const GamePage: React.FC = () => {
             setRealPlayerCount(playerCount);
         });
 
+        // SERVER-CONTROLLED COUNTDOWN
+        socket.on('countdown_tick', ({ countdown }) => {
+            console.log('Server countdown:', countdown);
+            setCountdown(countdown);
+        });
+
+        // SERVER-CONTROLLED NUMBER CALLING
+        socket.on('number_called', ({ number, history }) => {
+            console.log('Server called number:', number);
+            setCurrentNumber(number);
+            setCalledNumbers(new Set(history));
+        });
+
+        // SERVER GAME START
+        socket.on('game_started', () => {
+            console.log('Server started game');
+            setStatus('playing');
+        });
+
+        socket.on('game_state_changed', ({ state }) => {
+            console.log('Game state changed to:', state);
+            setStatus(state);
+        });
+
         return () => {
             socket.off('card_selected');
             socket.off('card_deselected');
             socket.off('selection_state');
+            socket.off('countdown_tick');
+            socket.off('number_called');
+            socket.off('game_started');
+            socket.off('game_state_changed');
         };
     }, []);
 

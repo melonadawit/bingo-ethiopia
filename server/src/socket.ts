@@ -62,6 +62,12 @@ export const initSocket = (httpServer: HttpServer) => {
         });
 
 
+        // Start countdown manually (or auto after card selection)
+        socket.on('start_countdown', ({ gameId }) => {
+            console.log(`Starting countdown for game ${gameId}`);
+            gameManager.startCountdown(gameId);
+        });
+
         socket.on('start_test_game', ({ gameId }) => {
             gameManager.startGame(gameId);
         });

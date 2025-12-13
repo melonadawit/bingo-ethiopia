@@ -7,8 +7,10 @@ interface GameState {
     players: string[];
     selectedCards: Map<number, string>; // cardId -> userId (who selected it)
     drawnNumbers: number[];
-    status: 'waiting' | 'selecting' | 'playing' | 'ended';
+    status: 'waiting' | 'selecting' | 'countdown' | 'playing' | 'ended';
     intervalId?: NodeJS.Timeout;
+    countdownInterval?: NodeJS.Timeout; // For countdown broadcasting
+    countdown: number; // Current countdown value
     winner?: string;
     entryFee?: number; // Track entry fee for disconnect penalties
 }
@@ -37,6 +39,7 @@ export class GameManager {
             selectedCards: new Map(),
             drawnNumbers: [],
             status: 'selecting', // Start in selecting phase
+            countdown: 30, // 30 second countdown
             entryFee
         };
         return gameId;
@@ -130,31 +133,79 @@ export class GameManager {
         return Object.fromEntries(game.selectedCards);
     }
 
+    /**
+     * Start countdown and broadcast to all players
+     */
+    startCountdown(gameId: string) {
+        const game = games[gameId];
+        if (!game) return;
+
+        // Clear any existing countdown
+        if (game.countdownInterval) {
+            clearInterval(game.countdownInterval);
+        }
+
+        game.status = 'countdown';
+        game.countdown = 30;
+
+        // Broadcast initial countdown
+        this.io.to(gameId).emit('countdown_tick', { countdown: game.countdown });
+
+        // Countdown every second
+        game.countdownInterval = setInterval(() => {
+            game.countdown--;
+
+            console.log(`Game ${gameId}: Countdown ${game.countdown}`);
+
+            // Broadcast to all players
+            this.io.to(gameId).emit('countdown_tick', { countdown: game.countdown });
+
+            // Start game when countdown reaches 0
+            if (game.countdown <= 0) {
+                if (game.countdownInterval) {
+                    clearInterval(game.countdownInterval);
+                }
+                this.startGame(gameId);
+            }
+        }, 1000);
+    }
+
 
     startGame(gameId: string) {
         const game = games[gameId];
         if (!game) return;
 
         game.status = 'playing';
-        this.io.to(gameId).emit('game_started', { gameId });
+        console.log(`🎮 Starting game ${gameId}`);
 
-        // Start drawing numbers every 3 seconds
+        // Broadcast game started to all players
+        this.io.to(gameId).emit('game_started', { gameId });
+        this.io.to(gameId).emit('game_state_changed', { state: 'playing' });
+
+        // Start drawing numbers every 4 seconds (SERVER-CONTROLLED)
         game.intervalId = setInterval(() => {
             if (game.drawnNumbers.length >= MAX_NUMBER) {
                 this.endGame(gameId);
                 return;
             }
 
+            // Generate unique number
             let num: number;
             do {
                 num = Math.floor(Math.random() * MAX_NUMBER) + 1;
             } while (game.drawnNumbers.includes(num));
 
             game.drawnNumbers.push(num);
-            this.io.to(gameId).emit('number_drawn', { number: num, history: game.drawnNumbers });
-            console.log(`Game ${gameId}: Drawn ${num}`);
 
-        }, 3000);
+            console.log(`Game ${gameId}: Called number ${num} (${game.drawnNumbers.length}/${MAX_NUMBER})`);
+
+            // BROADCAST TO ALL PLAYERS (synchronized!)
+            this.io.to(gameId).emit('number_called', {
+                number: num,
+                history: game.drawnNumbers
+            });
+
+        }, 4000); // 4 seconds per number
     }
 
     endGame(gameId: string, winner?: string) {
