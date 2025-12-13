@@ -1,6 +1,8 @@
 import { Context, Telegraf } from 'telegraf';
 import { CALLBACKS, EMOJI } from '../../config/constants';
 import { KeyboardBuilder } from '../../utils/KeyboardBuilder';
+import { dailyRewardService } from '../../infrastructure/services/DailyRewardService';
+import { botUserService } from '../../infrastructure/services/BotIntegrationService';
 
 /**
  * Callback Query Handler
@@ -20,6 +22,9 @@ export class CallbackHandler {
 
         // Deposit amount selection
         this.bot.action(/^deposit_(.+)$/, this.handleDeposit.bind(this));
+
+        // Daily reward claim
+        this.bot.action('daily_claim', this.handleDailyClaim.bind(this));
 
         // Simple actions
         this.bot.action('balance', this.handleBalance.bind(this));
@@ -143,6 +148,55 @@ ${EMOJI.GAME} Keep playing to improve your stats!
         await ctx.reply(
             `${EMOJI.GIFT} Daily reward feature coming soon!\n\nStay tuned for daily bonuses!`
         );
+    }
+
+    /**
+     * Handle daily reward claim button
+     */
+    private async handleDailyClaim(ctx: Context): Promise<void> {
+        if (!ctx.from) return;
+
+        try {
+            await ctx.answerCbQuery('Processing...');
+
+            // Claim the reward
+            const result = await dailyRewardService.claimReward(ctx.from.id);
+
+            if (result.success) {
+                // Credit user balance
+                await botUserService.updateBalance(ctx.from.id, result.amount);
+
+                // Success message
+                const message = `
+${EMOJI.CELEBRATE} *Reward Claimed!* ${EMOJI.CELEBRATE}
+
+${EMOJI.MONEY} *+${result.amount} Birr added to wallet!*
+
+${EMOJI.FIRE} *Streak:* Day ${result.streakDays} ${result.streakDays === 7 ? '🏆' : ''}
+${EMOJI.GIFT} *Tomorrow:* ${result.nextReward} Birr
+
+${result.streakDays === 7 ? `\n🎉 *7-Day Streak Complete!* 🎉\nStarting fresh tomorrow with 10 Birr!` : ''}
+
+Keep your streak alive by claiming daily!
+                `.trim();
+
+                const keyboard = new KeyboardBuilder()
+                    .addButton('💰 Check Balance', 'balance')
+                    .addButton('🎮 Play Game', 'play_quick')
+                    .build();
+
+                await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+            } else {
+                // Already claimed or error
+                await ctx.editMessageText(
+                    `${EMOJI.WARNING} ${result.message}`,
+                    { parse_mode: 'Markdown' }
+                );
+            }
+        } catch (error) {
+            console.error('Error claiming daily reward:', error);
+            await ctx.answerCbQuery('Error claiming reward. Please try again.');
+        }
     }
 
     /**

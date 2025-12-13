@@ -4,6 +4,7 @@ import { StartCommand } from './StartCommand';
 import { PlayCommand } from './PlayCommand';
 import { BalanceCommand } from './BalanceCommand';
 import { DepositCommand, WithdrawCommand, HelpCommand } from './WalletCommands';
+import { DailyCommand } from './DailyCommand';
 
 /**
  * Command Registry - Factory Pattern
@@ -31,6 +32,7 @@ export class CommandRegistry {
             new DepositCommand(),
             new WithdrawCommand(),
             new HelpCommand(),
+            new DailyCommand(),
         ];
 
         // Register with bot and store in map
