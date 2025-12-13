@@ -3,6 +3,7 @@ import { CALLBACKS, EMOJI } from '../../config/constants';
 import { KeyboardBuilder } from '../../utils/KeyboardBuilder';
 import { dailyRewardService } from '../../infrastructure/services/DailyRewardService';
 import { botUserService } from '../../infrastructure/services/BotIntegrationService';
+import { botGameService } from '../../infrastructure/services/BotGameService';
 
 /**
  * Callback Query Handler
