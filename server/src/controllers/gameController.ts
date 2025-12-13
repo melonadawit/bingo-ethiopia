@@ -36,11 +36,11 @@ export const getGameModes = async (req: Request, res: Response) => {
                 }
             }
 
-            // Create mode object
+            // Create mode object - ALWAYS show mode even with 0 players
             const modeData: any = {
                 id: modeId,
                 minBet: modeId === 'and-zig' ? 50 : modeId === 'hulet-zig' ? 100 : 150,
-                activePlayers: activePlayers || (modeId === 'and-zig' ? 142 : modeId === 'hulet-zig' ? 89 : 215), // Fallback to mock
+                activePlayers: activePlayers, // Show real count, even if 0
                 icon: modeId === 'and-zig' ? 'Zap' : modeId === 'hulet-zig' ? 'PlayCircle' : 'Trophy',
                 color: modeId === 'and-zig' ? 'from-blue-500 to-cyan-500' : modeId === 'hulet-zig' ? 'from-purple-500 to-pink-500' : 'from-amber-500 to-orange-500'
             };
