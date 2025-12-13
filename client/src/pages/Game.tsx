@@ -240,6 +240,16 @@ const GamePage: React.FC = () => {
         }
 
         console.log('Game component mounted, starting connection phase');
+
+        // JOIN GAME ROOM FOR MULTIPLAYER
+        if (gameId && user?.id) {
+            console.log('Joining game room:', gameId);
+            socket.emit('join_game', { gameId, userId: user.id });
+
+            // Request current selection state
+            socket.emit('request_selection_state', { gameId });
+        }
+
         // Simulate Connection
         const timer = setTimeout(() => {
             console.log('Connection complete, switching to selection phase');
@@ -247,7 +257,7 @@ const GamePage: React.FC = () => {
         }, 1000);
 
         return () => clearTimeout(timer);
-    }, [user, navigate]);
+    }, [user, navigate, gameId]);
 
     // Cleanup socket and interval on unmount
     useEffect(() => {
@@ -348,6 +358,13 @@ const GamePage: React.FC = () => {
             console.log('Deselecting card', id);
             setSelectedCards(prev => prev.filter(c => c !== id));
             setPreviewCards(prev => prev.filter(c => c.id !== id));
+
+            // EMIT DESELECT TO SERVER
+            socket.emit('deselect_card', {
+                gameId,
+                cardId: id,
+                userId: user?.id
+            });
         } else {
             if (selectedCards.length < 2) {
                 console.log('Selecting card', id);
@@ -355,6 +372,13 @@ const GamePage: React.FC = () => {
                 console.log('Generated card:', newCard);
                 setSelectedCards(prev => [...prev, id]);
                 setPreviewCards(prev => [...prev, newCard]);
+
+                // EMIT SELECT TO SERVER
+                socket.emit('select_card', {
+                    gameId,
+                    cardId: id,
+                    userId: user?.id
+                });
             } else {
                 console.log('Cannot select more than 2 cards');
             }
