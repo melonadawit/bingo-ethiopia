@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { initSocket } from './socket';
 import { db, rtdb } from './firebase';
-import { setupWebhook, bot } from './bot';
+import { initializeBot } from './bot/index'; // New bot system with Firebase integration
 
 dotenv.config();
 
@@ -34,13 +34,19 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Telegram Webhook
-if (bot) {
-    app.use(bot.webhookCallback('/telegram-webhook'));
-}
-
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
-    setupWebhook().catch(err => console.error('Failed to setup webhook:', err));
+
+    // Initialize new bot system with Firebase integration
+    try {
+        if (process.env.BOT_TOKEN) {
+            await initializeBot();
+            console.log('✅ Telegram bot initialized successfully');
+        } else {
+            console.log('⚠️  BOT_TOKEN not set - bot disabled');
+        }
+    } catch (error) {
+        console.error('❌ Failed to initialize bot:', error);
+    }
 });
 
