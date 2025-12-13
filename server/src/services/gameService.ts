@@ -5,10 +5,12 @@ interface GameState {
     id: string;
     mode: string;
     players: string[];
+    selectedCards: Map<number, string>; // cardId -> userId (who selected it)
     drawnNumbers: number[];
-    status: 'waiting' | 'playing' | 'ended';
+    status: 'waiting' | 'selecting' | 'playing' | 'ended';
     intervalId?: NodeJS.Timeout;
     winner?: string;
+    entryFee?: number; // Track entry fee for disconnect penalties
 }
 
 interface WinPattern {
@@ -26,28 +28,108 @@ export class GameManager {
         this.io = io;
     }
 
-    createGame(mode: string): string {
+    createGame(mode: string, entryFee: number = 50): string {
         const gameId = uuidv4();
         games[gameId] = {
             id: gameId,
             mode,
             players: [],
+            selectedCards: new Map(),
             drawnNumbers: [],
-            status: 'waiting'
+            status: 'selecting', // Start in selecting phase
+            entryFee
         };
         return gameId;
     }
 
-    joinGame(gameId: string, userId: string): boolean {
+    joinGame(gameId: string, userId: string): { success: boolean; isSpectator: boolean; message?: string } {
         const game = games[gameId];
-        if (!game || game.status !== 'waiting') return false;
+        if (!game) return { success: false, isSpectator: false, message: 'Game not found' };
 
+        // If game is already playing, join as spectator
+        if (game.status === 'playing') {
+            console.log(`User ${userId} joining game ${gameId} as spectator (game already started)`);
+            return { success: true, isSpectator: true, message: 'Joined as spectator - game already started' };
+        }
+
+        // Normal join during selecting phase
         if (!game.players.includes(userId)) {
             game.players.push(userId);
             this.io.to(gameId).emit('player_joined', { userId, count: game.players.length });
         }
-        return true;
+        return { success: true, isSpectator: false };
     }
+
+    /**
+     * Select a card for a player (max 2 cards)
+     */
+    selectCard(gameId: string, cardId: number, userId: string): { success: boolean; message?: string; playerCount: number } {
+        const game = games[gameId];
+        if (!game) return { success: false, message: 'Game not found', playerCount: 0 };
+
+        // Check if card is already selected
+        if (game.selectedCards.has(cardId)) {
+            return { success: false, message: 'Card already selected', playerCount: this.getPlayerCount(gameId) };
+        }
+
+        // Count how many cards this user already has
+        const userCardCount = Array.from(game.selectedCards.values()).filter(uid => uid === userId).length;
+        if (userCardCount >= 2) {
+            return { success: false, message: 'Maximum 2 cards per player', playerCount: this.getPlayerCount(gameId) };
+        }
+
+        // Select the card
+        game.selectedCards.set(cardId, userId);
+
+        // Broadcast to all players in the room
+        this.io.to(gameId).emit('card_selected', { cardId, userId, playerCount: this.getPlayerCount(gameId) });
+
+        return { success: true, playerCount: this.getPlayerCount(gameId) };
+    }
+
+    /**
+     * Deselect a card
+     */
+    deselectCard(gameId: string, cardId: number, userId: string): { success: boolean; message?: string; playerCount: number } {
+        const game = games[gameId];
+        if (!game) return { success: false, message: 'Game not found', playerCount: 0 };
+
+        // Check if card is selected by this user
+        if (game.selectedCards.get(cardId) !== userId) {
+            return { success: false, message: 'Not your card', playerCount: this.getPlayerCount(gameId) };
+        }
+
+        // Deselect the card
+        game.selectedCards.delete(cardId);
+
+        // Broadcast to all players
+        this.io.to(gameId).emit('card_deselected', { cardId, playerCount: this.getPlayerCount(gameId) });
+
+        return { success: true, playerCount: this.getPlayerCount(gameId) };
+    }
+
+    /**
+     * Get number of players who have selected at least one card
+     */
+    getPlayerCount(gameId: string): number {
+        const game = games[gameId];
+        if (!game) return 0;
+
+        // Count unique users who have selected cards
+        const uniquePlayers = new Set(Array.from(game.selectedCards.values()));
+        return uniquePlayers.size;
+    }
+
+    /**
+     * Get all selected cards for a game
+     */
+    getSelectedCards(gameId: string): Record<number, string> {
+        const game = games[gameId];
+        if (!game) return {};
+
+        return Object.fromEntries(game.selectedCards);
+    }
+
 
     startGame(gameId: string) {
         const game = games[gameId];

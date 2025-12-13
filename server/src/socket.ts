@@ -21,14 +21,46 @@ export const initSocket = (httpServer: HttpServer) => {
         });
 
         socket.on('join_game', ({ gameId, userId }) => {
-            const success = gameManager.joinGame(gameId, userId);
-            if (success) {
+            const result = gameManager.joinGame(gameId, userId);
+            if (result.success) {
                 socket.join(gameId);
-                socket.emit('joined_successfully', { gameId });
+                socket.emit('joined_successfully', {
+                    gameId,
+                    isSpectator: result.isSpectator,
+                    message: result.message
+                });
             } else {
-                socket.emit('error', { message: 'Could not join game' });
+                socket.emit('error', { message: result.message || 'Could not join game' });
             }
         });
+
+        // Handle card selection
+        socket.on('select_card', ({ gameId, cardId, userId }) => {
+            const result = gameManager.selectCard(gameId, cardId, userId);
+            if (result.success) {
+                socket.emit('card_select_success', { cardId, playerCount: result.playerCount });
+            } else {
+                socket.emit('card_select_error', { message: result.message });
+            }
+        });
+
+        // Handle card deselection
+        socket.on('deselect_card', ({ gameId, cardId, userId }) => {
+            const result = gameManager.deselectCard(gameId, cardId, userId);
+            if (result.success) {
+                socket.emit('card_deselect_success', { cardId, playerCount: result.playerCount });
+            } else {
+                socket.emit('card_deselect_error', { message: result.message });
+            }
+        });
+
+        // Send current selection state to joining player
+        socket.on('request_selection_state', ({ gameId }) => {
+            const selectedCards = gameManager.getSelectedCards(gameId);
+            const playerCount = gameManager.getPlayerCount(gameId);
+            socket.emit('selection_state', { selectedCards, playerCount });
+        });
+
 
         socket.on('start_test_game', ({ gameId }) => {
             gameManager.startGame(gameId);
@@ -80,9 +112,15 @@ export const initSocket = (httpServer: HttpServer) => {
             }
         });
 
-        socket.on('disconnect', () => {
+        socket.on('disconnect', async () => {
             console.log('User disconnected:', socket.id);
+
+            // TODO: Handle disconnect penalty
+            // If user had selected cards, deduct balance
+            // This would require tracking userId -> socketId mapping
+            // For now, just log disconnect
         });
+
     });
 
     return io;

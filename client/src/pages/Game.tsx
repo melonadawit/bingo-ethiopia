@@ -203,6 +203,13 @@ const GamePage: React.FC = () => {
     const [isMuted, setIsMuted] = useState(false);
     const [winners, setWinners] = useState<any[]>([]);
 
+    // Real-time multiplayer card selection state
+    const [selectedCardsByPlayer, setSelectedCardsByPlayer] = useState<Record<number, string>>({});  // cardId -> userId
+    const [realPlayerCount, setRealPlayerCount] = useState(0); // Real-time player count from server
+    const [isSpectator, setIsSpectator] = useState(false); // True if joined after game started
+
+
+
     // Get game mode from URL or default to 'and-zig'
     const [searchParams] = useSearchParams();
     const gameMode = (searchParams.get('mode') as GameMode) || 'and-zig';
@@ -259,6 +266,36 @@ const GamePage: React.FC = () => {
             setStatus('ended');
             if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
         });
+
+        // Real-time card selection events
+        socket.on('card_selected', ({ cardId, userId, playerCount }) => {
+            console.log('Card selected:', cardId, 'by', userId);
+            setSelectedCardsByPlayer((prev) => ({ ...prev, [cardId]: userId }));
+            setRealPlayerCount(playerCount);
+        });
+
+        socket.on('card_deselected', ({ cardId, playerCount }) => {
+            console.log('Card deselected:', cardId);
+            setSelectedCardsByPlayer((prev) => {
+                const next = { ...prev };
+                delete next[cardId];
+                return next;
+            });
+            setRealPlayerCount(playerCount);
+        });
+
+        // Get initial selection state when joining
+        socket.on('selection_state', ({ selectedCards, playerCount }) => {
+            console.log('Got selection state:', selectedCards, playerCount);
+            setSelectedCardsByPlayer(selectedCards);
+            setRealPlayerCount(playerCount);
+        });
+
+        return () => {
+            socket.off('card_selected');
+            socket.off('card_deselected');
+            socket.off('selection_state');
+        };
     }, []);
 
     // Countdown timer for selection - AUTO START GAME
