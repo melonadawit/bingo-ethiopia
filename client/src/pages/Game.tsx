@@ -534,18 +534,26 @@ const GamePage: React.FC = () => {
         <div className="h-screen bg-[#1a1b2e] flex flex-col text-white overflow-hidden">
             {/* Game Info Bar - Compact */}
             <div className="bg-[#2A1B3D] grid grid-cols-5 gap-0.5 p-0.5 border-b border-white/5 h-12 shrink-0">
-                {[
-                    { label: 'GAME ID', val: gameId?.slice(0, 8) || 'ic-bingo' },
-                    { label: 'PLAYERS', val: realPlayerCount.toString() || '0' }, // REAL-TIME player count
-                    { label: 'BET', val: gameMode === 'and-zig' ? '50' : gameMode === 'hulet-zig' ? '100' : '150' }, // Entry fee by mode
-                    { label: 'DERASH', val: (realPlayerCount * (gameMode === 'and-zig' ? 50 : gameMode === 'hulet-zig' ? 100 : 150)).toString() }, // Prize pool
-                    { label: 'CALLED', val: calledNumbers.size.toString() },
-                ].map((item, i) => (
-                    <div key={i} className="bg-slate-800/50 rounded p-0.5 text-center">
-                        <div className="text-[8px] text-slate-400 uppercase font-medium">{item.label}</div>
-                        <div className="font-bold text-xs text-white">{item.val}</div>
-                    </div>
-                ))}
+                {(() => {
+                    const unitPrice = gameMode === 'and-zig' ? 50 : gameMode === 'hulet-zig' ? 100 : 150;
+                    // Calculate total cards selected (from selectedCardsByPlayer Map)
+                    const totalCardsSelected = Object.keys(_selectedCardsByPlayer).length;
+                    // DERASH = (total cards × unit price) - 15% house fee
+                    const derash = Math.floor(totalCardsSelected * unitPrice * 0.85);
+
+                    return [
+                        { label: 'GAME ID', val: gameId?.slice(0, 8) || 'ic-bingo' },
+                        { label: 'PLAYERS', val: realPlayerCount.toString() || '0' },
+                        { label: 'BET', val: unitPrice.toString() },
+                        { label: 'DERASH', val: derash.toString() }, // Prize pool after 15% fee
+                        { label: 'CALLED', val: calledNumbers.size.toString() },
+                    ].map((item, i) => (
+                        <div key={i} className="bg-slate-800/50 rounded p-0.5 text-center">
+                            <div className="text-[8px] text-slate-400 uppercase font-medium">{item.label}</div>
+                            <div className="font-bold text-xs text-white">{item.val}</div>
+                        </div>
+                    ));
+                })()}
             </div>
 
             {/* Main Game Area */}
