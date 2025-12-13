@@ -135,9 +135,9 @@ export default function Lobby() {
                             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
                             <div className="flex items-center justify-between p-6">
                                 <div>
-                                    <p className="text-emerald-300 text-sm font-semibold tracking-wider uppercase">Total Prize Pool</p>
+                                    <p className="text-emerald-300 text-sm font-semibold tracking-wider uppercase">Active Players</p>
                                     <h3 className="text-4xl font-black text-white mt-1 drop-shadow-lg">
-                                        {stats.totalPrizePool.toLocaleString()}
+                                        {(stats.totalPlayers || 0)}
                                     </h3>
                                 </div>
                                 <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.2)]">
