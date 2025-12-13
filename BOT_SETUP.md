@@ -1,75 +1,85 @@
 # 🤖 Bot Setup Guide
 
-## ✅ Quick Setup (3 Steps)
+## ✅ Environment Configuration
 
-### Step 1: Add Bot Token to .env
+### Production Setup (Recommended)
 
-Add these lines to your `server/.env` file:
+Use your deployed URLs:
 
 ```bash
+# server/.env
+BOT_TOKEN=8214698066:AAFVjf2wjI1KcxXq0jKYXcjNyIYEMmiXvYE
+WEB_APP_URL=https://your-app.vercel.app
+```
+
+### Local Development
+
+```bash
+# server/.env
 BOT_TOKEN=8214698066:AAFVjf2wjI1KcxXq0jKYXcjNyIYEMmiXvYE
 WEB_APP_URL=http://localhost:5173
 ```
 
-### Step 2: Start the Bot
+---
+
+## 🚀 Deploy to Production (Easiest!)
+
+### On Render Dashboard:
+
+1. Go to your service → **Environment** tab
+2. Add these variables:
+   - `BOT_TOKEN` = `8214698066:AAFVjf2wjI1KcxXq0jKYXcjNyIYEMmiXvYE`
+   - `WEB_APP_URL` = `https://your-app.vercel.app` (your actual URL)
+3. Click **Save** (triggers automatic redeploy)
+
+### Test Immediately:
+- Open Telegram
+- Find your bot
+- Send `/start` → Bot responds! 🎉
+
+---
+
+## 🧪 Test Locally (Optional)
 
 ```bash
 cd server
 npm run dev
 ```
 
-### Step 3: Test on Telegram
-
-1. Open Telegram
-2. Search for your bot: **@BingoEthiopiaBot** (or whatever username you set)
-3. Send `/start`
-
-You should see the welcome message with buttons!
+Open Telegram and test all commands.
 
 ---
 
-## 🧪 Test All Commands
-
-Try these commands in Telegram:
+## 📋 Available Commands
 
 ```
-/start   - Welcome message
-/play    - Game selection
-/balance - Check wallet
+/start   - Welcome & main menu
+/play    - Game mode selection
+/balance - Wallet info
 /deposit - Add funds
 /withdraw - Cash out
-/help    - Support info
+/help    - Support
 ```
 
 ---
 
-## 🎯 What Works Right Now
+## ✅ What Works Now
 
-✅ All 6 commands respond
-✅ Inline keyboard buttons
-✅ Beautiful formatted messages
-✅ Ethiopian game modes displayed
-✅ Rate limiting (20 commands/min)
-✅ Error handling
-
----
-
-## ⚠️ What's Using Mock Data
-
-These show placeholder data (will connect to database later):
-- Balance: Shows 150 Birr (hardcoded)
-- Stats: Shows mock stats
-- Games: Shows 3 fake games
-- Payment links: Demo URLs
+- ✅ All 6 commands
+- ✅ Inline keyboards
+- ✅ Ethiopian game modes
+- ✅ Beautiful UI
+- ✅ Rate limiting
+- ✅ Error handling
 
 ---
 
-## 🔗 Next: Connect to Your Database
+## 🔄 Next: Connect Real Data
 
-To connect to real data, we need to:
-1. Import your existing user/wallet services
-2. Replace mock data in commands
-3. Connect payment to actual Chapa
-4. Add WebApp authentication
+Currently using mock data. To connect:
+1. Import Firebase services
+2. Connect wallet API
+3. Integrate Chapa payments
+4. Add user authentication
 
-Ready to do that next?
+Ready? Let's do it!
