@@ -200,10 +200,22 @@ export default function Lobby() {
                             >
                                 <div
                                     className="group h-full flex flex-col relative overflow-hidden bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-3xl p-5 cursor-pointer hover:bg-white/[0.07] hover:border-indigo-500/50 hover:shadow-[0_0_40px_-10px_rgba(99,102,241,0.3)] transition-all duration-500 hover:-translate-y-2"
-                                    onClick={(e) => {
+                                    onClick={async (e) => {
                                         e.preventDefault();
                                         console.log('Join Room clicked!', mode.id);
-                                        navigate(`/game/${mode.id}?mode=${mode.id}`);
+
+                                        try {
+                                            // Create game and get UUID
+                                            const response = await api.post('/game/create', { mode: mode.id });
+                                            const { gameId } = response.data;
+                                            console.log('Game created:', gameId);
+
+                                            // Navigate to game with proper UUID
+                                            navigate(`/game/${gameId}?mode=${mode.id}`);
+                                        } catch (error) {
+                                            console.error('Failed to create game:', error);
+                                            alert('Failed to join game. Please try again.');
+                                        }
                                     }}
                                 >
                                     {/* Glowing Background Blob */}
