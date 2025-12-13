@@ -20,7 +20,6 @@ export const createGame = async (req: Request, res: Response) => {
         const waitingGames = await db.collection('games')
             .where('mode', '==', mode)
             .where('status', '==', 'selecting')
-            .orderBy('createdAt', 'asc')
             .limit(1)
             .get();
 
@@ -39,7 +38,6 @@ export const createGame = async (req: Request, res: Response) => {
         const ongoingGames = await db.collection('games')
             .where('mode', '==', mode)
             .where('status', 'in', ['countdown', 'playing'])
-            .orderBy('createdAt', 'desc')
             .limit(1)
             .get();
 
@@ -164,3 +162,4 @@ export const getGlobalStats = async (req: Request, res: Response) => {
         });
     }
 };
+
