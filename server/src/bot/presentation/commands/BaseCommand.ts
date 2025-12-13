@@ -1,6 +1,6 @@
 import { Context } from 'telegraf';
-import { ICommand, CommandResult } from '../core/interfaces/ICommand';
-import { BOT_CONFIG, ERROR_MESSAGES } from '../config/constants';
+import { ICommand, CommandResult } from '../../core/interfaces/ICommand';
+import { BOT_CONFIG, ERROR_MESSAGES } from '../../config/constants';
 
 /**
  * Abstract base class for all bot commands

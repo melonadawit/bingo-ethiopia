@@ -1,16 +1,16 @@
-import { Markup, InlineKeyboardButton } from 'telegraf';
+import { Markup } from 'telegraf';
 
 /**
  * Builder pattern for creating inline keyboards
  * Provides fluent API for keyboard construction
  */
 export class KeyboardBuilder {
-    private buttons: InlineKeyboardButton[][] = [];
+    private buttons: any[][] = [];
 
     /**
      * Add a row of buttons
      */
-    addRow(...buttons: InlineKeyboardButton[]): this {
+    addRow(...buttons: any[]): this {
         this.buttons.push(buttons);
         return this;
     }
