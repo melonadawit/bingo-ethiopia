@@ -151,6 +151,12 @@ export async function initializeBot(): Promise<BingoBot> {
     const botToken = process.env.BOT_TOKEN;
     const webAppUrl = process.env.WEB_APP_URL || process.env.CLIENT_URL || 'http://localhost:5173';
 
+    // Debug logging
+    console.log('🔍 Bot initialization debug:');
+    console.log('  BOT_TOKEN exists:', !!botToken);
+    console.log('  WEB_APP_URL:', process.env.WEB_APP_URL || 'NOT SET');
+    console.log('  Using webAppUrl:', webAppUrl);
+
     if (!botToken) {
         throw new Error('BOT_TOKEN environment variable is required');
     }
