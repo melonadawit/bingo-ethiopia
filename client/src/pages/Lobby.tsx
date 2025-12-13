@@ -2,46 +2,8 @@ import { useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Users, Clock, Trophy, PlayCircle, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
-
-// Mock data - aligned with backend
-const mockGameModes = [
-    {
-        id: 'and-zig',
-        title: 'And-zig (አንድ ዝግ)',
-        description: 'Complete 1 Line or 4 Corners',
-        minBet: 10,
-        maxBet: 100,
-        activePlayers: 142,
-        icon: 'Zap',
-        color: 'from-blue-500 to-cyan-500'
-    },
-    {
-        id: 'hulet-zig',
-        title: 'Hulet-zig (ሁለት ዝግ)',
-        description: 'Complete 2 Lines',
-        minBet: 20,
-        maxBet: 50,
-        activePlayers: 89,
-        icon: 'PlayCircle',
-        color: 'from-purple-500 to-pink-500'
-    },
-    {
-        id: 'mulu-zig',
-        title: 'Mulu-zig (ሙሉ ዝግ)',
-        description: 'Blackout: Mark All 25 Cells',
-        minBet: 50,
-        maxBet: 200,
-        activePlayers: 215,
-        icon: 'Trophy',
-        color: 'from-amber-500 to-orange-500'
-    }
-];
-
-const mockStats = {
-    activePlayers: 446,
-    totalPrizePool: 45200,
-    isSystemLive: true
-};
+import { useState, useEffect } from 'react';
+import api from '../services/api';
 
 const iconMap: Record<string, any> = {
     'Zap': Zap,
@@ -51,8 +13,33 @@ const iconMap: Record<string, any> = {
 
 export default function Lobby() {
     const navigate = useNavigate();
-    const gameModes = mockGameModes;
-    const stats = mockStats;
+    const [gameModes, setGameModes] = useState<any[]>([]);
+    const [stats, setStats] = useState<any>({ activePlayers: 0, totalPrizePool: 0, isSystemLive: true });
+
+    // Fetch real data from API
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                // Fetch game modes with real player counts
+                const modesResponse = await api.get('/game/modes');
+                setGameModes(modesResponse.data);
+
+                // Fetch global stats
+                const statsResponse = await api.get('/game/stats');
+                setStats(statsResponse.data);
+            } catch (error) {
+                console.error('Error fetching game data:', error);
+                // Fallback to empty array if error
+                setGameModes([]);
+            }
+        };
+
+        fetchData();
+
+        // Refresh data every 10 seconds for live updates
+        const interval = setInterval(fetchData, 10000);
+        return () => clearInterval(interval);
+    }, []);
 
     return (
         <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-[#0B1120] to-black text-white overflow-x-hidden">
