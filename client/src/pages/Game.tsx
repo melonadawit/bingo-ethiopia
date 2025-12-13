@@ -441,7 +441,8 @@ const GamePage: React.FC = () => {
             }
         }, 500);
 
-        // MOCK GAME LOGIC
+        // MOCK GAME LOGIC - DISABLED: Server now controls number calling
+        /* CLIENT-SIDE NUMBER GENERATION REMOVED
         let count = 0;
         const usedNumbers = new Set<number>();
 
@@ -469,6 +470,10 @@ const GamePage: React.FC = () => {
 
             count++;
         }, 4000); // Slower interval (4s) to allow for voice announcements
+        */
+
+        // Server broadcasts numbers - client listens via 'number_called' event
+        console.log('✅ Game started - server will broadcast numbers');
     };
 
     const handleBingoClaim = () => {
