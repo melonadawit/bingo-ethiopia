@@ -1,6 +1,7 @@
 import { Telegraf } from 'telegraf';
 import { CommandRegistry } from './presentation/commands/CommandRegistry';
 import { CallbackHandler } from './presentation/handlers/CallbackHandler';
+import { TextMessageHandler } from './presentation/handlers/TextMessageHandler';
 import { BOT_CONFIG } from './config/constants';
 
 /**
@@ -12,6 +13,7 @@ export class BingoBot {
     private bot: Telegraf;
     private commandRegistry!: CommandRegistry;
     private callbackHandler!: CallbackHandler;
+    private textMessageHandler!: TextMessageHandler;
 
     private constructor(
         private botToken: string,
@@ -43,6 +45,9 @@ export class BingoBot {
 
         // Callback query handlers
         this.callbackHandler = new CallbackHandler(this.bot, this.webAppUrl);
+
+        // Text message handlers (for old keyboard buttons)
+        this.textMessageHandler = new TextMessageHandler(this.bot, this.webAppUrl);
 
         // Error handler
         this.setupErrorHandler();
