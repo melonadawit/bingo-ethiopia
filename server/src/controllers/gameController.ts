@@ -1,8 +1,36 @@
 import { Request, Response } from 'express';
 import { db } from '../firebase';
+import { v4 as uuidv4 } from 'uuid';
 
 export const createGame = async (req: Request, res: Response) => {
-    res.status(200).json({ message: 'Create game endpoint' });
+    try {
+        const { mode } = req.body;
+
+        if (!mode || !['and-zig', 'hulet-zig', 'mulu-zig'].includes(mode)) {
+            return res.status(400).json({ error: 'Invalid game mode' });
+        }
+
+        const gameId = uuidv4();
+        const entryFee = mode === 'and-zig' ? 50 : mode === 'hulet-zig' ? 100 : 150;
+
+        // Create game in Firebase
+        if (db) {
+            await db.collection('games').doc(gameId).set({
+                mode,
+                entryFee,
+                status: 'selecting',
+                players: [],
+                selectedCards: {},
+                createdAt: new Date().toISOString(),
+                maxPlayers: 20
+            });
+        }
+
+        res.status(200).json({ gameId, mode, entryFee });
+    } catch (error) {
+        console.error('Error creating game:', error);
+        res.status(500).json({ error: 'Failed to create game' });
+    }
 };
 
 export const joinGame = async (req: Request, res: Response) => {
