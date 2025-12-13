@@ -35,8 +35,8 @@ export class CallbackHandler {
     private async handleGameMode(ctx: Context): Promise<void> {
         if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) return;
 
-        const mode = ctx.callbackQuery.data.replace('mode_', '');
-        const modeNames = {
+        const mode = ctx.callbackQuery.data.replace('mode_', '') as 'and-zig' | 'hulet-zig' | 'mulu-zig';
+        const modeNames: Record<string, string> = {
             'and-zig': 'Ande Zeg (አንድ ዘግ)',
             'hulet-zig': 'Hulet Zeg (ሁለት ዘግ)',
             'mulu-zig': 'Mulu Zeg (ሙሉ ዘግ)'
@@ -59,7 +59,7 @@ Loading available games...
     }
 
     /**
-     * Handle deposit amount selection  
+     * Handle deposit amount selection
      */
     private async handleDeposit(ctx: Context): Promise<void> {
         if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) return;

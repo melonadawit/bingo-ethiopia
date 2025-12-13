@@ -3,7 +3,6 @@ export interface ICommand {
     readonly name: string;
     readonly description: string;
     execute(ctx: any): Promise<void>;
-    validate?(ctx: any): boolean;
 }
 
 // Command execution result
@@ -28,11 +27,11 @@ export interface IUser {
 export interface IGame {
     id: string;
     mode: 'and-zig' | 'hulet-zig' | 'mulu-zig';
-  entry Fee: number;
-maxPlayers: number;
-currentPlayers: number;
-status: 'waiting' | 'in-progress' | 'completed';
-startTime ?: Date;
+    entryFee: number;
+    maxPlayers: number;
+    currentPlayers: number;
+    status: 'waiting' | 'in-progress' | 'completed';
+    startTime?: Date;
 }
 
 // Notification interface

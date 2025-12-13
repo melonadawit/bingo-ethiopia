@@ -10,8 +10,8 @@ import { BOT_CONFIG } from './config/constants';
 export class BingoBot {
     private static instance: BingoBot;
     private bot: Telegraf;
-    private commandRegistry: CommandRegistry;
-    private callbackHandler: CallbackHandler;
+    private commandRegistry!: CommandRegistry;
+    private callbackHandler!: CallbackHandler;
 
     private constructor(
         private botToken: string,
@@ -144,14 +144,10 @@ export class BingoBot {
  */
 export async function initializeBot(): Promise<BingoBot> {
     const botToken = process.env.BOT_TOKEN;
-    const webAppUrl = process.env.WEB_APP_URL || process.env.VITE_API_URL;
+    const webAppUrl = process.env.WEB_APP_URL || process.env.CLIENT_URL || 'http://localhost:5173';
 
     if (!botToken) {
         throw new Error('BOT_TOKEN environment variable is required');
-    }
-
-    if (!webAppUrl) {
-        throw new Error('WEB_APP_URL environment variable is required');
     }
 
     const bot = BingoBot.getInstance(botToken, webAppUrl);
