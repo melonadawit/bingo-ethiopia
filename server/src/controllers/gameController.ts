@@ -10,26 +10,77 @@ export const createGame = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Invalid game mode' });
         }
 
-        const gameId = uuidv4();
         const entryFee = mode === 'and-zig' ? 50 : mode === 'hulet-zig' ? 100 : 150;
 
-        // Create game in Firebase
-        if (db) {
-            await db.collection('games').doc(gameId).set({
+        if (!db) {
+            return res.status(500).json({ error: 'Database not available' });
+        }
+
+        // MATCHMAKING Step 1: Check for games in selection phase (can join and play)
+        const waitingGames = await db.collection('games')
+            .where('mode', '==', mode)
+            .where('status', '==', 'selecting')
+            .orderBy('createdAt', 'asc')
+            .limit(1)
+            .get();
+
+        if (!waitingGames.empty) {
+            const gameDoc = waitingGames.docs[0];
+            console.log(`🎮 Matchmaking: Joining waiting ${mode} game ${gameDoc.id}`);
+            return res.status(200).json({
+                gameId: gameDoc.id,
                 mode,
                 entryFee,
-                status: 'selecting',
-                players: [],
-                selectedCards: {},
-                createdAt: new Date().toISOString(),
-                maxPlayers: 20
+                canPlay: true
             });
         }
 
-        res.status(200).json({ gameId, mode, entryFee });
+        // MATCHMAKING Step 2: No waiting game - check for ongoing games to spectate
+        const ongoingGames = await db.collection('games')
+            .where('mode', '==', mode)
+            .where('status', 'in', ['countdown', 'playing'])
+            .orderBy('createdAt', 'desc')
+            .limit(1)
+            .get();
+
+        if (!ongoingGames.empty) {
+            const gameDoc = ongoingGames.docs[0];
+            console.log(`👁️ Spectator: Watching ongoing ${mode} game ${gameDoc.id}`);
+            return res.status(200).json({
+                gameId: gameDoc.id,
+                mode,
+                entryFee,
+                canPlay: false,
+                spectator: true,
+                message: 'Game in progress - watching only'
+            });
+        }
+
+        // MATCHMAKING Step 3: No games at all - create first game and wait
+        const gameId = uuidv4();
+        console.log(`🆕 Creating first ${mode} game ${gameId} - waiting for players`);
+
+        await db.collection('games').doc(gameId).set({
+            mode,
+            entryFee,
+            status: 'selecting',
+            players: [],
+            selectedCards: {},
+            createdAt: new Date().toISOString(),
+            maxPlayers: 20
+        });
+
+        res.status(200).json({
+            gameId,
+            mode,
+            entryFee,
+            canPlay: true,
+            firstPlayer: true,
+            message: 'Waiting for other players to join...'
+        });
     } catch (error) {
-        console.error('Error creating game:', error);
-        res.status(500).json({ error: 'Failed to create game' });
+        console.error('Error in matchmaking:', error);
+        res.status(500).json({ error: 'Failed to find/create game' });
     }
 };
 
@@ -46,85 +97,70 @@ export const getGameModes = async (req: Request, res: Response) => {
         for (const modeId of modes) {
             let activePlayers = 0;
 
-            // Try to get real count from Firebase
+            // Count active players in this mode
             if (db) {
-                try {
-                    const gamesSnapshot = await db.collection('games')
-                        .where('mode', '==', modeId)
-                        .where('status', '==', 'waiting')
-                        .get();
+                const activeGames = await db.collection('games')
+                    .where('mode', '==', modeId)
+                    .where('status', 'in', ['selecting', 'countdown', 'playing'])
+                    .get();
 
-                    // Count all players in waiting games
-                    gamesSnapshot.docs.forEach(doc => {
-                        const data = doc.data();
-                        activePlayers += (data.players || []).length;
-                    });
-                } catch (error) {
-                    console.error(`Error fetching ${modeId} player count:`, error);
-                }
+                activePlayers = activeGames.docs.reduce((total, doc) => {
+                    const data = doc.data();
+                    return total + (data.players?.length || 0);
+                }, 0);
             }
 
-            // Create mode object - ALWAYS show mode even with 0 players
-            const modeData: any = {
+            gameModes.push({
                 id: modeId,
                 minBet: modeId === 'and-zig' ? 50 : modeId === 'hulet-zig' ? 100 : 150,
-                activePlayers: activePlayers, // Show real count, even if 0
+                activePlayers,
                 icon: modeId === 'and-zig' ? 'Zap' : modeId === 'hulet-zig' ? 'PlayCircle' : 'Trophy',
-                color: modeId === 'and-zig' ? 'from-blue-500 to-cyan-500' : modeId === 'hulet-zig' ? 'from-purple-500 to-pink-500' : 'from-amber-500 to-orange-500'
-            };
-
-            if (modeId === 'and-zig') {
-                modeData.title = 'And-zig (አንድ ዝግ)';
-                modeData.description = 'Complete 1 Line or 4 Corners';
-            } else if (modeId === 'hulet-zig') {
-                modeData.title = 'Hulet-zig (ሁለት ዝግ)';
-                modeData.description = 'Complete 2 Lines';
-            } else {
-                modeData.title = 'Mulu-zig (ሙሉ ዝግ)';
-                modeData.description = 'Blackout: Mark All 25 Cells';
-            }
-
-            gameModes.push(modeData);
+                color: modeId === 'and-zig' ? 'from-blue-500 to-cyan-500' : modeId === 'hulet-zig' ? 'from-purple-500 to-pink-500' : 'from-amber-500 to-orange-500',
+                title: modeId === 'and-zig' ? 'And-zig (አንድ ዝግ)' : modeId === 'hulet-zig' ? 'Hulet-zig (ሁለት ዝግ)' : 'Mulu-zig (ሙሉ ዝግ)',
+                description: modeId === 'and-zig' ? 'Complete 1 Line or 4 Corners' : modeId === 'hulet-zig' ? 'Complete 2 Lines' : 'Blackout: Mark All 25 Cells'
+            });
         }
 
         res.status(200).json(gameModes);
     } catch (error) {
-        console.error('Error in getGameModes:', error);
-        res.status(500).json({ error: 'Failed to fetch game modes' });
+        console.error('Error fetching game modes:', error);
+        // Return default modes if error
+        res.status(200).json([
+            { id: 'and-zig', minBet: 50, activePlayers: 0, icon: 'Zap', color: 'from-blue-500 to-cyan-500', title: 'And-zig (አንድ ዝግ)', description: 'Complete 1 Line or 4 Corners' },
+            { id: 'hulet-zig', minBet: 100, activePlayers: 0, icon: 'PlayCircle', color: 'from-purple-500 to-pink-500', title: 'Hulet-zig (ሁለት ዝግ)', description: 'Complete 2 Lines' },
+            { id: 'mulu-zig', minBet: 150, activePlayers: 0, icon: 'Trophy', color: 'from-amber-500 to-orange-500', title: 'Mulu-zig (ሙሉ ዝግ)', description: 'Blackout: Mark All 25 Cells' }
+        ]);
     }
 };
 
 export const getGlobalStats = async (req: Request, res: Response) => {
     try {
         let totalPlayers = 0;
-        let jackpotPool = 0;
+        let totalGames = 0;
 
-        // Try to get real stats from Firebase
         if (db) {
-            try {
-                const gamesSnapshot = await db.collection('games')
-                    .where('status', '==', 'waiting')
-                    .get();
+            const activeGames = await db.collection('games')
+                .where('status', 'in', ['selecting', 'countdown', 'playing'])
+                .get();
 
-                gamesSnapshot.docs.forEach(doc => {
-                    const data = doc.data();
-                    totalPlayers += (data.players || []).length;
-                    jackpotPool += data.entryFee || 0;
-                });
-            } catch (error) {
-                console.error('Error fetching global stats:', error);
-            }
+            totalGames = activeGames.size;
+            totalPlayers = activeGames.docs.reduce((total, doc) => {
+                const data = doc.data();
+                return total + (data.players?.length || 0);
+            }, 0);
         }
 
-        const stats = {
-            activePlayers: totalPlayers || 446, // Fallback to mock
-            totalPrizePool: jackpotPool || 45200, // Fallback to mock
-            isSystemLive: true
-        };
-
-        res.status(200).json(stats);
+        res.status(200).json({
+            totalPlayers,
+            activeGames: totalGames,
+            isSystemLive: totalGames > 0
+        });
     } catch (error) {
-        console.error('Error in getGlobalStats:', error);
-        res.status(500).json({ error: 'Failed to fetch stats' });
+        console.error('Error fetching stats:', error);
+        res.status(200).json({
+            totalPlayers: 0,
+            activeGames: 0,
+            isSystemLive: false
+        });
     }
 };
