@@ -605,9 +605,14 @@ const GamePage: React.FC = () => {
                     <div className="flex items-center justify-center gap-4 text-sm">
                         <div><span className="text-white/70">Time:</span> <span className="font-black text-xl">{countdown}s</span></div>
                         <div className="h-4 w-px bg-white/20" />
-                        <div><span className="text-white/70">Players:</span> <span className="font-bold">24</span></div>
+                        <div><span className="text-white/70">Players:</span> <span className="font-bold">{realPlayerCount}</span></div>
                         <div className="h-4 w-px bg-white/20" />
-                        <div><span className="text-white/70">Prize:</span> <span className="font-bold">1,200 Birr</span></div>
+                        <div><span className="text-white/70">Prize:</span> <span className="font-bold">{(() => {
+                            const unitPrice = gameMode === 'and-zig' ? 50 : gameMode === 'hulet-zig' ? 100 : 150;
+                            const totalCards = Object.keys(_selectedCardsByPlayer).length;
+                            const derash = Math.floor(totalCards * unitPrice * 0.85);
+                            return `${derash.toLocaleString()} Birr`;
+                        })()}</span></div>
                     </div>
                 </div>
 
