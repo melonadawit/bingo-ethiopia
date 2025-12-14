@@ -421,10 +421,15 @@ const GamePage: React.FC = () => {
     // Client listens for 'countdown_tick', 'game_started', and 'number_called' events.
 
 
-    const handleNextGame = () => {
+    const handleNextGame = async () => {
         console.log('Resetting for next round...');
         if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
         voiceCaller.stop();
+
+        // Leave the old ended game
+        if (gameId) {
+            socket.emit('leave_game', { gameId });
+        }
 
         // Clear game state
         setWinners([]);
@@ -434,12 +439,35 @@ const GamePage: React.FC = () => {
         setPreviewCards([]);
         setMyCards([]);
 
-        // Reset to selection phase - players will select cards for new round
+        // Reset to selection phase
         setStatus('selecting');
         setCountdown(30);
 
-        // The game lock has been cleared by endGame, so when players select cards
-        // and countdown starts, a new game will be created via the transaction
+        // Create/join a NEW game for round 2
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/game/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    mode: gameMode || 'and-zig',
+                    entryFee: 10
+                })
+            });
+
+            const data = await response.json();
+            console.log('New game created for round 2:', data.gameId);
+
+            // Update to new game ID
+            navigate(`/game/${data.gameId}`, { replace: true });
+
+            // Join the new game
+            if (user?.id) {
+                socket.emit('join_game', { gameId: data.gameId, userId: user.id });
+                socket.emit('request_selection_state', { gameId: data.gameId });
+            }
+        } catch (error) {
+            console.error('Error creating new game:', error);
+        }
     };
 
     const handleSelectCard = (id: number) => {
