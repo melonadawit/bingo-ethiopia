@@ -302,7 +302,13 @@ const GamePage: React.FC = () => {
             console.log('Game Won!', data);
             setWinners(data.winners);
             setStatus('ended');
-            if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
+            // Clear any game intervals immediately
+            if (gameIntervalRef.current) {
+                clearInterval(gameIntervalRef.current);
+                gameIntervalRef.current = null;
+            }
+            // Stop processing any further number calls
+            voiceCaller.stop();
         });
 
         // Real-time card selection events

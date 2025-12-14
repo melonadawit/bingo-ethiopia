@@ -238,9 +238,14 @@ export class GameManager {
         const game = games[gameId];
         if (!game) return;
 
-        if (game.intervalId) clearInterval(game.intervalId);
+        console.log(`🛑 Ending game ${gameId}, clearing interval`);
+        if (game.intervalId) {
+            clearInterval(game.intervalId);
+            game.intervalId = undefined;
+        }
         game.status = 'ended';
         this.io.to(gameId).emit('game_ended', { winners: game.winners });
+        console.log(`✅ Game ${gameId} ended, status: ${game.status}`);
     }
 
     getGame(gameId: string): GameState | undefined {
