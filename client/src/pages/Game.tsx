@@ -235,8 +235,7 @@ const GamePage: React.FC = () => {
         latestIsMuted.current = isMuted;
     }, [previewCards, selectedCards, isMuted]);
 
-    // Track if socket listeners are already set up to prevent duplicates
-    const listenersSetupRef = useRef(false);
+
 
     useEffect(() => {
         if (!user) {
