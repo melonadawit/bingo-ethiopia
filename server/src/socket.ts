@@ -85,8 +85,8 @@ export const initSocket = (httpServer: HttpServer) => {
             gameManagerInstance.startGame(gameId);
         });
 
-        // Handle win claim
-        socket.on('claim_bingo', async (data: { gameId: string; board: number[][]; markedNumbers: number[]; userId: string; cardId: number }) => {
+        // Handle BINGO claim
+        socket.on('claim_bingo', (data: { gameId: string; board: number[][]; markedNumbers: number[]; userId: string; cardId: number }) => {
             console.log('🎯 Bingo claim received from:', socket.id);
 
             const game = gameManagerInstance.getGame(data.gameId);
@@ -95,17 +95,16 @@ export const initSocket = (httpServer: HttpServer) => {
                 return;
             }
 
-            if (game.status !== 'playing') {
-                socket.emit('error', { message: 'Game is not active' });
-                return;
-            }
-
-            // Validate win (flatten 2D board to 1D array)
+            // Flatten the 2D board to 1D for validation
             const flatBoard = data.board.flat();
+
             const winPattern = gameManagerInstance.validateWin(flatBoard, data.markedNumbers);
 
             if (winPattern) {
                 // Valid win - add to winners array
+                // Re-fetch game to ensure it's the latest state, though not strictly necessary here
+                // as we already have 'game' from the initial lookup.
+                // Keeping it as per the provided snippet for faithfulness.
                 const game = gameManagerInstance.getGame(data.gameId);
                 if (game) {
                     console.log(`🏆 Winner detected! Pattern: ${winPattern.type}`);
@@ -137,10 +136,12 @@ export const initSocket = (httpServer: HttpServer) => {
                         totalPrize: totalPrize
                     });
 
-                    // End the game (clears intervals, updates Firebase, emits game_ended)
-                    await gameManagerInstance.endGame(data.gameId);
+                    // End the game (fire-and-forget to avoid blocking)
+                    gameManagerInstance.endGame(data.gameId).catch(err => {
+                        console.error('Error ending game:', err);
+                    });
 
-                    console.log(`✅ Game ${data.gameId} fully stopped and winner announced`);
+                    console.log(`✅ Game ${data.gameId} winner announced`);
                 }
             } else {
                 // Invalid claim
