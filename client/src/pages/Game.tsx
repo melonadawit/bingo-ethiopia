@@ -342,6 +342,8 @@ const GamePage: React.FC = () => {
         };
     }, []);
 
+    // CLIENT COUNTDOWN DISABLED - Server controls via socket
+    /*
     // CLIENT-SIDE COUNTDOWN DISABLED - SERVER CONTROLS THIS NOW
     /* 
     // Countdown timer for selection - AUTO START GAME
@@ -362,6 +364,7 @@ const GamePage: React.FC = () => {
                 });
             }, 1000);
             return () => clearInterval(timer);
+    */
         }
     }, [status]); // Only depend on status, not startGame
     */
