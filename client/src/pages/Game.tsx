@@ -654,7 +654,7 @@ const GamePage: React.FC = () => {
                                 >
                                     <div className="text-center">
                                         <div className="text-purple-700 font-black text-lg drop-shadow-lg">
-                                            {currentNumber ? `${getLetter(currentNumber)}-${currentNumber}` : 'I-24'}
+                                            {currentNumber ? `${getLetter(currentNumber)}-${currentNumber}` : '--'}
                                         </div>
                                     </div>
                                 </motion.div>

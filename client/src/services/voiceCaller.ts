@@ -44,7 +44,7 @@ export class AmharicVoiceCaller {
         // If no cartela number provided, play generic winner sound
         if (!cartelaNumber) {
             console.log('🏆 Announcing: Generic BINGO winner!');
-            return this.playAudio('announcements/winner');
+            return this.playAudio('winner');
         }
 
         console.log(`🏆 Announcing: Cartela ${cartelaNumber} is the winner!`);
