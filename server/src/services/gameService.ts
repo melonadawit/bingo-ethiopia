@@ -203,6 +203,9 @@ export class GameManager {
         const game = games[gameId];
         if (!game) return;
 
+        // CRITICAL: Stop any existing intervals to prevent duplicates (double speed bug)
+        this.stopInterval(gameId);
+
         game.status = 'playing';
         console.log(`🎮 Starting game ${gameId}`);
 
