@@ -215,44 +215,47 @@ export class GameManager {
 
         // Start drawing numbers every 4 seconds (SERVER-CONTROLLED)
         const intervalId = setInterval(() => {
-            // Check if game has ended (important for stopping immediately)
-            if (game.status === 'ended' || !intervalMap.has(gameId)) {
-                console.log(`⏹️ Game ${gameId} has ended, stopping number calls`);
-                clearInterval(intervalId);
-                intervalMap.delete(gameId);
-                return;
+            try {
+                // Check if game has ended (important for stopping immediately)
+                if (game.status === 'ended' || !intervalMap.has(gameId)) {
+                    console.log(`⏹️ Game ${gameId} has ended, stopping number calls`);
+                    clearInterval(intervalId);
+                    intervalMap.delete(gameId);
+                    return;
+                }
+
+                if (game.drawnNumbers.length >= MAX_NUMBER) {
+                    this.endGame(gameId);
+                    return;
+                }
+
+                // Generate unique number
+                let num: number;
+                do {
+                    num = Math.floor(Math.random() * MAX_NUMBER) + 1;
+                } while (game.drawnNumbers.includes(num));
+
+                game.drawnNumbers.push(num);
+
+                console.log(`Game ${gameId}: Called number ${num} (${game.drawnNumbers.length}/${MAX_NUMBER})`);
+
+                // DON'T broadcast if game has ended or has winners
+                const gameIsActive = ['waiting', 'selecting', 'countdown', 'playing'].includes(game.status);
+                if (!gameIsActive || game.winners.length > 0) {
+                    console.log(`⏹️ Game ${gameId} has winners or ended (status: ${game.status}), NOT broadcasting number ${num}`);
+                    this.stopInterval(gameId); // Use helper to clean up
+                    return;
+                }
+
+                // BROADCAST TO ALL PLAYERS (synchronized!)
+                this.io.to(gameId).emit('number_called', {
+                    number: num,
+                    history: game.drawnNumbers
+                });
+            } catch (error) {
+                console.error(`🚨 Critical error in game loop for ${gameId}:`, error);
+                this.stopInterval(gameId);
             }
-
-            if (game.drawnNumbers.length >= MAX_NUMBER) {
-                this.endGame(gameId);
-                return;
-            }
-
-            // Generate unique number
-            let num: number;
-            do {
-                num = Math.floor(Math.random() * MAX_NUMBER) + 1;
-            } while (game.drawnNumbers.includes(num));
-
-            game.drawnNumbers.push(num);
-
-            console.log(`Game ${gameId}: Called number ${num} (${game.drawnNumbers.length}/${MAX_NUMBER})`);
-
-            // DON'T broadcast if game has ended or has winners
-            const gameIsActive = ['waiting', 'selecting', 'countdown', 'playing'].includes(game.status);
-            if (!gameIsActive || game.winners.length > 0) {
-                console.log(`⏹️ Game ${gameId} has winners or ended (status: ${game.status}), NOT broadcasting number ${num}`);
-                clearInterval(intervalId);
-                intervalMap.delete(gameId);
-                return;
-            }
-
-            // BROADCAST TO ALL PLAYERS (synchronized!)
-            this.io.to(gameId).emit('number_called', {
-                number: num,
-                history: game.drawnNumbers
-            });
-
         }, 4000); // 4 seconds per number
 
         game.intervalId = intervalId;
@@ -306,6 +309,14 @@ export class GameManager {
 
         this.io.to(gameId).emit('game_ended', { winners: game.winners });
         console.log(`✅ Game ${gameId} ended, status: ${game.status}`);
+
+        // Automatically clean up memory after 5 minutes
+        setTimeout(() => {
+            if (games[gameId] && games[gameId].status === 'ended') {
+                delete games[gameId];
+                console.log(`🧹 Garbage collected game ${gameId}`);
+            }
+        }, 5 * 60 * 1000);
     }
 
     private async updateFirebaseStatus(gameId: string, mode: string) {
