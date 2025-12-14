@@ -284,39 +284,16 @@ export class GameManager {
 
         game.status = 'ended';
 
-        // Update Firebase to keep status synchronized
-        try {
-            const { db } = await import('../firebase');
-            if (db) {
-                try {
-                    // Update game status
-                    await db.collection('games').doc(gameId).update({
-                        status: 'ended',
-                        endedAt: new Date().toISOString()
-                    });
-                    console.log(`✅ Updated Firebase status to 'ended' for game ${gameId}`);
-                } catch (updateError) {
-                    console.error(`Error updating game status in Firebase:`, updateError);
-                }
-
-                // DON'T delete the lock - let it get overwritten by the next game
-                // This prevents race condition where multiple players create separate games
-                console.log(`🔒 Keeping game lock for mode ${game.mode} - will be overwritten by next game`);
-            }
-        } catch (error) {
-            console.error(`Error in endGame Firebase operations for game ${gameId}:`, error);
-        }
-
         this.io.to(gameId).emit('game_ended', { winners: game.winners });
         console.log(`✅ Game ${gameId} ended, status: ${game.status}`);
 
-        // Automatically clean up memory after 5 minutes
+        // Cleanup memory after 5 minutes (optimized from 2min)
         setTimeout(() => {
-            if (games[gameId] && games[gameId].status === 'ended') {
+            if (games[gameId]) {
                 delete games[gameId];
-                console.log(`🧹 Garbage collected game ${gameId}`);
+                console.log(`🧹 Cleaned up game ${gameId}`);
             }
-        }, 2 * 60 * 1000); // 2 minutes
+        }, 5 * 60 * 1000);
     }
 
 
