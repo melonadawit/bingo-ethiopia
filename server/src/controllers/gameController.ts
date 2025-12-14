@@ -102,7 +102,7 @@ export const createGame = async (req: Request, res: Response) => {
 
                     // Check if this game still exists and is joinable
                     if (existingGameId) {
-                        const gameDoc = await transaction.get(db.collection('games').doc(existingGameId));
+                        const gameDoc = await transaction.get(db!.collection('games').doc(existingGameId));
                         if (gameDoc.exists && gameDoc.data()?.status === 'selecting') {
                             console.log(`🔒 Transaction: Found existing game ${existingGameId} via lock`);
                             return { gameId: existingGameId, created: false };
@@ -115,7 +115,7 @@ export const createGame = async (req: Request, res: Response) => {
                 console.log(`🆕 Transaction: Creating new ${mode} game ${gameId}`);
 
                 // Create game in Firebase
-                transaction.set(db.collection('games').doc(gameId), {
+                transaction.set(db!.collection('games').doc(gameId), {
                     mode,
                     entryFee,
                     status: 'selecting',

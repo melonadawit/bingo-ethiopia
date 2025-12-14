@@ -280,7 +280,7 @@ export class GameManager {
 
         // Update Firebase to keep status synchronized
         try {
-            const { db } = await import('../config/firebase');
+            const { db } = await import('../firebase');
             if (db) {
                 await db.collection('games').doc(gameId).update({
                     status: 'ended',
