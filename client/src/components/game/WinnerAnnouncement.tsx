@@ -3,10 +3,11 @@ import { voiceCaller } from '../../services/voiceCaller';
 
 interface Winner {
     userId: string;
-    name: string;
-    cartelaNumber: number;
+    name?: string;
+    cardId?: number;
+    cartelaNumber?: number;
     card: number[][];
-    winningPattern: boolean[][];
+    winningPattern?: boolean[][];
 }
 
 interface WinnerAnnouncementProps {
