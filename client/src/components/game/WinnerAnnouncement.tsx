@@ -133,7 +133,7 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
                                     <React.Fragment key={rowIndex}>
                                         {row.map((num, colIndex) => {
                                             const isCalled = isNumberCalled(num);
-                                            const isWinning = winner.winningPattern[rowIndex][colIndex];
+                                            const isWinning = winner.winningPattern?.[rowIndex]?.[colIndex] || false;
                                             const isFree = rowIndex === 2 && colIndex === 2;
 
                                             return (
