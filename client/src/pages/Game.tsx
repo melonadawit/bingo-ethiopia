@@ -414,6 +414,8 @@ const GamePage: React.FC = () => {
             socket.off('number_called');
             socket.off('game_started');
             socket.off('game_state_changed');
+            socket.off('game_won');
+            socket.off('game_ended');
         };
     }, []);
 
