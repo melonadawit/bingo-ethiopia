@@ -23,15 +23,18 @@ export const initSocket = (httpServer: HttpServer) => {
         });
 
         socket.on('join_game', ({ gameId, userId }) => {
+            console.log(`🎮 Socket ${socket.id} attempting to join game ${gameId}`);
             const result = gameManagerInstance.joinGame(gameId, userId);
             if (result.success) {
                 socket.join(gameId);
+                console.log(`✅ Socket ${socket.id} joined room ${gameId}`);
                 socket.emit('joined_successfully', {
                     gameId,
                     isSpectator: result.isSpectator,
                     message: result.message
                 });
             } else {
+                console.log(`❌ Socket ${socket.id} failed to join: ${result.message}`);
                 socket.emit('error', { message: result.message || 'Could not join game' });
             }
         });
