@@ -243,14 +243,18 @@ const GamePage: React.FC = () => {
             return;
         }
 
-        // Prevent duplicate listener setup
-        if (listenersSetupRef.current) {
-            console.log('⚠️ Socket listeners already set up, skipping');
-            return;
-        }
+        console.log('Game component setup for game:', gameId);
 
-        listenersSetupRef.current = true;
-        console.log('✅ Setting up socket listeners for the first time');
+        // Aggressively clean up any existing listeners first
+        socket.off('card_selected');
+        socket.off('card_deselected');
+        socket.off('selection_state');
+        socket.off('countdown_tick');
+        socket.off('number_called');
+        socket.off('game_started');
+        socket.off('game_state_changed');
+        socket.off('game_won');
+        socket.off('game_ended');
 
         console.log('Game component mounted, starting connection phase');
 
