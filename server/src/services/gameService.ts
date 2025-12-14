@@ -282,11 +282,17 @@ export class GameManager {
         try {
             const { db } = await import('../firebase');
             if (db) {
+                // Update game status
                 await db.collection('games').doc(gameId).update({
                     status: 'ended',
                     endedAt: new Date().toISOString()
                 });
                 console.log(`✅ Updated Firebase status to 'ended' for game ${gameId}`);
+
+                // Clear the game lock so new games can be created
+                const lockDocId = `${game.mode}-current`;
+                await db.collection('game-locks').doc(lockDocId).delete();
+                console.log(`✅ Cleared game lock for mode ${game.mode}`);
             }
         } catch (error) {
             console.error(`Error updating Firebase for game ${gameId}:`, error);
