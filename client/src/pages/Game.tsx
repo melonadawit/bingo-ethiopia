@@ -247,16 +247,42 @@ const GamePage: React.FC = () => {
             socket.connect();
         }
 
-        // JOIN GAME ROOM FOR MULTIPLAYER
-        if (gameId && user?.id) {
-            console.log('Joining game room:', gameId);
-            socket.emit('join_game', { gameId, userId: user.id });
+        // Wait a bit for socket to connect, then join game
+        const joinTimer = setTimeout(() => {
+            if (gameId && user?.id) {
+                console.log('Joining game room:', gameId);
+                socket.emit('join_game', { gameId, userId: user.id });
 
-            // Request current selection state
-            socket.emit('request_selection_state', { gameId });
-        }
+                // Request current selection state
+                socket.emit('request_selection_state', { gameId });
+            }
+        }, 500); // Wait 500ms for socket connection
 
-        // Connection and status are managed by server events
+        // Listen for successful join
+        socket.on('joined_successfully', ({ gameId: joinedGameId }) => {
+            console.log('✅ Successfully joined game:', joinedGameId);
+            setStatus('selection');
+        });
+
+        // Listen for join errors and retry
+        socket.on('error', ({ message }) => {
+            console.log('❌ Join error:', message);
+            if (message === 'Game not found') {
+                console.log('Retrying join in 1 second...');
+                setTimeout(() => {
+                    if (gameId && user?.id) {
+                        socket.emit('join_game', { gameId, userId: user.id });
+                        socket.emit('request_selection_state', { gameId });
+                    }
+                }, 1000);
+            }
+        });
+
+        return () => {
+            clearTimeout(joinTimer);
+            socket.off('joined_successfully');
+            socket.off('error');
+        };
     }, [user, navigate, gameId]);
 
     // Auto-start countdown if no cards selected after a short delay (useful for testing)
