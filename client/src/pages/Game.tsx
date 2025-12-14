@@ -422,22 +422,24 @@ const GamePage: React.FC = () => {
 
 
     const handleNextGame = () => {
-        console.log('Resetting game loop...');
-        if (gameIntervalRef.current) clearInterval(gameIntervalRef.current); // STOP CALLER
-        voiceCaller.stop(); // STOP AUDIO
+        console.log('Resetting for next round...');
+        if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
+        voiceCaller.stop();
 
+        // Clear game state
         setWinners([]);
         setCalledNumbers(new Set());
         setCurrentNumber(null);
-
-        // Reset selections
         setSelectedCards([]);
         setPreviewCards([]);
         setMyCards([]);
 
-        // Reset to Selection Phase
-        setStatus('selection');
-        setCountdown(30); // 30s countdown as requested
+        // Reset to selection phase - players will select cards for new round
+        setStatus('selecting');
+        setCountdown(30);
+
+        // The game lock has been cleared by endGame, so when players select cards
+        // and countdown starts, a new game will be created via the transaction
     };
 
     const handleSelectCard = (id: number) => {
