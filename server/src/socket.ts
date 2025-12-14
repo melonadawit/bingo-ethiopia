@@ -100,8 +100,9 @@ export const initSocket = (httpServer: HttpServer) => {
                 return;
             }
 
-            // Validate win
-            const winPattern = gameManagerInstance.validateWin(data.board, data.markedNumbers);
+            // Validate win (flatten 2D board to 1D array)
+            const flatBoard = data.board.flat();
+            const winPattern = gameManagerInstance.validateWin(flatBoard, data.markedNumbers);
 
             if (winPattern) {
                 // Valid win - add to winners array
