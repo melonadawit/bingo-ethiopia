@@ -256,7 +256,7 @@ export class GameManager {
         intervalMap.set(gameId, intervalId); // Store in map for immediate access
     }
 
-    async endGame(gameId: string) {
+    endGame(gameId: string) {
         const game = games[gameId];
         if (!game) return;
 
@@ -303,6 +303,21 @@ export class GameManager {
 
         this.io.to(gameId).emit('game_ended', { winners: game.winners });
         console.log(`✅ Game ${gameId} ended, status: ${game.status}`);
+    }
+
+    private async updateFirebaseStatus(gameId: string, mode: string) {
+        try {
+            const { db } = await import('../firebase');
+            if (db) {
+                await db.collection('games').doc(gameId).update({
+                    status: 'ended',
+                    endedAt: new Date().toISOString()
+                });
+                console.log(`✅ Updated Firebase status for game ${gameId}`);
+            }
+        } catch (error) {
+            console.error(`Firebase update error:`, error);
+        }
     }
 
     getGame(gameId: string): GameState | undefined {
