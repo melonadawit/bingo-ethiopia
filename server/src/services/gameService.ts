@@ -256,7 +256,7 @@ export class GameManager {
         intervalMap.set(gameId, intervalId); // Store in map for immediate access
     }
 
-    endGame(gameId: string) {
+    async endGame(gameId: string) {
         const game = games[gameId];
         if (!game) return;
 
@@ -277,6 +277,21 @@ export class GameManager {
         }
 
         game.status = 'ended';
+
+        // Update Firebase to keep status synchronized
+        try {
+            const { db } = await import('../config/firebase');
+            if (db) {
+                await db.collection('games').doc(gameId).update({
+                    status: 'ended',
+                    endedAt: new Date().toISOString()
+                });
+                console.log(`✅ Updated Firebase status to 'ended' for game ${gameId}`);
+            }
+        } catch (error) {
+            console.error(`Error updating Firebase for game ${gameId}:`, error);
+        }
+
         this.io.to(gameId).emit('game_ended', { winners: game.winners });
         console.log(`✅ Game ${gameId} ended, status: ${game.status}`);
     }

@@ -98,10 +98,10 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
                     {winners.map((winner) => (
                         <div key={winner.userId} className="winner-pill">
                             <div className="winner-avatar">
-                                {winner.name.charAt(0).toUpperCase()}
+                                {(winner.name || winner.userId || 'P').charAt(0).toUpperCase()}
                             </div>
-                            <span className="winner-name">{winner.name}</span>
-                            <span className="winner-cartela">#{winner.cartelaNumber}</span>
+                            <span className="winner-name">{winner.name || `Player ${winner.userId?.slice(0, 8) || 'Unknown'}`}</span>
+                            <span className="winner-cartela">#{winner.cartelaNumber || (winner as any).cardId}</span>
                         </div>
                     ))}
                 </div>
@@ -110,7 +110,7 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
                 {winners.slice(0, 1).map((winner) => (
                     <div key={winner.userId} className="winning-cartela-container scale-90 origin-top">
                         <div className="cartela-header text-sm py-1">
-                            🏆 Winning Cartela: {winner.cartelaNumber}
+                            🏆 Winning Cartela: {winner.cartelaNumber || winner.cardId}
                         </div>
 
                         <div className="bingo-card transform scale-90">
