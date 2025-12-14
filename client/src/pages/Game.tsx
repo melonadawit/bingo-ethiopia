@@ -459,15 +459,8 @@ const GamePage: React.FC = () => {
             const data = await response.json();
             console.log('Joined/created game for round 2:', data.gameId);
 
-            // DON'T navigate - just update URL and rejoin
-            // This prevents component remounting and duplicate listeners
-            window.history.replaceState(null, '', `/game/${data.gameId}`);
-
-            // Join the new game immediately
-            if (user?.id) {
-                socket.emit('join_game', { gameId: data.gameId, userId: user.id });
-                socket.emit('request_selection_state', { gameId: data.gameId });
-            }
+            // Use navigate to update gameId properly (component will remount but cleanup handles it)
+            navigate(`/game/${data.gameId}`, { replace: true });
         } catch (error) {
             console.error('Error joining next round:', error);
         }
