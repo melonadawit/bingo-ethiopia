@@ -631,12 +631,12 @@ const GamePage: React.FC = () => {
                                     onClick={() => handleSelectCard(num)}
                                     disabled={!!isTakenByOther}
                                     className={cn(
-                                        "aspect-square rounded-lg flex items-center justify-center font-bold text-xs transition-all",
+                                        "aspect-square rounded-lg flex items-center justify-center font-semibold text-base transition-all duration-200",
                                         isMyCard
-                                            ? "bg-gradient-to-br from-yellow-400 to-orange-500 text-slate-900 shadow-lg shadow-orange-500/20 transform scale-105"
+                                            ? "bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-lg shadow-green-500/50 transform scale-110 border-2 border-green-300"
                                             : isTakenByOther
                                                 ? "bg-slate-700/50 text-slate-600 cursor-not-allowed opacity-50"
-                                                : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                                                : "bg-slate-800 text-slate-300 hover:bg-slate-700 hover:scale-105 border border-slate-700"
                                     )}
                                 >
                                     {num}
