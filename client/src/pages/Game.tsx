@@ -431,9 +431,9 @@ const GamePage: React.FC = () => {
             socket.off('game_state_changed');
             socket.off('game_won');
             socket.off('game_ended');
-            listenersSetupRef.current = false; // Allow setup again after cleanup
+            socket.off('game_ended');
         };
-    }, []);
+    }, [gameId]);
 
     // CLIENT COUNTDOWN REMOVED - Server fully controls countdown, game start, and number calling.
     // Client listens for 'countdown_tick', 'game_started', and 'number_called' events.
