@@ -82,9 +82,9 @@ const MasterBoard = ({ calledNumbers, lastCalled }: { calledNumbers: Set<number>
                                     <div
                                         key={num}
                                         className={cn(
-                                            "aspect-square flex items-center justify-center text-[10px] font-bold rounded transition-colors",
-                                            isLast ? "bg-green-500 text-white scale-110" :
-                                                isCalled ? "bg-green-500 text-white" : "bg-slate-700/50 text-slate-400"
+                                            "aspect-square flex items-center justify-center text-[10px] font-bold rounded transition-all duration-300",
+                                            isLast ? "bg-yellow-400 text-black scale-125 shadow-lg shadow-yellow-400/50 animate-pulse" :
+                                                isCalled ? "bg-green-600 text-white" : "bg-slate-700/50 text-slate-400"
                                         )}
                                     >
                                         {num}
