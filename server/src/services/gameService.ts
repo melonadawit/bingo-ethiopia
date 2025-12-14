@@ -256,13 +256,13 @@ export class GameManager {
                 console.error(`🚨 Critical error in game loop for ${gameId}:`, error);
                 this.stopInterval(gameId);
             }
-        }, 4000); // 4 seconds per number
+        }, 6000); // 6 seconds per number (optimized for free tier)
 
         game.intervalId = intervalId;
         intervalMap.set(gameId, intervalId); // Store in map for immediate access
     }
 
-    async endGame(gameId: string) {
+    endGame(gameId: string) {
         const game = games[gameId];
         if (!game) return;
 

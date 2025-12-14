@@ -50,3 +50,19 @@ httpServer.listen(PORT, async () => {
     }
 });
 
+// Process monitoring for free tier stability
+process.on('uncaughtException', (error) => {
+    console.error('🚨 UNCAUGHT EXCEPTION:', error);
+    console.error('Stack:', error.stack);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('🚨 UNHANDLED REJECTION at:', promise, 'reason:', reason);
+});
+
+// Log memory usage every 30 seconds
+setInterval(() => {
+    const used = process.memoryUsage();
+    console.log(`💾 Memory: ${Math.round(used.heapUsed / 1024 / 1024)}MB / ${Math.round(used.heapTotal / 1024 / 1024)}MB`);
+}, 30000);
+

@@ -140,10 +140,8 @@ export const initSocket = (httpServer: HttpServer) => {
                     totalPrize: totalPrize
                 });
 
-                // End the game (cleanup Firebase, etc)
-                gameManagerInstance.endGame(data.gameId).catch(err => {
-                    console.error('Error ending game:', err);
-                });
+                // End the game
+                gameManagerInstance.endGame(data.gameId);
 
                 console.log(`✅ Game ${data.gameId} winner announced`);
             } else {
