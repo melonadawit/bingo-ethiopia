@@ -309,14 +309,21 @@ const GamePage: React.FC = () => {
         });
 
         // SERVER-CONTROLLED NUMBER CALLING
+        // SERVER-CONTROLLED NUMBER CALLING
         socket.on('number_called', ({ number, history }) => {
-            console.log('Server called number:', number);
-            setCurrentNumber(number);
-            setCalledNumbers(new Set(history));
+            try {
+                console.log('Server called number:', number);
+                setCurrentNumber(number);
+                setCalledNumbers(new Set(history));
 
-            // CALL NUMBER WITH VOICE!
-            if (!isMuted) {
-                voiceCaller.callNumber(number);
+                // CALL NUMBER WITH VOICE!
+                if (!isMuted) {
+                    voiceCaller.callNumber(number).catch(err => {
+                        console.error('Voice caller error (non-fatal):', err);
+                    });
+                }
+            } catch (err) {
+                console.error('Critical error in number_called listener:', err);
             }
         });
 
@@ -342,32 +349,9 @@ const GamePage: React.FC = () => {
         };
     }, []);
 
-    // CLIENT COUNTDOWN DISABLED - Server controls via socket
-    /*
-    // CLIENT-SIDE COUNTDOWN DISABLED - SERVER CONTROLS THIS NOW
-    /* 
-    // Countdown timer for selection - AUTO START GAME
-    useEffect(() => {
-        if (status === 'selection') {
-            console.log('Selection phase started, countdown:', countdown);
-            const timer = setInterval(() => {
-                setCountdown(prev => {
-                    console.log('Countdown:', prev);
-                    if (prev <= 1) {
-                        clearInterval(timer);
-                        // AUTO START GAME when countdown reaches 0
-                        console.log('Countdown finished, starting game');
-                        startGame();
-                        return 0;
-                    }
-                    return prev - 1;
-                });
-            }, 1000);
-            return () => clearInterval(timer);
-    */
-        }
-    }, [status]); // Only depend on status, not startGame
-    */
+    // CLIENT COUNTDOWN REMOVED - Server fully controls countdown, game start, and number calling.
+    // Client listens for 'countdown_tick', 'game_started', and 'number_called' events.
+
 
     const handleNextGame = () => {
         console.log('Resetting game loop...');
@@ -424,68 +408,7 @@ const GamePage: React.FC = () => {
         }
     };
 
-    const startGame = () => {
-        if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
-
-        // Use refs to get the LATEST values, not the stale closure values
-        const latestSelectedCards = selectedCardsRef.current;
-        const latestPreviewCards = previewCardsRef.current;
-
-        console.log('Starting game with selectedCards:', latestSelectedCards);
-        console.log('PreviewCards:', latestPreviewCards);
-
-        // Set myCards from previewCards if any cards were selected
-        if (latestPreviewCards.length > 0) {
-            console.log('Setting myCards to:', latestPreviewCards);
-            setMyCards([...latestPreviewCards]); // Create a new array to ensure state update
-        } else {
-            console.log('No cards selected - watching mode');
-            setMyCards([]);
-        }
-
-        setStatus('playing');
-
-        // Announce Game Start if not muted (Wait a bit for the UI to transition)
-        setTimeout(() => {
-            if (!latestIsMuted.current) {
-                voiceCaller.announceGameStart();
-            }
-        }, 500);
-
-        // MOCK GAME LOGIC - DISABLED: Server now controls number calling
-        /* CLIENT-SIDE NUMBER GENERATION REMOVED
-        let count = 0;
-        const usedNumbers = new Set<number>();
-
-        gameIntervalRef.current = setInterval(() => {
-            if (count >= 75) {
-                if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
-                setStatus('ended'); // Game ends if all numbers are called without a winner
-                return;
-            }
-
-            let num;
-            do {
-                num = Math.floor(Math.random() * 75) + 1;
-            } while (usedNumbers.has(num));
-
-            usedNumbers.add(num);
-            setCurrentNumber(num);
-            setCalledNumbers(prev => new Set(prev).add(num));
-
-            // Call number in Amharic if not muted
-            // Use ref for isMuted to ensure we get latest value inside interval
-            if (!latestIsMuted.current) {
-                voiceCaller.callNumber(num);
-            }
-
-            count++;
-        }, 4000); // Slower interval (4s) to allow for voice announcements
-        */
-
-        // Server broadcasts numbers - client listens via 'number_called' event
-        console.log('✅ Game started - server will broadcast numbers');
-    };
+    // startGame REMOVED - Server controls game start via 'game_started' event
 
     const handleBingoClaim = () => {
         // Validation: Verify if user actually has a bingo
