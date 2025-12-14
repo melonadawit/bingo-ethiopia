@@ -282,20 +282,28 @@ export class GameManager {
         try {
             const { db } = await import('../firebase');
             if (db) {
-                // Update game status
-                await db.collection('games').doc(gameId).update({
-                    status: 'ended',
-                    endedAt: new Date().toISOString()
-                });
-                console.log(`✅ Updated Firebase status to 'ended' for game ${gameId}`);
+                try {
+                    // Update game status
+                    await db.collection('games').doc(gameId).update({
+                        status: 'ended',
+                        endedAt: new Date().toISOString()
+                    });
+                    console.log(`✅ Updated Firebase status to 'ended' for game ${gameId}`);
+                } catch (updateError) {
+                    console.error(`Error updating game status in Firebase:`, updateError);
+                }
 
-                // Clear the game lock so new games can be created
-                const lockDocId = `${game.mode}-current`;
-                await db.collection('game-locks').doc(lockDocId).delete();
-                console.log(`✅ Cleared game lock for mode ${game.mode}`);
+                try {
+                    // Clear the game lock so new games can be created
+                    const lockDocId = `${game.mode}-current`;
+                    await db.collection('game-locks').doc(lockDocId).delete();
+                    console.log(`✅ Cleared game lock for mode ${game.mode}`);
+                } catch (deleteError) {
+                    console.error(`Error deleting game lock:`, deleteError);
+                }
             }
         } catch (error) {
-            console.error(`Error updating Firebase for game ${gameId}:`, error);
+            console.error(`Error in endGame Firebase operations for game ${gameId}:`, error);
         }
 
         this.io.to(gameId).emit('game_ended', { winners: game.winners });
