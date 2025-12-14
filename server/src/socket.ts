@@ -108,6 +108,16 @@ export const initSocket = (httpServer: HttpServer) => {
                 // Valid win - add to winners array
                 const game = gameManagerInstance.getGame(data.gameId);
                 if (game) {
+                    // CRITICAL: End the game FIRST to stop number calling immediately
+                    console.log(`🏆 Winner detected! Ending game ${data.gameId} immediately`);
+
+                    // Clear interval and set status to ended BEFORE broadcasting
+                    if (game.intervalId) {
+                        clearInterval(game.intervalId);
+                        game.intervalId = undefined;
+                    }
+                    game.status = 'ended';
+
                     // Add this winner to the array
                     game.winners.push({
                         userId: data.userId,
@@ -121,7 +131,7 @@ export const initSocket = (httpServer: HttpServer) => {
                     const totalPrize = 500;
                     const prizePerWinner = Math.floor(totalPrize / game.winners.length);
 
-                    // Broadcast to all players with ALL winners' data
+                    // NOW broadcast to all players with ALL winners' data
                     io.to(data.gameId).emit('game_won', {
                         winners: game.winners.map(w => ({
                             userId: w.userId,
@@ -133,8 +143,8 @@ export const initSocket = (httpServer: HttpServer) => {
                         totalPrize: totalPrize
                     });
 
-                    // End the game after first winner
-                    gameManagerInstance.endGame(data.gameId);
+                    // Also emit game_ended
+                    io.to(data.gameId).emit('game_ended', { winners: game.winners });
                 }
             } else {
                 // Invalid claim
