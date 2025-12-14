@@ -296,10 +296,17 @@ const GamePage: React.FC = () => {
         });
 
         // Get initial selection state when joining
-        socket.on('selection_state', ({ selectedCards, playerCount }) => {
-            console.log('Got selection state:', selectedCards, playerCount);
+        socket.on('selection_state', ({ selectedCards, playerCount, status: serverStatus, countdown: serverCountdown, drawnNumbers }) => {
+            console.log('Got selection state:', selectedCards, playerCount, serverStatus, serverCountdown);
             setSelectedCardsByPlayer(selectedCards);
             setRealPlayerCount(playerCount);
+
+            if (serverStatus) setStatus(serverStatus);
+            if (serverCountdown !== undefined) setCountdown(serverCountdown);
+            if (drawnNumbers && drawnNumbers.length > 0) {
+                setCalledNumbers(new Set(drawnNumbers));
+                setCurrentNumber(drawnNumbers[drawnNumbers.length - 1]);
+            }
         });
 
         // SERVER-CONTROLLED COUNTDOWN

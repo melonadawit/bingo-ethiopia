@@ -130,6 +130,19 @@ export class GameManager {
     }
 
     /**
+     * Get valid game status and countdown
+     */
+    getGameStatusData(gameId: string) {
+        const game = games[gameId];
+        if (!game) return null;
+        return {
+            status: game.status,
+            countdown: game.countdown,
+            drawnNumbers: game.drawnNumbers
+        };
+    }
+
+    /**
      * Get all selected cards for a game
      */
     getSelectedCards(gameId: string): Record<number, string> {

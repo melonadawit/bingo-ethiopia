@@ -60,7 +60,15 @@ export const initSocket = (httpServer: HttpServer) => {
         socket.on('request_selection_state', ({ gameId }) => {
             const selectedCards = gameManagerInstance.getSelectedCards(gameId);
             const playerCount = gameManagerInstance.getPlayerCount(gameId);
-            socket.emit('selection_state', { selectedCards, playerCount });
+            const statusData = gameManagerInstance.getGameStatusData(gameId);
+
+            socket.emit('selection_state', {
+                selectedCards,
+                playerCount,
+                status: statusData?.status || 'selecting',
+                countdown: statusData?.countdown || 30,
+                drawnNumbers: statusData?.drawnNumbers || []
+            });
         });
 
 
