@@ -108,15 +108,19 @@ export const initSocket = (httpServer: HttpServer) => {
                 // Valid win - add to winners array
                 const game = gameManagerInstance.getGame(data.gameId);
                 if (game) {
-                    // CRITICAL: End the game FIRST to stop number calling immediately
-                    console.log(`🏆 Winner detected! Ending game ${data.gameId} immediately`);
+                    // CRITICAL: Stop the interval IMMEDIATELY before anything else
+                    console.log(`🏆 Winner detected! Stopping game ${data.gameId} IMMEDIATELY`);
 
-                    // Clear interval and set status to ended BEFORE broadcasting
+                    // Clear interval directly from game object
                     if (game.intervalId) {
                         clearInterval(game.intervalId);
                         game.intervalId = undefined;
+                        console.log(`✅ Cleared game.intervalId`);
                     }
+
+                    // Set status to ended to prevent any more interval callbacks
                     game.status = 'ended';
+                    console.log(`✅ Set game status to 'ended'`);
 
                     // Add this winner to the array
                     game.winners.push({
@@ -145,6 +149,8 @@ export const initSocket = (httpServer: HttpServer) => {
 
                     // Also emit game_ended
                     io.to(data.gameId).emit('game_ended', { winners: game.winners });
+
+                    console.log(`✅ Game ${data.gameId} fully stopped and winner announced`);
                 }
             } else {
                 // Invalid claim

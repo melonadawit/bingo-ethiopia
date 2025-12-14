@@ -21,6 +21,7 @@ interface WinPattern {
 }
 
 const games: Record<string, GameState> = {};
+const intervalMap: Map<string, NodeJS.Timeout> = new Map(); // Track intervals separately for immediate clearing
 const MAX_NUMBER = 75;
 
 export class GameManager {
@@ -209,11 +210,12 @@ export class GameManager {
         this.io.to(gameId).emit('game_state_changed', { state: 'playing' });
 
         // Start drawing numbers every 4 seconds (SERVER-CONTROLLED)
-        game.intervalId = setInterval(() => {
+        const intervalId = setInterval(() => {
             // Check if game has ended (important for stopping immediately)
-            if (game.status === 'ended') {
+            if (game.status === 'ended' || !intervalMap.has(gameId)) {
                 console.log(`⏹️ Game ${gameId} has ended, stopping number calls`);
-                if (game.intervalId) clearInterval(game.intervalId);
+                clearInterval(intervalId);
+                intervalMap.delete(gameId);
                 return;
             }
 
@@ -239,6 +241,9 @@ export class GameManager {
             });
 
         }, 4000); // 4 seconds per number
+
+        game.intervalId = intervalId;
+        intervalMap.set(gameId, intervalId); // Store in map for immediate access
     }
 
     endGame(gameId: string) {
@@ -246,10 +251,21 @@ export class GameManager {
         if (!game) return;
 
         console.log(`🛑 Ending game ${gameId}, clearing interval`);
+
+        // Clear from intervalMap FIRST
+        const intervalId = intervalMap.get(gameId);
+        if (intervalId) {
+            clearInterval(intervalId);
+            intervalMap.delete(gameId);
+            console.log(`✅ Cleared interval from Map for game ${gameId}`);
+        }
+
+        // Also clear from game object
         if (game.intervalId) {
             clearInterval(game.intervalId);
             game.intervalId = undefined;
         }
+
         game.status = 'ended';
         this.io.to(gameId).emit('game_ended', { winners: game.winners });
         console.log(`✅ Game ${gameId} ended, status: ${game.status}`);
