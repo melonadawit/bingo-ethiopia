@@ -256,7 +256,7 @@ export class GameManager {
         intervalMap.set(gameId, intervalId); // Store in map for immediate access
     }
 
-    endGame(gameId: string) {
+    async endGame(gameId: string) {
         const game = games[gameId];
         if (!game) return;
 
