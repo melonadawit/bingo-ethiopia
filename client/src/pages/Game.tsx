@@ -447,6 +447,8 @@ const GamePage: React.FC = () => {
         // Leave the old ended game
         if (gameId) {
             socket.emit('leave_game', { gameId });
+            // Wait for server to process leave before creating new game
+            await new Promise(resolve => setTimeout(resolve, 500));
         }
 
         // Clear game state
