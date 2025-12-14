@@ -342,26 +342,8 @@ const GamePage: React.FC = () => {
         };
     }, []);
 
-    // Countdown timer for selection - AUTO START GAME
-    useEffect(() => {
-        if (status === 'selection') {
-            console.log('Selection phase started, countdown:', countdown);
-            const timer = setInterval(() => {
-                setCountdown(prev => {
-                    console.log('Countdown:', prev);
-                    if (prev <= 1) {
-                        clearInterval(timer);
-                        // AUTO START GAME when countdown reaches 0
-                        console.log('Countdown finished, starting game');
-                        startGame();
-                        return 0;
-                    }
-                    return prev - 1;
-                });
-            }, 1000);
-            return () => clearInterval(timer);
-        }
-    }, [status]); // Only depend on status, not startGame
+    // CLIENT-SIDE COUNTDOWN REMOVED - SERVER CONTROLS EVERYTHING NOW
+    // Server broadcasts countdown_tick and game_started events
 
     const handleNextGame = () => {
         console.log('Resetting game loop...');
@@ -381,6 +363,9 @@ const GamePage: React.FC = () => {
         setStatus('selection');
         setCountdown(30); // 30s countdown as requested
     };
+
+    // startGame REMOVED - Server controls game start via socket events
+    // Server emits 'game_started' when ready
 
     const handleSelectCard = (id: number) => {
         console.log('handleSelectCard called with id:', id);
@@ -418,348 +403,307 @@ const GamePage: React.FC = () => {
         }
     };
 
-    const startGame = () => {
-        if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
+    do {
+        num = Math.floor(Math.random() * 75) + 1;
+    } while (usedNumbers.has(num));
 
-        // Use refs to get the LATEST values, not the stale closure values
-        const latestSelectedCards = selectedCardsRef.current;
-        const latestPreviewCards = previewCardsRef.current;
+    usedNumbers.add(num);
+    setCurrentNumber(num);
+    setCalledNumbers(prev => new Set(prev).add(num));
 
-        console.log('Starting game with selectedCards:', latestSelectedCards);
-        console.log('PreviewCards:', latestPreviewCards);
-
-        // Set myCards from previewCards if any cards were selected
-        if (latestPreviewCards.length > 0) {
-            console.log('Setting myCards to:', latestPreviewCards);
-            setMyCards([...latestPreviewCards]); // Create a new array to ensure state update
-        } else {
-            console.log('No cards selected - watching mode');
-            setMyCards([]);
-        }
-
-        setStatus('playing');
-
-        // Announce Game Start if not muted (Wait a bit for the UI to transition)
-        setTimeout(() => {
-            if (!latestIsMuted.current) {
-                voiceCaller.announceGameStart();
-            }
-        }, 500);
-
-        // MOCK GAME LOGIC - DISABLED: Server now controls number calling
-        /* CLIENT-SIDE NUMBER GENERATION REMOVED
-        let count = 0;
-        const usedNumbers = new Set<number>();
-
-        gameIntervalRef.current = setInterval(() => {
-            if (count >= 75) {
-                if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
-                setStatus('ended'); // Game ends if all numbers are called without a winner
-                return;
-            }
-
-            let num;
-            do {
-                num = Math.floor(Math.random() * 75) + 1;
-            } while (usedNumbers.has(num));
-
-            usedNumbers.add(num);
-            setCurrentNumber(num);
-            setCalledNumbers(prev => new Set(prev).add(num));
-
-            // Call number in Amharic if not muted
-            // Use ref for isMuted to ensure we get latest value inside interval
-            if (!latestIsMuted.current) {
-                voiceCaller.callNumber(num);
-            }
-
-            count++;
-        }, 4000); // Slower interval (4s) to allow for voice announcements
-        */
-
-        // Server broadcasts numbers - client listens via 'number_called' event
-        console.log('✅ Game started - server will broadcast numbers');
-    };
-
-    const handleBingoClaim = () => {
-        // Validation: Verify if user actually has a bingo
-        const myCards = selectedCardsRef.current.map(id =>
-            previewCardsRef.current.find(c => c.id === id) || generateBingoCard(id)
-        );
-
-        const currentCalled = new Set(Array.from(calledNumbers)); // Snapshot
-        let hasWinner = false;
-        const newWinners: any[] = [];
-
-        myCards.forEach(card => {
-            const result = checkWinningPattern(card.numbers, currentCalled, gameMode);
-            if (result.isWinner) {
-                hasWinner = true;
-                newWinners.push({
-                    userId: 'me',
-                    name: user?.firstName || 'You',
-                    cartelaNumber: card.id,
-                    card: card.numbers,
-                    winningPattern: result.winningCells
-                });
-            }
-        });
-
-        if (hasWinner) {
-            // Valid Claim! Stop the game
-            if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
-            voiceCaller.stop();
-
-            voiceCaller.announceWinner(); // Play generic BINGO shout
-            setWinners(newWinners);
-            setStatus('ended');
-
-            // In a real app, emit socket event here
-            // socket.emit('claim_bingo', { gameId, winners: newWinners });
-        } else {
-            // Invalid Claim - game continues
-            toast.error("Bogus Bingo! Keep playing.", {
-                icon: '🚫',
-                style: {
-                    background: '#1f2937',
-                    color: '#fff',
-                }
-            });
-        }
-    };
-
-    if (status === 'connecting') {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-[#1a1b2e]">
-                <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mb-4" />
-                <p className="text-white/60">Connecting to Room...</p>
-            </div>
-        );
+    // Call number in Amharic if not muted
+    // Use ref for isMuted to ensure we get latest value inside interval
+    if (!latestIsMuted.current) {
+        voiceCaller.callNumber(num);
     }
 
-    if (status === 'selection') {
-        return (
-            <div className="min-h-screen bg-[#1a1b2e] flex flex-col text-white overflow-hidden">
-                {/* Header with Timer */}
-                <div className="bg-gradient-to-r from-orange-500 to-red-600 p-2 text-center border-b border-white/10">
-                    <div className="flex items-center justify-center gap-4 text-sm">
-                        <div><span className="text-white/70">Time:</span> <span className="font-black text-xl">{countdown}s</span></div>
-                        <div className="h-4 w-px bg-white/20" />
-                        <div><span className="text-white/70">Players:</span> <span className="font-bold">24</span></div>
-                        <div className="h-4 w-px bg-white/20" />
-                        <div><span className="text-white/70">Prize:</span> <span className="font-bold">1,200 Birr</span></div>
-                    </div>
+    count++;
+}, 4000); // Slower interval (4s) to allow for voice announcements
+        */
+
+// Server broadcasts numbers - client listens via 'number_called' event
+console.log('✅ Game started - server will broadcast numbers');
+    };
+
+const handleBingoClaim = () => {
+    // Validation: Verify if user actually has a bingo
+    const myCards = selectedCardsRef.current.map(id =>
+        previewCardsRef.current.find(c => c.id === id) || generateBingoCard(id)
+    );
+
+    const currentCalled = new Set(Array.from(calledNumbers)); // Snapshot
+    let hasWinner = false;
+    const newWinners: any[] = [];
+
+    myCards.forEach(card => {
+        const result = checkWinningPattern(card.numbers, currentCalled, gameMode);
+        if (result.isWinner) {
+            hasWinner = true;
+            newWinners.push({
+                userId: 'me',
+                name: user?.firstName || 'You',
+                cartelaNumber: card.id,
+                card: card.numbers,
+                winningPattern: result.winningCells
+            });
+        }
+    });
+
+    if (hasWinner) {
+        // Valid Claim! Stop the game
+        if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
+        voiceCaller.stop();
+
+        voiceCaller.announceWinner(); // Play generic BINGO shout
+        setWinners(newWinners);
+        setStatus('ended');
+
+        // In a real app, emit socket event here
+        // socket.emit('claim_bingo', { gameId, winners: newWinners });
+    } else {
+        // Invalid Claim - game continues
+        toast.error("Bogus Bingo! Keep playing.", {
+            icon: '🚫',
+            style: {
+                background: '#1f2937',
+                color: '#fff',
+            }
+        });
+    }
+};
+
+if (status === 'connecting') {
+    return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-[#1a1b2e]">
+            <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mb-4" />
+            <p className="text-white/60">Connecting to Room...</p>
+        </div>
+    );
+}
+
+if (status === 'selection') {
+    return (
+        <div className="min-h-screen bg-[#1a1b2e] flex flex-col text-white overflow-hidden">
+            {/* Header with Timer */}
+            <div className="bg-gradient-to-r from-orange-500 to-red-600 p-2 text-center border-b border-white/10">
+                <div className="flex items-center justify-center gap-4 text-sm">
+                    <div><span className="text-white/70">Time:</span> <span className="font-black text-xl">{countdown}s</span></div>
+                    <div className="h-4 w-px bg-white/20" />
+                    <div><span className="text-white/70">Players:</span> <span className="font-bold">24</span></div>
+                    <div className="h-4 w-px bg-white/20" />
+                    <div><span className="text-white/70">Prize:</span> <span className="font-bold">1,200 Birr</span></div>
                 </div>
+            </div>
 
-                {/* Selection Grid */}
-                <div className="flex-1 p-2 overflow-y-auto pb-[200px]">
-                    <h2 className="text-center font-bold text-base mb-2">Select Your Cards (Max 2)</h2>
+            {/* Selection Grid */}
+            <div className="flex-1 p-2 overflow-y-auto pb-[200px]">
+                <h2 className="text-center font-bold text-base mb-2">Select Your Cards (Max 2)</h2>
 
-                    <div className="grid grid-cols-7 gap-1.5">
-                        {availableCards.map(num => (
-                            <button
-                                key={num}
-                                onClick={() => handleSelectCard(num)}
-                                className={cn(
-                                    "aspect-square rounded-lg flex items-center justify-center font-bold text-xs transition-all",
-                                    selectedCards.includes(num)
-                                        ? "bg-gradient-to-br from-yellow-400 to-orange-500 text-slate-900 shadow-lg shadow-orange-500/20 transform scale-105"
-                                        : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                                )}
-                            >
-                                {num}
-                            </button>
+                <div className="grid grid-cols-7 gap-1.5">
+                    {availableCards.map(num => (
+                        <button
+                            key={num}
+                            onClick={() => handleSelectCard(num)}
+                            className={cn(
+                                "aspect-square rounded-lg flex items-center justify-center font-bold text-xs transition-all",
+                                selectedCards.includes(num)
+                                    ? "bg-gradient-to-br from-yellow-400 to-orange-500 text-slate-900 shadow-lg shadow-orange-500/20 transform scale-105"
+                                    : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                            )}
+                        >
+                            {num}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Selected Cards Preview - Fixed at Bottom */}
+            {previewCards.length > 0 && (
+                <div className="fixed bottom-0 left-0 right-0 bg-slate-900/98 backdrop-blur-lg border-t border-slate-700 p-3 z-20">
+                    <h3 className="text-sm font-bold mb-2 text-center">Your Selected Cards</h3>
+                    <div className="flex gap-3 justify-center overflow-x-auto px-2">
+                        {previewCards.map(card => (
+                            <MiniCard key={card.id} card={card} />
                         ))}
                     </div>
                 </div>
-
-                {/* Selected Cards Preview - Fixed at Bottom */}
-                {previewCards.length > 0 && (
-                    <div className="fixed bottom-0 left-0 right-0 bg-slate-900/98 backdrop-blur-lg border-t border-slate-700 p-3 z-20">
-                        <h3 className="text-sm font-bold mb-2 text-center">Your Selected Cards</h3>
-                        <div className="flex gap-3 justify-center overflow-x-auto px-2">
-                            {previewCards.map(card => (
-                                <MiniCard key={card.id} card={card} />
-                            ))}
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    }
-
-    // PLAYING STATE
-    const getLetter = (num: number) => ['B', 'I', 'N', 'G', 'O'][Math.floor((num - 1) / 15)];
-    const recentCalls = [...calledNumbers].slice(-4, -1).reverse();
-
-    return (
-        <div className="h-screen bg-[#1a1b2e] flex flex-col text-white overflow-hidden">
-            {/* Game Info Bar - Compact */}
-            <div className="bg-[#2A1B3D] grid grid-cols-5 gap-0.5 p-0.5 border-b border-white/5 h-12 shrink-0">
-                {(() => {
-                    const unitPrice = gameMode === 'and-zig' ? 50 : gameMode === 'hulet-zig' ? 100 : 150;
-                    // Calculate total cards selected (from selectedCardsByPlayer Map)
-                    const totalCardsSelected = Object.keys(_selectedCardsByPlayer).length;
-                    // DERASH = (total cards × unit price) - 15% house fee
-                    const derash = Math.floor(totalCardsSelected * unitPrice * 0.85);
-
-                    return [
-                        { label: 'GAME ID', val: gameId?.slice(0, 8) || 'ic-bingo' },
-                        { label: 'PLAYERS', val: realPlayerCount.toString() || '0' },
-                        { label: 'BET', val: unitPrice.toString() },
-                        { label: 'DERASH', val: derash.toString() }, // Prize pool after 15% fee
-                        { label: 'CALLED', val: calledNumbers.size.toString() },
-                    ].map((item, i) => (
-                        <div key={i} className="bg-slate-800/50 rounded p-0.5 text-center">
-                            <div className="text-[8px] text-slate-400 uppercase font-medium">{item.label}</div>
-                            <div className="font-bold text-xs text-white">{item.val}</div>
-                        </div>
-                    ));
-                })()}
-            </div>
-
-            {/* Main Game Area */}
-            <div className="flex-1 overflow-hidden flex relative gap-0.5">
-                {/* Left Panel: Master Board - 50% */}
-                <div className="w-1/2 h-full p-0.5 bg-[#1a1b2e] shrink-0">
-                    <MasterBoard calledNumbers={calledNumbers} lastCalled={currentNumber} />
-                </div>
-
-                {/* Right Panel: Play Area - 50% */}
-                <div className="w-1/2 h-full flex flex-col overflow-hidden bg-[#1a1b2e]">
-
-                    {/* Current Call Display - MINIMIZED */}
-                    <div className="bg-[#2A1B3D] p-1 border-b border-white/5 shrink-0">
-                        <div className="flex items-center justify-between gap-1">
-                            {/* 3 Recent Numbers - Vertical Stack */}
-                            <div className="flex flex-col gap-0.5">
-                                {recentCalls.slice(0, 3).map((num, i) => {
-                                    const letter = getLetter(num);
-                                    const colors = {
-                                        'B': 'from-blue-500 to-blue-600',
-                                        'I': 'from-purple-500 to-purple-600',
-                                        'N': 'from-pink-500 to-pink-600',
-                                        'G': 'from-emerald-500 to-emerald-600',
-                                        'O': 'from-orange-500 to-orange-600'
-                                    };
-                                    return (
-                                        <div key={i} className={`px-1.5 py-0.5 rounded-full bg-gradient-to-r ${colors[letter as keyof typeof colors]} text-white text-[8px] font-bold text-center`}>
-                                            {letter}-{num}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Current Number Circle - Compact */}
-                            <AnimatePresence mode='wait'>
-                                <motion.div
-                                    key={currentNumber}
-                                    initial={{ scale: 0.8, opacity: 0 }}
-                                    animate={{ scale: 1, opacity: 1 }}
-                                    exit={{ scale: 1.2, opacity: 0 }}
-                                    transition={{ duration: 0.3 }}
-                                    className="relative w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 shadow-[0_0_15px_rgba(255,200,0,0.4)] flex items-center justify-center border-2 border-yellow-600/30"
-                                >
-                                    <div className="text-center">
-                                        <div className="text-purple-700 font-black text-lg drop-shadow-lg">
-                                            {currentNumber ? `${getLetter(currentNumber)}-${currentNumber}` : 'I-24'}
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            </AnimatePresence>
-
-                            {/* Mute/Unmute Button */}
-                            <button
-                                onClick={() => setIsMuted(!isMuted)}
-                                className="p-1 hover:bg-slate-700/50 rounded transition-colors"
-                                title={isMuted ? "Unmute voice" : "Mute voice"}
-                            >
-                                {isMuted ? (
-                                    <VolumeX size={16} className="text-red-400" />
-                                ) : (
-                                    <Volume2 size={16} className="text-green-400" />
-                                )}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Cards Area - WATCHING ONLY or PLAYING CARDS */}
-                    <div className="flex-1 overflow-hidden p-2 bg-gradient-to-b from-[#1a1b2e] to-[#2A1B3D] flex flex-col">
-                        {(() => {
-                            return myCards.length === 0;
-                        })() ? (
-                            // WATCHING ONLY MODE
-                            <div className="flex-1 flex items-center justify-center">
-                                <div className="text-center">
-                                    <h2 className="text-3xl font-black text-white mb-4">Watching</h2>
-                                    <h2 className="text-3xl font-black text-white mb-6">Only</h2>
-                                    <p className="text-slate-400 text-sm leading-relaxed">
-                                        ዝህ ዘር ፍቅርያት<br />
-                                        ተደምራል፡፡ እልቦ ዘር<br />
-                                        አስኪጅምር አዚሁ<br />
-                                        ይጠብቁ፡፡
-                                    </p>
-                                </div>
-                            </div>
-                        ) : (
-                            // PLAYING CARDS
-                            <div className={cn(
-                                "flex-1 flex gap-1",
-                                myCards.length === 1 ? "justify-center items-center" : "flex-col"
-                            )}>
-                                {myCards.slice(0, 2).map(card => (
-                                    <div key={card.id} className={cn(
-                                        myCards.length === 1 ? "w-full h-1/2" : "flex-1 min-h-0"
-                                    )}>
-                                        <PlayingCard
-                                            card={card}
-                                            calledNumbers={calledNumbers}
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Bottom Actions - Compact */}
-            <div className="grid grid-cols-3 gap-0.5 p-0.5 bg-[#1a1b2e] border-t border-white/5 h-12 shrink-0">
-                <Button
-                    className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-bold rounded-lg shadow-lg text-sm"
-                    onClick={() => {
-                        voiceCaller.stop();
-                        if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
-                        navigate('/lobby');
-                    }}
-                >
-                    Leave
-                </Button>
-                <Button
-                    className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold rounded-lg shadow-lg flex items-center justify-center gap-1 text-sm"
-                >
-                    <RefreshCw size={14} />
-                    Refresh
-                </Button>
-                <Button
-                    className="w-full h-full text-2xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-black shadow-[0_0_20px_rgba(251,191,36,0.5)] animate-pulse border-none"
-                    onClick={handleBingoClaim}
-                    disabled={status !== 'playing'}
-                >
-                    BINGO!
-                </Button>
-            </div>
-
-            {/* Winner Announcement Overlay */}
-            {status === 'ended' && winners.length > 0 && (
-                <WinnerAnnouncement
-                    winners={winners}
-                    calledNumbers={Array.from(calledNumbers)}
-                    onNextGame={handleNextGame}
-                />
             )}
         </div>
     );
+}
+
+// PLAYING STATE
+const getLetter = (num: number) => ['B', 'I', 'N', 'G', 'O'][Math.floor((num - 1) / 15)];
+const recentCalls = [...calledNumbers].slice(-4, -1).reverse();
+
+return (
+    <div className="h-screen bg-[#1a1b2e] flex flex-col text-white overflow-hidden">
+        {/* Game Info Bar - Compact */}
+        <div className="bg-[#2A1B3D] grid grid-cols-5 gap-0.5 p-0.5 border-b border-white/5 h-12 shrink-0">
+            {(() => {
+                const unitPrice = gameMode === 'and-zig' ? 50 : gameMode === 'hulet-zig' ? 100 : 150;
+                // Calculate total cards selected (from selectedCardsByPlayer Map)
+                const totalCardsSelected = Object.keys(_selectedCardsByPlayer).length;
+                // DERASH = (total cards × unit price) - 15% house fee
+                const derash = Math.floor(totalCardsSelected * unitPrice * 0.85);
+
+                return [
+                    { label: 'GAME ID', val: gameId?.slice(0, 8) || 'ic-bingo' },
+                    { label: 'PLAYERS', val: realPlayerCount.toString() || '0' },
+                    { label: 'BET', val: unitPrice.toString() },
+                    { label: 'DERASH', val: derash.toString() }, // Prize pool after 15% fee
+                    { label: 'CALLED', val: calledNumbers.size.toString() },
+                ].map((item, i) => (
+                    <div key={i} className="bg-slate-800/50 rounded p-0.5 text-center">
+                        <div className="text-[8px] text-slate-400 uppercase font-medium">{item.label}</div>
+                        <div className="font-bold text-xs text-white">{item.val}</div>
+                    </div>
+                ));
+            })()}
+        </div>
+
+        {/* Main Game Area */}
+        <div className="flex-1 overflow-hidden flex relative gap-0.5">
+            {/* Left Panel: Master Board - 50% */}
+            <div className="w-1/2 h-full p-0.5 bg-[#1a1b2e] shrink-0">
+                <MasterBoard calledNumbers={calledNumbers} lastCalled={currentNumber} />
+            </div>
+
+            {/* Right Panel: Play Area - 50% */}
+            <div className="w-1/2 h-full flex flex-col overflow-hidden bg-[#1a1b2e]">
+
+                {/* Current Call Display - MINIMIZED */}
+                <div className="bg-[#2A1B3D] p-1 border-b border-white/5 shrink-0">
+                    <div className="flex items-center justify-between gap-1">
+                        {/* 3 Recent Numbers - Vertical Stack */}
+                        <div className="flex flex-col gap-0.5">
+                            {recentCalls.slice(0, 3).map((num, i) => {
+                                const letter = getLetter(num);
+                                const colors = {
+                                    'B': 'from-blue-500 to-blue-600',
+                                    'I': 'from-purple-500 to-purple-600',
+                                    'N': 'from-pink-500 to-pink-600',
+                                    'G': 'from-emerald-500 to-emerald-600',
+                                    'O': 'from-orange-500 to-orange-600'
+                                };
+                                return (
+                                    <div key={i} className={`px-1.5 py-0.5 rounded-full bg-gradient-to-r ${colors[letter as keyof typeof colors]} text-white text-[8px] font-bold text-center`}>
+                                        {letter}-{num}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Current Number Circle - Compact */}
+                        <AnimatePresence mode='wait'>
+                            <motion.div
+                                key={currentNumber}
+                                initial={{ scale: 0.8, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 1.2, opacity: 0 }}
+                                transition={{ duration: 0.3 }}
+                                className="relative w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 shadow-[0_0_15px_rgba(255,200,0,0.4)] flex items-center justify-center border-2 border-yellow-600/30"
+                            >
+                                <div className="text-center">
+                                    <div className="text-purple-700 font-black text-lg drop-shadow-lg">
+                                        {currentNumber ? `${getLetter(currentNumber)}-${currentNumber}` : 'I-24'}
+                                    </div>
+                                </div>
+                            </motion.div>
+                        </AnimatePresence>
+
+                        {/* Mute/Unmute Button */}
+                        <button
+                            onClick={() => setIsMuted(!isMuted)}
+                            className="p-1 hover:bg-slate-700/50 rounded transition-colors"
+                            title={isMuted ? "Unmute voice" : "Mute voice"}
+                        >
+                            {isMuted ? (
+                                <VolumeX size={16} className="text-red-400" />
+                            ) : (
+                                <Volume2 size={16} className="text-green-400" />
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Cards Area - WATCHING ONLY or PLAYING CARDS */}
+                <div className="flex-1 overflow-hidden p-2 bg-gradient-to-b from-[#1a1b2e] to-[#2A1B3D] flex flex-col">
+                    {(() => {
+                        return myCards.length === 0;
+                    })() ? (
+                        // WATCHING ONLY MODE
+                        <div className="flex-1 flex items-center justify-center">
+                            <div className="text-center">
+                                <h2 className="text-3xl font-black text-white mb-4">Watching</h2>
+                                <h2 className="text-3xl font-black text-white mb-6">Only</h2>
+                                <p className="text-slate-400 text-sm leading-relaxed">
+                                    ዝህ ዘር ፍቅርያት<br />
+                                    ተደምራል፡፡ እልቦ ዘር<br />
+                                    አስኪጅምር አዚሁ<br />
+                                    ይጠብቁ፡፡
+                                </p>
+                            </div>
+                        </div>
+                    ) : (
+                        // PLAYING CARDS
+                        <div className={cn(
+                            "flex-1 flex gap-1",
+                            myCards.length === 1 ? "justify-center items-center" : "flex-col"
+                        )}>
+                            {myCards.slice(0, 2).map(card => (
+                                <div key={card.id} className={cn(
+                                    myCards.length === 1 ? "w-full h-1/2" : "flex-1 min-h-0"
+                                )}>
+                                    <PlayingCard
+                                        card={card}
+                                        calledNumbers={calledNumbers}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+
+        {/* Bottom Actions - Compact */}
+        <div className="grid grid-cols-3 gap-0.5 p-0.5 bg-[#1a1b2e] border-t border-white/5 h-12 shrink-0">
+            <Button
+                className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-bold rounded-lg shadow-lg text-sm"
+                onClick={() => {
+                    voiceCaller.stop();
+                    if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
+                    navigate('/lobby');
+                }}
+            >
+                Leave
+            </Button>
+            <Button
+                className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold rounded-lg shadow-lg flex items-center justify-center gap-1 text-sm"
+            >
+                <RefreshCw size={14} />
+                Refresh
+            </Button>
+            <Button
+                className="w-full h-full text-2xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-black shadow-[0_0_20px_rgba(251,191,36,0.5)] animate-pulse border-none"
+                onClick={handleBingoClaim}
+                disabled={status !== 'playing'}
+            >
+                BINGO!
+            </Button>
+        </div>
+
+        {/* Winner Announcement Overlay */}
+        {status === 'ended' && winners.length > 0 && (
+            <WinnerAnnouncement
+                winners={winners}
+                calledNumbers={Array.from(calledNumbers)}
+                onNextGame={handleNextGame}
+            />
+        )}
+    </div>
+);
 };
 
 export default GamePage;
