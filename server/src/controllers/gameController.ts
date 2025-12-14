@@ -86,38 +86,89 @@ export const createGame = async (req: Request, res: Response) => {
             });
         }
 
-        // MATCHMAKING Step 3: No games at all - create first game and wait
-        const gameId = uuidv4();
-        console.log(`🆕 Creating first ${mode} game ${gameId} - waiting for players`);
+        // MATCHMAKING Step 3: No games at all - create new game atomically
+        // Use a well-known document ID based on mode to prevent race conditions
+        const lockDocId = `${mode}-current`;
+        const lockRef = db.collection('game-locks').doc(lockDocId);
 
-        // Create in Firebase
-        await db.collection('games').doc(gameId).set({
-            mode,
-            entryFee,
-            status: 'selecting',
-            players: [],
-            selectedCards: {},
-            createdAt: new Date().toISOString(),
-            maxPlayers: 20
-        });
-
-        // CRITICAL: Also create in GameManager for Socket.IO
         try {
-            const gameManager = getGameManager();
-            gameManager.createGame(mode, entryFee, gameId);
-            console.log(`✅ Game ${gameId} created in both Firebase and GameManager`);
-        } catch (error) {
-            console.error('Failed to create game in GameManager:', error);
-        }
+            // Try to get or create the current game for this mode atomically
+            const result = await db.runTransaction(async (transaction) => {
+                const lockDoc = await transaction.get(lockRef);
 
-        res.status(200).json({
-            gameId,
-            mode,
-            entryFee,
-            canPlay: true,
-            firstPlayer: true,
-            message: 'Waiting for other players to join...'
-        });
+                if (lockDoc.exists) {
+                    const lockData = lockDoc.data();
+                    const existingGameId = lockData?.gameId;
+
+                    // Check if this game still exists and is joinable
+                    if (existingGameId) {
+                        const gameDoc = await transaction.get(db.collection('games').doc(existingGameId));
+                        if (gameDoc.exists && gameDoc.data()?.status === 'selecting') {
+                            console.log(`🔒 Transaction: Found existing game ${existingGameId} via lock`);
+                            return { gameId: existingGameId, created: false };
+                        }
+                    }
+                }
+
+                // No valid game exists - create new one
+                const gameId = uuidv4();
+                console.log(`🆕 Transaction: Creating new ${mode} game ${gameId}`);
+
+                // Create game in Firebase
+                transaction.set(db.collection('games').doc(gameId), {
+                    mode,
+                    entryFee,
+                    status: 'selecting',
+                    players: [],
+                    selectedCards: {},
+                    createdAt: new Date().toISOString(),
+                    maxPlayers: 20
+                });
+
+                // Update lock to point to this game
+                transaction.set(lockRef, {
+                    gameId,
+                    mode,
+                    createdAt: new Date().toISOString()
+                });
+
+                return { gameId, created: true };
+            });
+
+            const { gameId, created } = result;
+
+            // Create in GameManager if new
+            if (created) {
+                try {
+                    const gameManager = getGameManager();
+                    gameManager.createGame(mode, entryFee, gameId);
+                    console.log(`✅ Game ${gameId} created in both Firebase and GameManager`);
+                } catch (error) {
+                    console.error('Failed to create game in GameManager:', error);
+                }
+            } else {
+                // Ensure existing game is in GameManager
+                const gameManager = getGameManager();
+                const existingGame = gameManager.getGame(gameId);
+                if (!existingGame) {
+                    gameManager.createGame(mode, entryFee, gameId);
+                    console.log(`✅ Added existing game ${gameId} to GameManager`);
+                }
+            }
+
+            res.status(200).json({
+                gameId,
+                mode,
+                entryFee,
+                canPlay: true,
+                firstPlayer: created,
+                message: created ? 'Waiting for other players to join...' : 'Joining existing game...'
+            });
+
+        } catch (error) {
+            console.error('Transaction failed:', error);
+            return res.status(500).json({ error: 'Failed to create/join game' });
+        }
     } catch (error) {
         console.error('Error in matchmaking:', error);
         res.status(500).json({ error: 'Failed to find/create game' });
