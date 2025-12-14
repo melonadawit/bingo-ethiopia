@@ -548,20 +548,28 @@ const GamePage: React.FC = () => {
                     <h2 className="text-center font-bold text-base mb-2">Select Your Cards (Max 2)</h2>
 
                     <div className="grid grid-cols-7 gap-1.5">
-                        {availableCards.map(num => (
-                            <button
-                                key={num}
-                                onClick={() => handleSelectCard(num)}
-                                className={cn(
-                                    "aspect-square rounded-lg flex items-center justify-center font-bold text-xs transition-all",
-                                    selectedCards.includes(num)
-                                        ? "bg-gradient-to-br from-yellow-400 to-orange-500 text-slate-900 shadow-lg shadow-orange-500/20 transform scale-105"
-                                        : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                                )}
-                            >
-                                {num}
-                            </button>
-                        ))}
+                        {availableCards.map(num => {
+                            const isMyCard = selectedCards.includes(num);
+                            const isTakenByOther = _selectedCardsByPlayer[num] && _selectedCardsByPlayer[num] !== user?.id;
+
+                            return (
+                                <button
+                                    key={num}
+                                    onClick={() => handleSelectCard(num)}
+                                    disabled={!!isTakenByOther}
+                                    className={cn(
+                                        "aspect-square rounded-lg flex items-center justify-center font-bold text-xs transition-all",
+                                        isMyCard
+                                            ? "bg-gradient-to-br from-yellow-400 to-orange-500 text-slate-900 shadow-lg shadow-orange-500/20 transform scale-105"
+                                            : isTakenByOther
+                                                ? "bg-slate-700/50 text-slate-600 cursor-not-allowed opacity-50"
+                                                : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                                    )}
+                                >
+                                    {num}
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
 

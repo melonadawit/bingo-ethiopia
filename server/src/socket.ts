@@ -104,24 +104,37 @@ export const initSocket = (httpServer: HttpServer) => {
             const winPattern = gameManagerInstance.validateWin(data.board, data.markedNumbers);
 
             if (winPattern) {
-                // Valid win!
-                gameManagerInstance.endGame(data.gameId, socket.id);
+                // Valid win - add to winners array
+                const game = gameManagerInstance.getGame(data.gameId);
+                if (game) {
+                    // Add this winner to the array
+                    game.winners.push({
+                        userId: data.userId,
+                        cardId: data.cardId,
+                        card: data.board
+                    });
 
-                // Calculate prize (mock for now)
-                const prize = 500;
+                    console.log(`✅ Valid win! Pattern: ${winPattern.type}, Total winners: ${game.winners.length}`);
 
-                io.to(data.gameId).emit('game_won', {
-                    winner: {
-                        id: socket.id,
-                        socketId: socket.id
-                    },
-                    pattern: winPattern,
-                    prize: prize,
-                    winningBoard: data.board,
-                    markedNumbers: data.markedNumbers
-                });
+                    // Calculate prize (split among winners)
+                    const totalPrize = 500;
+                    const prizePerWinner = Math.floor(totalPrize / game.winners.length);
 
-                console.log(`✅ Valid win! Pattern: ${winPattern.type}, Prize: ${prize} Birr`);
+                    // Broadcast to all players with ALL winners' data
+                    io.to(data.gameId).emit('game_won', {
+                        winners: game.winners.map(w => ({
+                            userId: w.userId,
+                            cardId: w.cardId,
+                            card: w.card
+                        })),
+                        pattern: winPattern,
+                        prize: prizePerWinner,
+                        totalPrize: totalPrize
+                    });
+
+                    // End the game after first winner
+                    gameManagerInstance.endGame(data.gameId);
+                }
             } else {
                 // Invalid claim
                 socket.emit('invalid_claim', {

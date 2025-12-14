@@ -11,7 +11,7 @@ interface GameState {
     intervalId?: NodeJS.Timeout;
     countdownInterval?: NodeJS.Timeout; // For countdown broadcasting
     countdown: number; // Current countdown value
-    winner?: string;
+    winners: Array<{ userId: string; cardId: number; card: number[][] }>; // Multiple winners with their cards
     entryFee?: number; // Track entry fee for disconnect penalties
 }
 
@@ -40,7 +40,8 @@ export class GameManager {
             drawnNumbers: [],
             status: 'selecting', // Start in selecting phase
             countdown: 30, // 30 second countdown
-            entryFee
+            entryFee,
+            winners: [] // Initialize empty winners array
         };
         console.log(`🎮 GameManager: Created game ${gameId} (mode: ${mode})`);
         return gameId;
@@ -233,14 +234,13 @@ export class GameManager {
         }, 4000); // 4 seconds per number
     }
 
-    endGame(gameId: string, winner?: string) {
+    endGame(gameId: string) {
         const game = games[gameId];
         if (!game) return;
 
         if (game.intervalId) clearInterval(game.intervalId);
         game.status = 'ended';
-        game.winner = winner;
-        this.io.to(gameId).emit('game_ended', { winner });
+        this.io.to(gameId).emit('game_ended', { winners: game.winners });
     }
 
     getGame(gameId: string): GameState | undefined {
