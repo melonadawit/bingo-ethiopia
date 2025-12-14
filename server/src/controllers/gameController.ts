@@ -36,17 +36,34 @@ export const createGame = async (req: Request, res: Response) => {
                 if (!existingGame) {
                     console.log(`⚠️ Game ${gameId} exists in Firebase but not GameManager - creating it`);
                     gameManager.createGame(mode, entryFee, gameId);
+                    return res.status(200).json({
+                        gameId,
+                        mode,
+                        entryFee,
+                        canPlay: true
+                    });
+                } else if (existingGame.status === 'ended') {
+                    // Game ended in GameManager but not updated in Firebase - skip it
+                    console.log(`⚠️ Game ${gameId} is ended in GameManager - creating new game instead`);
+                    // Fall through to create new game
+                } else {
+                    return res.status(200).json({
+                        gameId,
+                        mode,
+                        entryFee,
+                        canPlay: true
+                    });
                 }
             } catch (error) {
                 console.error('Error ensuring game in GameManager:', error);
             }
 
-            return res.status(200).json({
-                gameId,
-                mode,
-                entryFee,
-                canPlay: true
-            });
+            // If we didn't return above, create a new game
+            if (!res.headersSent) {
+                // Continue to create new game below
+            } else {
+                return;
+            }
         }
 
         // MATCHMAKING Step 2: No waiting game - check for ongoing games to spectate
