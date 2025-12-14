@@ -241,6 +241,12 @@ const GamePage: React.FC = () => {
 
         console.log('Game component mounted, starting connection phase');
 
+        // CONNECT SOCKET FIRST
+        if (!socket.connected) {
+            console.log('Connecting socket to server...');
+            socket.connect();
+        }
+
         // JOIN GAME ROOM FOR MULTIPLAYER
         if (gameId && user?.id) {
             console.log('Joining game room:', gameId);
@@ -250,24 +256,19 @@ const GamePage: React.FC = () => {
             socket.emit('request_selection_state', { gameId });
         }
 
-        // Simulate Connection
-        const timer = setTimeout(() => {
-            console.log('Connection complete, switching to selection phase');
-            setStatus('selection');
-        }, 1000);
-
-        return () => clearTimeout(timer);
+        // Connection and status are managed by server events
     }, [user, navigate, gameId]);
 
-    // Cleanup socket and interval on unmount
+    // Auto-start countdown if no cards selected after a short delay (useful for testing)
     useEffect(() => {
-        return () => {
-            if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
-            socket.off('game_started');
-            socket.off('number_drawn');
-            socket.off('game_won');
-        };
-    }, []);
+        if (status === 'selection' && previewCards.length === 0 && countdown === 0) {
+            const timer = setTimeout(() => {
+                console.log('Auto-starting countdown (no cards selected)');
+                socket.emit('start_countdown', { gameId });
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [status, previewCards, countdown, gameId]);
 
     // Listen for real game win events
     useEffect(() => {
@@ -295,13 +296,22 @@ const GamePage: React.FC = () => {
             setRealPlayerCount(playerCount);
         });
 
-        // Get initial selection state when joining
         socket.on('selection_state', ({ selectedCards, playerCount, status: serverStatus, countdown: serverCountdown, drawnNumbers }) => {
             console.log('Got selection state:', selectedCards, playerCount, serverStatus, serverCountdown);
             setSelectedCardsByPlayer(selectedCards);
             setRealPlayerCount(playerCount);
 
-            if (serverStatus) setStatus(serverStatus);
+            // Set status based on server payload or default to selection phase
+            if (serverStatus) {
+                setStatus(serverStatus);
+                // If still in selecting phase and countdown hasn't started, trigger start
+                if (serverStatus === 'selecting' && (serverCountdown === undefined || serverCountdown === 30)) {
+                    console.log('Fallback: emitting start_countdown from client');
+                    socket.emit('start_countdown', { gameId });
+                }
+            } else {
+                setStatus('selection');
+            }
             if (serverCountdown !== undefined) setCountdown(serverCountdown);
             if (drawnNumbers && drawnNumbers.length > 0) {
                 setCalledNumbers(new Set(drawnNumbers));
@@ -313,6 +323,8 @@ const GamePage: React.FC = () => {
         socket.on('countdown_tick', ({ countdown }) => {
             console.log('Server countdown:', countdown);
             setCountdown(countdown);
+            // Transition to countdown UI
+            setStatus('countdown');
         });
 
         // SERVER-CONTROLLED NUMBER CALLING

@@ -84,6 +84,8 @@ export class GameManager {
         // Select the card
         game.selectedCards.set(cardId, userId);
 
+        console.log(`📊 Card ${cardId} selected. Total cards: ${game.selectedCards.size}, Game status: ${game.status}`);
+
         // Broadcast to all players in the room
         this.io.to(gameId).emit('card_selected', { cardId, userId, playerCount: this.getPlayerCount(gameId) });
 
@@ -91,6 +93,8 @@ export class GameManager {
         if (game.selectedCards.size === 1 && game.status === 'selecting') {
             console.log(`🎯 First card selected - auto-starting countdown in 2 seconds`);
             setTimeout(() => this.startCountdown(gameId), 2000);
+        } else {
+            console.log(`⏭️ Not triggering countdown: size=${game.selectedCards.size}, status=${game.status}`);
         }
 
         return { success: true, playerCount: this.getPlayerCount(gameId) };
@@ -156,6 +160,7 @@ export class GameManager {
      * Start countdown and broadcast to all players
      */
     startCountdown(gameId: string) {
+        console.log(`🕒 startCountdown invoked for game ${gameId}`);
         const game = games[gameId];
         if (!game) return;
 
