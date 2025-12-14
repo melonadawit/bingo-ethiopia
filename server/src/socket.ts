@@ -95,54 +95,57 @@ export const initSocket = (httpServer: HttpServer) => {
                 return;
             }
 
+            // CRITICAL: If game already ended, ignore claim
+            if (game.status === 'ended') {
+                console.log('⚠️ Game already ended, ignoring claim');
+                return;
+            }
+
             // Flatten the 2D board to 1D for validation
             const flatBoard = data.board.flat();
 
             const winPattern = gameManagerInstance.validateWin(flatBoard, data.markedNumbers);
 
             if (winPattern) {
-                // Valid win - add to winners array
-                // Re-fetch game to ensure it's the latest state, though not strictly necessary here
-                // as we already have 'game' from the initial lookup.
-                // Keeping it as per the provided snippet for faithfulness.
-                const game = gameManagerInstance.getGame(data.gameId);
-                if (game) {
-                    console.log(`🏆 Winner detected! Pattern: ${winPattern.type}`);
+                console.log(`🏆 Winner detected! Pattern: ${winPattern.type}`);
 
-                    // Add this winner to the array
-                    game.winners.push({
-                        userId: data.userId,
-                        cardId: data.cardId,
-                        card: data.board
-                    });
+                // CRITICAL: Stop the game IMMEDIATELY to prevent more numbers being called
+                game.status = 'ended';
+                gameManagerInstance.stopInterval(data.gameId);
 
-                    console.log(`✅ Valid win! Total winners: ${game.winners.length}`);
+                // Add this winner to the array
+                game.winners.push({
+                    userId: data.userId,
+                    cardId: data.cardId,
+                    card: data.board
+                });
 
-                    // Calculate prize (split among winners)
-                    const totalPrize = 500;
-                    const prizePerWinner = Math.floor(totalPrize / game.winners.length);
+                console.log(`✅ Valid win! Total winners: ${game.winners.length}`);
 
-                    // Broadcast to all players with ALL winners' data
-                    io.to(data.gameId).emit('game_won', {
-                        winners: game.winners.map(w => ({
-                            userId: w.userId,
-                            name: `Player ${w.userId.slice(0, 8)}`,
-                            cardId: w.cardId,
-                            cartelaNumber: w.cardId,
-                            card: w.card
-                        })),
-                        pattern: winPattern,
-                        prize: prizePerWinner,
-                        totalPrize: totalPrize
-                    });
+                // Calculate prize (split among winners)
+                const totalPrize = 500;
+                const prizePerWinner = Math.floor(totalPrize / game.winners.length);
 
-                    // End the game (fire-and-forget to avoid blocking)
-                    gameManagerInstance.endGame(data.gameId).catch(err => {
-                        console.error('Error ending game:', err);
-                    });
+                // Broadcast to all players with ALL winners' data
+                io.to(data.gameId).emit('game_won', {
+                    winners: game.winners.map(w => ({
+                        userId: w.userId,
+                        name: `Player ${w.userId.slice(0, 8)}`,
+                        cardId: w.cardId,
+                        cartelaNumber: w.cardId,
+                        card: w.card
+                    })),
+                    pattern: winPattern,
+                    prize: prizePerWinner,
+                    totalPrize: totalPrize
+                });
 
-                    console.log(`✅ Game ${data.gameId} winner announced`);
-                }
+                // End the game (cleanup Firebase, etc)
+                gameManagerInstance.endGame(data.gameId).catch(err => {
+                    console.error('Error ending game:', err);
+                });
+
+                console.log(`✅ Game ${data.gameId} winner announced`);
             } else {
                 // Invalid claim
                 socket.emit('invalid_claim', {

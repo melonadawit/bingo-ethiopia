@@ -324,6 +324,20 @@ export class GameManager {
         return games[gameId];
     }
 
+    stopInterval(gameId: string) {
+        const intervalId = intervalMap.get(gameId);
+        if (intervalId) {
+            clearInterval(intervalId);
+            intervalMap.delete(gameId);
+            console.log(`⏹️ Stopped interval for game ${gameId}`);
+        }
+        const game = games[gameId];
+        if (game?.intervalId) {
+            clearInterval(game.intervalId);
+            game.intervalId = undefined;
+        }
+    }
+
     // Win validation methods
     validateWin(board: number[], markedNumbers: number[]): WinPattern | null {
         // Check rows
