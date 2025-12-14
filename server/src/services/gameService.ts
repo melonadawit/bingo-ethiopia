@@ -319,20 +319,6 @@ export class GameManager {
         }, 2 * 60 * 1000); // 2 minutes
     }
 
-    private async updateFirebaseStatus(gameId: string, mode: string) {
-        try {
-            const { db } = await import('../firebase');
-            if (db) {
-                await db.collection('games').doc(gameId).update({
-                    status: 'ended',
-                    endedAt: new Date().toISOString()
-                });
-                console.log(`✅ Updated Firebase status for game ${gameId}`);
-            }
-        } catch (error) {
-            console.error(`Firebase update error:`, error);
-        }
-    }
 
     getGame(gameId: string): GameState | undefined {
         return games[gameId];
