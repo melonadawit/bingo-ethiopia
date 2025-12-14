@@ -235,11 +235,23 @@ const GamePage: React.FC = () => {
         latestIsMuted.current = isMuted;
     }, [previewCards, selectedCards, isMuted]);
 
+    // Track if socket listeners are already set up to prevent duplicates
+    const listenersSetupRef = useRef(false);
+
     useEffect(() => {
         if (!user) {
             navigate('/lobby');
             return;
         }
+
+        // Prevent duplicate listener setup
+        if (listenersSetupRef.current) {
+            console.log('⚠️ Socket listeners already set up, skipping');
+            return;
+        }
+
+        listenersSetupRef.current = true;
+        console.log('✅ Setting up socket listeners for the first time');
 
         console.log('Game component mounted, starting connection phase');
 
@@ -409,6 +421,7 @@ const GamePage: React.FC = () => {
         });
 
         return () => {
+            console.log('🧹 Cleaning up socket listeners');
             socket.off('card_selected');
             socket.off('card_deselected');
             socket.off('selection_state');
@@ -418,6 +431,7 @@ const GamePage: React.FC = () => {
             socket.off('game_state_changed');
             socket.off('game_won');
             socket.off('game_ended');
+            listenersSetupRef.current = false; // Allow setup again after cleanup
         };
     }, []);
 
