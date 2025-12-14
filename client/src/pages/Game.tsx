@@ -328,9 +328,26 @@ const GamePage: React.FC = () => {
         });
 
         // SERVER GAME START
+        // SERVER GAME START
         socket.on('game_started', () => {
             console.log('Server started game');
+
+            // PROMOTE PREVIEW CARDS TO ACTIVE CARDS
+            const currentPreview = previewCardsRef.current;
+            if (currentPreview.length > 0) {
+                console.log('Promoting preview cards to active:', currentPreview);
+                setMyCards([...currentPreview]);
+            } else {
+                console.log('No cards selected - Spectator Mode');
+                setMyCards([]);
+            }
+
             setStatus('playing');
+
+            // Announce start
+            if (!latestIsMuted.current) {
+                voiceCaller.announceGameStart();
+            }
         });
 
         socket.on('game_state_changed', ({ state }) => {
