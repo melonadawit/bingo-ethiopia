@@ -313,6 +313,11 @@ const GamePage: React.FC = () => {
             console.log('Server called number:', number);
             setCurrentNumber(number);
             setCalledNumbers(new Set(history));
+
+            // CALL NUMBER WITH VOICE!
+            if (!isMuted) {
+                voiceCaller.callNumber(number);
+            }
         });
 
         // SERVER GAME START

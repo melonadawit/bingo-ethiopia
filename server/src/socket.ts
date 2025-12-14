@@ -2,6 +2,8 @@ import { Server } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import { GameManager } from './services/gameService';
 
+let gameManagerInstance: GameManager;
+
 export const initSocket = (httpServer: HttpServer) => {
     const io = new Server(httpServer, {
         cors: {
@@ -10,18 +12,18 @@ export const initSocket = (httpServer: HttpServer) => {
         }
     });
 
-    const gameManager = new GameManager(io);
+    gameManagerInstance = new GameManager(io);
 
     io.on('connection', (socket) => {
         console.log('User connected:', socket.id);
 
         socket.on('create_game', ({ mode }) => {
-            const gameId = gameManager.createGame(mode);
+            const gameId = gameManagerInstance.createGame(mode);
             socket.emit('game_created', { gameId });
         });
 
         socket.on('join_game', ({ gameId, userId }) => {
-            const result = gameManager.joinGame(gameId, userId);
+            const result = gameManagerInstance.joinGame(gameId, userId);
             if (result.success) {
                 socket.join(gameId);
                 socket.emit('joined_successfully', {
@@ -36,7 +38,7 @@ export const initSocket = (httpServer: HttpServer) => {
 
         // Handle card selection
         socket.on('select_card', ({ gameId, cardId, userId }) => {
-            const result = gameManager.selectCard(gameId, cardId, userId);
+            const result = gameManagerInstance.selectCard(gameId, cardId, userId);
             if (result.success) {
                 socket.emit('card_select_success', { cardId, playerCount: result.playerCount });
             } else {
@@ -46,7 +48,7 @@ export const initSocket = (httpServer: HttpServer) => {
 
         // Handle card deselection
         socket.on('deselect_card', ({ gameId, cardId, userId }) => {
-            const result = gameManager.deselectCard(gameId, cardId, userId);
+            const result = gameManagerInstance.deselectCard(gameId, cardId, userId);
             if (result.success) {
                 socket.emit('card_deselect_success', { cardId, playerCount: result.playerCount });
             } else {
@@ -56,8 +58,8 @@ export const initSocket = (httpServer: HttpServer) => {
 
         // Send current selection state to joining player
         socket.on('request_selection_state', ({ gameId }) => {
-            const selectedCards = gameManager.getSelectedCards(gameId);
-            const playerCount = gameManager.getPlayerCount(gameId);
+            const selectedCards = gameManagerInstance.getSelectedCards(gameId);
+            const playerCount = gameManagerInstance.getPlayerCount(gameId);
             socket.emit('selection_state', { selectedCards, playerCount });
         });
 
@@ -65,18 +67,18 @@ export const initSocket = (httpServer: HttpServer) => {
         // Start countdown manually (or auto after card selection)
         socket.on('start_countdown', ({ gameId }) => {
             console.log(`Starting countdown for game ${gameId}`);
-            gameManager.startCountdown(gameId);
+            gameManagerInstance.startCountdown(gameId);
         });
 
         socket.on('start_test_game', ({ gameId }) => {
-            gameManager.startGame(gameId);
+            gameManagerInstance.startGame(gameId);
         });
 
         // Handle win claim
         socket.on('claim_bingo', (data: { gameId: string; board: number[]; markedNumbers: number[] }) => {
             console.log('🎯 Bingo claim received from:', socket.id);
 
-            const game = gameManager.getGame(data.gameId);
+            const game = gameManagerInstance.getGame(data.gameId);
             if (!game) {
                 socket.emit('error', { message: 'Game not found' });
                 return;
@@ -88,11 +90,11 @@ export const initSocket = (httpServer: HttpServer) => {
             }
 
             // Validate win
-            const winPattern = gameManager.validateWin(data.board, data.markedNumbers);
+            const winPattern = gameManagerInstance.validateWin(data.board, data.markedNumbers);
 
             if (winPattern) {
                 // Valid win!
-                gameManager.endGame(data.gameId, socket.id);
+                gameManagerInstance.endGame(data.gameId, socket.id);
 
                 // Calculate prize (mock for now)
                 const prize = 500;
@@ -131,3 +133,12 @@ export const initSocket = (httpServer: HttpServer) => {
 
     return io;
 };
+
+// Export gameManager for use in API controllers
+export const getGameManager = () => {
+    if (!gameManagerInstance) {
+        throw new Error('GameManager not initialized. Call initSocket first.');
+    }
+    return gameManagerInstance;
+};
+
