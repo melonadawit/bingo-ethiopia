@@ -293,14 +293,9 @@ export class GameManager {
                     console.error(`Error updating game status in Firebase:`, updateError);
                 }
 
-                try {
-                    // Clear the game lock so new games can be created
-                    const lockDocId = `${game.mode}-current`;
-                    await db.collection('game-locks').doc(lockDocId).delete();
-                    console.log(`✅ Cleared game lock for mode ${game.mode}`);
-                } catch (deleteError) {
-                    console.error(`Error deleting game lock:`, deleteError);
-                }
+                // DON'T delete the lock - let it get overwritten by the next game
+                // This prevents race condition where multiple players create separate games
+                console.log(`🔒 Keeping game lock for mode ${game.mode} - will be overwritten by next game`);
             }
         } catch (error) {
             console.error(`Error in endGame Firebase operations for game ${gameId}:`, error);
