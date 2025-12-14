@@ -187,7 +187,9 @@ const MiniCard = ({ card }: { card: BingoCard }) => {
 };
 
 const GamePage: React.FC = () => {
-    const { gameId } = useParams();
+    const { gameId: urlGameId } = useParams();
+    const [currentGameId, setCurrentGameId] = useState(urlGameId || '');
+    const gameId = currentGameId; // Use state-based gameId
     const navigate = useNavigate();
     const { user } = useAuth();
 
@@ -459,8 +461,15 @@ const GamePage: React.FC = () => {
             const data = await response.json();
             console.log('Joined/created game for round 2:', data.gameId);
 
-            // Use navigate to update gameId properly (component will remount but cleanup handles it)
-            navigate(`/game/${data.gameId}`, { replace: true });
+            // Update gameId in state (no navigation = no remount = no duplicate listeners)
+            setCurrentGameId(data.gameId);
+            window.history.replaceState(null, '', `/game/${data.gameId}`);
+
+            // Join the new game
+            if (user?.id) {
+                socket.emit('join_game', { gameId: data.gameId, userId: user.id });
+                socket.emit('request_selection_state', { gameId: data.gameId });
+            }
         } catch (error) {
             console.error('Error joining next round:', error);
         }
