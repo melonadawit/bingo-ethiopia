@@ -12,7 +12,7 @@ import { checkWinningPattern, type GameMode } from '../utils/bingoLogic';
 import toast from 'react-hot-toast';
 
 // --- Types ---
-type GameStatus = 'connecting' | 'selection' | 'playing' | 'ended';
+type GameStatus = 'connecting' | 'selection' | 'selecting' | 'countdown' | 'playing' | 'ended';
 type BingoCard = {
     id: number;
     numbers: number[][]; // 5x5
@@ -483,7 +483,8 @@ const GamePage: React.FC = () => {
         );
     }
 
-    if (status === 'selection') {
+    // Unified check for Selection/Countdown phase
+    if (status === 'selection' || status === 'selecting' || status === 'countdown') {
         return (
             <div className="min-h-screen bg-[#1a1b2e] flex flex-col text-white overflow-hidden">
                 {/* Header with Timer */}
