@@ -234,6 +234,14 @@ export class GameManager {
 
             console.log(`Game ${gameId}: Called number ${num} (${game.drawnNumbers.length}/${MAX_NUMBER})`);
 
+            // DON'T broadcast if game has ended or has winners
+            if (game.status === 'ended' || game.winners.length > 0) {
+                console.log(`⏹️ Game ${gameId} has winners or ended, NOT broadcasting number ${num}`);
+                clearInterval(intervalId);
+                intervalMap.delete(gameId);
+                return;
+            }
+
             // BROADCAST TO ALL PLAYERS (synchronized!)
             this.io.to(gameId).emit('number_called', {
                 number: num,
