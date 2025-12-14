@@ -26,9 +26,23 @@ export const createGame = async (req: Request, res: Response) => {
 
         if (!waitingGames.empty) {
             const gameDoc = waitingGames.docs[0];
-            console.log(`🎮 Matchmaking: Joining waiting ${mode} game ${gameDoc.id}`);
+            const gameId = gameDoc.id;
+            console.log(`🎮 Matchmaking: Joining waiting ${mode} game ${gameId}`);
+
+            // Ensure game exists in GameManager too
+            try {
+                const gameManager = getGameManager();
+                const existingGame = gameManager.getGame(gameId);
+                if (!existingGame) {
+                    console.log(`⚠️ Game ${gameId} exists in Firebase but not GameManager - creating it`);
+                    gameManager.createGame(mode, entryFee, gameId);
+                }
+            } catch (error) {
+                console.error('Error ensuring game in GameManager:', error);
+            }
+
             return res.status(200).json({
-                gameId: gameDoc.id,
+                gameId,
                 mode,
                 entryFee,
                 canPlay: true
