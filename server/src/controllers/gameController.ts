@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { db } from '../firebase';
 import { v4 as uuidv4 } from 'uuid';
+import { getGameManager } from '../socket';
 
 export const createGame = async (req: Request, res: Response) => {
     try {
@@ -58,6 +59,7 @@ export const createGame = async (req: Request, res: Response) => {
         const gameId = uuidv4();
         console.log(`🆕 Creating first ${mode} game ${gameId} - waiting for players`);
 
+        // Create in Firebase
         await db.collection('games').doc(gameId).set({
             mode,
             entryFee,
@@ -67,6 +69,15 @@ export const createGame = async (req: Request, res: Response) => {
             createdAt: new Date().toISOString(),
             maxPlayers: 20
         });
+
+        // CRITICAL: Also create in GameManager for Socket.IO
+        try {
+            const gameManager = getGameManager();
+            gameManager.createGame(mode, entryFee, gameId);
+            console.log(`✅ Game ${gameId} created in both Firebase and GameManager`);
+        } catch (error) {
+            console.error('Failed to create game in GameManager:', error);
+        }
 
         res.status(200).json({
             gameId,

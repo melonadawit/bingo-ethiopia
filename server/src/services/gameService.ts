@@ -30,8 +30,8 @@ export class GameManager {
         this.io = io;
     }
 
-    createGame(mode: string, entryFee: number = 50): string {
-        const gameId = uuidv4();
+    createGame(mode: string, entryFee: number = 50, providedGameId?: string): string {
+        const gameId = providedGameId || uuidv4();
         games[gameId] = {
             id: gameId,
             mode,
@@ -42,6 +42,7 @@ export class GameManager {
             countdown: 30, // 30 second countdown
             entryFee
         };
+        console.log(`🎮 GameManager: Created game ${gameId} (mode: ${mode})`);
         return gameId;
     }
 
