@@ -256,7 +256,7 @@ export class GameManager {
                 console.error(`🚨 Critical error in game loop for ${gameId}:`, error);
                 this.stopInterval(gameId);
             }
-        }, 6000); // 6 seconds per number (optimized for free tier)
+        }, 4000); // 4 seconds per number
 
         game.intervalId = intervalId;
         intervalMap.set(gameId, intervalId); // Store in map for immediate access
@@ -316,7 +316,7 @@ export class GameManager {
                 delete games[gameId];
                 console.log(`🧹 Garbage collected game ${gameId}`);
             }
-        }, 5 * 60 * 1000);
+        }, 2 * 60 * 1000); // 2 minutes
     }
 
     private async updateFirebaseStatus(gameId: string, mode: string) {
