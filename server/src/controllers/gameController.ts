@@ -100,12 +100,17 @@ export const createGame = async (req: Request, res: Response) => {
                     const lockData = lockDoc.data();
                     const existingGameId = lockData?.gameId;
 
-                    // Check if this game still exists and is joinable
+                    // Check if this game still exists and is joinable (ONLY in selecting status)
                     if (existingGameId) {
                         const gameDoc = await transaction.get(db!.collection('games').doc(existingGameId));
-                        if (gameDoc.exists && gameDoc.data()?.status === 'selecting') {
+                        const gameData = gameDoc.data();
+
+                        // Only join if game exists AND is in selecting status (not playing or ended)
+                        if (gameDoc.exists && gameData?.status === 'selecting') {
                             console.log(`🔒 Transaction: Found existing game ${existingGameId} via lock`);
                             return { gameId: existingGameId, created: false };
+                        } else {
+                            console.log(`🚫 Transaction: Game ${existingGameId} is ${gameData?.status}, creating new game`);
                         }
                     }
                 }
