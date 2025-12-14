@@ -108,19 +108,7 @@ export const initSocket = (httpServer: HttpServer) => {
                 // Valid win - add to winners array
                 const game = gameManagerInstance.getGame(data.gameId);
                 if (game) {
-                    // CRITICAL: Stop the interval IMMEDIATELY before anything else
-                    console.log(`🏆 Winner detected! Stopping game ${data.gameId} IMMEDIATELY`);
-
-                    // Clear interval directly from game object
-                    if (game.intervalId) {
-                        clearInterval(game.intervalId);
-                        game.intervalId = undefined;
-                        console.log(`✅ Cleared game.intervalId`);
-                    }
-
-                    // Set status to ended to prevent any more interval callbacks
-                    game.status = 'ended';
-                    console.log(`✅ Set game status to 'ended'`);
+                    console.log(`🏆 Winner detected! Pattern: ${winPattern.type}`);
 
                     // Add this winner to the array
                     game.winners.push({
@@ -129,19 +117,19 @@ export const initSocket = (httpServer: HttpServer) => {
                         card: data.board
                     });
 
-                    console.log(`✅ Valid win! Pattern: ${winPattern.type}, Total winners: ${game.winners.length}`);
+                    console.log(`✅ Valid win! Total winners: ${game.winners.length}`);
 
                     // Calculate prize (split among winners)
                     const totalPrize = 500;
                     const prizePerWinner = Math.floor(totalPrize / game.winners.length);
 
-                    // NOW broadcast to all players with ALL winners' data
+                    // Broadcast to all players with ALL winners' data
                     io.to(data.gameId).emit('game_won', {
                         winners: game.winners.map(w => ({
                             userId: w.userId,
-                            name: `Player ${w.userId.slice(0, 8)}`, // Use userId as name fallback
+                            name: `Player ${w.userId.slice(0, 8)}`,
                             cardId: w.cardId,
-                            cartelaNumber: w.cardId, // Add cartelaNumber for compatibility
+                            cartelaNumber: w.cardId,
                             card: w.card
                         })),
                         pattern: winPattern,
@@ -149,8 +137,8 @@ export const initSocket = (httpServer: HttpServer) => {
                         totalPrize: totalPrize
                     });
 
-                    // Also emit game_ended
-                    io.to(data.gameId).emit('game_ended', { winners: game.winners });
+                    // End the game (clears intervals, updates Firebase, emits game_ended)
+                    await gameManagerInstance.endGame(data.gameId);
 
                     console.log(`✅ Game ${data.gameId} fully stopped and winner announced`);
                 }
