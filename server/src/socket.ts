@@ -86,7 +86,7 @@ export const initSocket = (httpServer: HttpServer) => {
         });
 
         // Handle win claim
-        socket.on('claim_bingo', (data: { gameId: string; board: number[][]; markedNumbers: number[]; userId: string; cardId: number }) => {
+        socket.on('claim_bingo', async (data: { gameId: string; board: number[][]; markedNumbers: number[]; userId: string; cardId: number }) => {
             console.log('🎯 Bingo claim received from:', socket.id);
 
             const game = gameManagerInstance.getGame(data.gameId);
