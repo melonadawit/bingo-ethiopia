@@ -15,6 +15,7 @@ interface GameState {
     entryFee?: number; // Track entry fee for disconnect penalties
 }
 
+// Game state includes 'ended' status for completed games
 interface WinPattern {
     type: 'row' | 'column' | 'diagonal' | 'fullhouse';
     indices: number[];
