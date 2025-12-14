@@ -210,6 +210,13 @@ export class GameManager {
 
         // Start drawing numbers every 4 seconds (SERVER-CONTROLLED)
         game.intervalId = setInterval(() => {
+            // Check if game has ended (important for stopping immediately)
+            if (game.status === 'ended') {
+                console.log(`⏹️ Game ${gameId} has ended, stopping number calls`);
+                if (game.intervalId) clearInterval(game.intervalId);
+                return;
+            }
+
             if (game.drawnNumbers.length >= MAX_NUMBER) {
                 this.endGame(gameId);
                 return;
