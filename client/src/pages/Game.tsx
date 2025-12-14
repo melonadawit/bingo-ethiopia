@@ -422,7 +422,7 @@ const GamePage: React.FC = () => {
 
 
     const handleNextGame = async () => {
-        console.log('Resetting for next round...');
+        console.log('Starting next round...');
         if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
         voiceCaller.stop();
 
@@ -443,7 +443,7 @@ const GamePage: React.FC = () => {
         setStatus('selecting');
         setCountdown(30);
 
-        // Create/join a NEW game for round 2
+        // Use matchmaking to join/create game (ensures all players in same game)
         try {
             const response = await fetch(`${import.meta.env.VITE_API_URL}/game/create`, {
                 method: 'POST',
@@ -455,18 +455,20 @@ const GamePage: React.FC = () => {
             });
 
             const data = await response.json();
-            console.log('New game created for round 2:', data.gameId);
+            console.log('Joined/created game for round 2:', data.gameId);
 
-            // Update to new game ID
+            // Navigate to the game (transaction ensures all players get same ID)
             navigate(`/game/${data.gameId}`, { replace: true });
 
-            // Join the new game
-            if (user?.id) {
-                socket.emit('join_game', { gameId: data.gameId, userId: user.id });
-                socket.emit('request_selection_state', { gameId: data.gameId });
-            }
+            // Small delay to ensure navigation completes
+            setTimeout(() => {
+                if (user?.id) {
+                    socket.emit('join_game', { gameId: data.gameId, userId: user.id });
+                    socket.emit('request_selection_state', { gameId: data.gameId });
+                }
+            }, 100);
         } catch (error) {
-            console.error('Error creating new game:', error);
+            console.error('Error joining next round:', error);
         }
     };
 
