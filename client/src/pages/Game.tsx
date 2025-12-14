@@ -459,16 +459,15 @@ const GamePage: React.FC = () => {
             const data = await response.json();
             console.log('Joined/created game for round 2:', data.gameId);
 
-            // Navigate to the game (transaction ensures all players get same ID)
-            navigate(`/game/${data.gameId}`, { replace: true });
+            // DON'T navigate - just update URL and rejoin
+            // This prevents component remounting and duplicate listeners
+            window.history.replaceState(null, '', `/game/${data.gameId}`);
 
-            // Small delay to ensure navigation completes
-            setTimeout(() => {
-                if (user?.id) {
-                    socket.emit('join_game', { gameId: data.gameId, userId: user.id });
-                    socket.emit('request_selection_state', { gameId: data.gameId });
-                }
-            }, 100);
+            // Join the new game immediately
+            if (user?.id) {
+                socket.emit('join_game', { gameId: data.gameId, userId: user.id });
+                socket.emit('request_selection_state', { gameId: data.gameId });
+            }
         } catch (error) {
             console.error('Error joining next round:', error);
         }
