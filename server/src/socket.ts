@@ -139,7 +139,9 @@ export const initSocket = (httpServer: HttpServer) => {
                     io.to(data.gameId).emit('game_won', {
                         winners: game.winners.map(w => ({
                             userId: w.userId,
+                            name: `Player ${w.userId.slice(0, 8)}`, // Use userId as name fallback
                             cardId: w.cardId,
+                            cartelaNumber: w.cardId, // Add cartelaNumber for compatibility
                             card: w.card
                         })),
                         pattern: winPattern,
