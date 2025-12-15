@@ -5,6 +5,7 @@
         "build": "tsc",
         "start": "node dist/index.js",
         "start:v2": "node dist/index.fastify.js",
+        "start:prod:v2": "node dist/index.fastify.js",
         "test:supabase": "tsx test-supabase.ts"
     }
 }
