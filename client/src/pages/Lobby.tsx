@@ -52,14 +52,14 @@ export default function Lobby() {
         const fetchData = async () => {
             try {
                 // Fetch game modes with real player counts
-                const modesResponse = await api.get('/game/modes');
+                const modesResponse = await api.get('/api/game/modes');
                 // If API returns data, use it; otherwise keep default modes
                 if (modesResponse.data && modesResponse.data.length > 0) {
                     setGameModes(modesResponse.data);
                 }
 
                 // Fetch global stats
-                const statsResponse = await api.get('/game/stats');
+                const statsResponse = await api.get('/api/game/stats');
                 setStats(statsResponse.data);
             } catch (error) {
                 console.error('Error fetching game data:', error);

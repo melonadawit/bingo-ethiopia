@@ -19,12 +19,12 @@ export interface GlobalStats {
 
 export const gameService = {
     getGameModes: async (): Promise<GameMode[]> => {
-        const response = await api.get('/game/modes');
+        const response = await api.get('/api/game/modes');
         return response.data;
     },
 
     getGlobalStats: async (): Promise<GlobalStats> => {
-        const response = await api.get('/game/stats');
+        const response = await api.get('/api/game/stats');
         return response.data;
     }
 };
