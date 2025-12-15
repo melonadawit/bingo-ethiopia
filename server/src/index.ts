@@ -22,6 +22,7 @@ import authRoutes from './routes/authRoutes';
 import gameRoutes from './routes/gameRoutes';
 import walletRoutes from './routes/walletRoutes';
 import rewardsRoutes from './routes/rewards';
+import leaderboardRoutes from './routes/leaderboard';
 // import paymentRoutes from './routes/payment'; // Temporarily disabled
 
 // API Routes
@@ -29,6 +30,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/game', gameRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/rewards', rewardsRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
 // app.use('/api/payment', paymentRoutes); // Temporarily disabled
 
 // Health Check
@@ -49,6 +51,14 @@ httpServer.listen(PORT, async () => {
         }
     } catch (error) {
         console.error('❌ Failed to initialize bot:', error);
+    }
+
+    // Initialize leaderboard cron jobs
+    try {
+        const { initializeLeaderboardJobs } = await import('./jobs/leaderboardJobs');
+        initializeLeaderboardJobs();
+    } catch (error) {
+        console.error('❌ Failed to initialize leaderboard jobs:', error);
     }
 });
 
