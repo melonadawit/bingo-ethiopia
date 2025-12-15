@@ -1,0 +1,27 @@
+{
+    "name": "bingo-workers",
+    "version": "1.0.0",
+    "description": "Cloudflare Workers for Bingo Ethiopia",
+    "main": "src/index.ts",
+    "scripts": {
+        "dev": "wrangler dev",
+        "deploy": "wrangler deploy",
+        "tail": "wrangler tail"
+    },
+    "keywords": [
+        "cloudflare",
+        "workers",
+        "bingo"
+    ],
+    "author": "",
+    "license": "MIT",
+    "devDependencies": {
+        "@cloudflare/workers-types": "^4.20231218.0",
+        "typescript": "^5.3.3",
+        "wrangler": "^3.22.1"
+    },
+    "dependencies": {
+        "@supabase/supabase-js": "^2.39.0"
+    },
+    "type": "commonjs"
+}
