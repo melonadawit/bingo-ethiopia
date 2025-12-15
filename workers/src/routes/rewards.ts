@@ -3,7 +3,7 @@ import { getSupabase, jsonResponse } from '../utils';
 
 export async function handleRewardsRoutes(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-    const path = url.pathname.replace('/api/rewards', '');
+    const path = url.pathname.replace('/api/rewards', '').replace('/rewards', '');
     const supabase = getSupabase(env);
 
     // GET /api/rewards/daily/check

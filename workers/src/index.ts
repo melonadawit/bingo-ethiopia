@@ -30,13 +30,13 @@ export default {
             });
         }
 
-        // Game routes
-        if (url.pathname.startsWith('/api/game')) {
+        // Game routes (support both /game and /api/game)
+        if (url.pathname.startsWith('/game') || url.pathname.startsWith('/api/game')) {
             return handleGameRoutes(request, env);
         }
 
-        // Rewards routes
-        if (url.pathname.startsWith('/api/rewards')) {
+        // Rewards routes (support both /rewards and /api/rewards)
+        if (url.pathname.startsWith('/rewards') || url.pathname.startsWith('/api/rewards')) {
             return handleRewardsRoutes(request, env);
         }
 

@@ -3,7 +3,7 @@ import { getSupabase, jsonResponse } from '../utils';
 
 export async function handleGameRoutes(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-    const path = url.pathname.replace('/api/game', '');
+    const path = url.pathname.replace('/api/game', '').replace('/game', '');
     const supabase = getSupabase(env);
 
     // GET /api/game/modes
