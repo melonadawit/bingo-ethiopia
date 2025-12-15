@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, Wallet, History, Settings, LogOut, Menu, X, User } from 'lucide-react';
+import { Home, Wallet, History, Settings, LogOut, Menu, X, User, Trophy, Gift } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../utils/cn';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -12,6 +12,7 @@ export default function Layout() {
 
     const navItems = [
         { icon: Home, label: 'Game Lobby', path: '/lobby' },
+        { icon: Trophy, label: 'Leaderboard', path: '/leaderboard' },
         { icon: Wallet, label: 'Wallet', path: '/wallet' },
         { icon: History, label: 'History', path: '/history' },
         { icon: Settings, label: 'Settings', path: '/settings' },
