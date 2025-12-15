@@ -15,7 +15,7 @@ const iconMap: Record<string, any> = {
 const defaultModes = [
     {
         id: 'and-zig',
-        title: 'And-zig (አንድ ዝግ)',
+        title: 'Ande Zig (አንድ ዝግ)',
         description: 'Complete 1 Line or 4 Corners',
         minBet: 50,
         activePlayers: 0,
@@ -24,7 +24,7 @@ const defaultModes = [
     },
     {
         id: 'hulet-zig',
-        title: 'Hulet-zig (ሁለት ዝግ)',
+        title: 'Hulet Zig (ሁለት ዝግ)',
         description: 'Complete 2 Lines',
         minBet: 100,
         activePlayers: 0,
@@ -33,7 +33,7 @@ const defaultModes = [
     },
     {
         id: 'mulu-zig',
-        title: 'Mulu-zig (ሙሉ ዝግ)',
+        title: 'Mulu Zig (ሙሉ ዝግ)',
         description: 'Blackout: Mark All 25 Cells',
         minBet: 150,
         activePlayers: 0,
