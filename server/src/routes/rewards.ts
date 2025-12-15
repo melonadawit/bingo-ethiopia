@@ -1,6 +1,6 @@
 import express from 'express';
 import { checkDailyReward, claimDailyReward, getDailyRewardHistory } from '../controllers/rewardController';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware } from '../middleware/authMiddleware';
 
 const router = express.Router();
 

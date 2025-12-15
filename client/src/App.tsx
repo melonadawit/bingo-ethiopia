@@ -1,10 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import './index.css';
 import AppRoutes from './AppRoutes';
 import { useAuth } from './context/AuthContext';
+import { DailyRewardModal } from './components/rewards/DailyRewardModal';
+import api from './services/api';
 
 function App() {
   const { login, user } = useAuth();
+  const [showDailyReward, setShowDailyReward] = useState(false);
 
   useEffect(() => {
     // Check if running in Telegram Web App
@@ -40,7 +43,38 @@ function App() {
     }
   }, []); // Empty dependency array to run only once
 
-  return <AppRoutes />;
+  // Check for daily reward when user logs in
+  useEffect(() => {
+    if (user) {
+      checkDailyReward();
+    }
+  }, [user]);
+
+  const checkDailyReward = async () => {
+    try {
+      const res = await api.get('/api/rewards/daily/check');
+      if (res.data.available && !res.data.alreadyClaimed) {
+        setShowDailyReward(true);
+      }
+    } catch (error) {
+      console.error('Failed to check daily reward:', error);
+    }
+  };
+
+  return (
+    <>
+      <AppRoutes />
+      {showDailyReward && (
+        <DailyRewardModal
+          onClose={() => setShowDailyReward(false)}
+          onClaimed={() => {
+            setShowDailyReward(false);
+            // Optionally refresh user balance here
+          }}
+        />
+      )}
+    </>
+  );
 }
 
 export default App;
