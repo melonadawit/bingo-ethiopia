@@ -77,12 +77,16 @@ async function registerRoutes() {
     const rewardRoutes = await import('./routes/rewards.fastify');
     const leaderboardRoutes = await import('./routes/leaderboard.fastify');
     const walletRoutes = await import('./routes/wallet.fastify');
+    const websocketRoutes = await import('./routes/websocket.fastify');
 
     // Register routes
     await fastify.register(gameRoutes.default, { prefix: '/api/game' });
     await fastify.register(rewardRoutes.default, { prefix: '/api/rewards' });
     await fastify.register(leaderboardRoutes.default, { prefix: '/api/leaderboard' });
     await fastify.register(walletRoutes.default, { prefix: '/api/wallet' });
+
+    // Register WebSocket routes
+    await fastify.register(websocketRoutes.default, { prefix: '/ws' });
 }
 
 // Start server
