@@ -273,7 +273,7 @@ SELECT
   g.*,
   COUNT(gp.user_id) as player_count,
   gm.title as mode_title,
-  gm.max_players
+  gm.max_players as mode_max_players
 FROM games g
 LEFT JOIN game_players gp ON g.id = gp.game_id
 LEFT JOIN game_modes gm ON g.mode = gm.id
