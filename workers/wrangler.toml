@@ -12,4 +12,4 @@ script_name = "bingo-api"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["GameRoom"]
+new_sqlite_classes = ["GameRoom"]
