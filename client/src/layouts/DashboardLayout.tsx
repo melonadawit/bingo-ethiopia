@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, Wallet, History, Settings, LogOut, Menu, X, User, Trophy, Gift } from 'lucide-react';
+import { Home, Wallet, History, Settings, LogOut, Menu, X, User, Trophy } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../utils/cn';
 import { motion, AnimatePresence } from 'framer-motion';
