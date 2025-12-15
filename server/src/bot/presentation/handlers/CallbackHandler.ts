@@ -32,6 +32,7 @@ export class CallbackHandler {
         this.bot.action('stats', this.handleStats.bind(this));
         this.bot.action('daily', this.handleDaily.bind(this));
         this.bot.action('refer', this.handleRefer.bind(this));
+        this.bot.action('play_quick', this.handlePlayQuick.bind(this));
         this.bot.action('main_menu', this.handleMainMenu.bind(this));
     }
 
@@ -360,5 +361,41 @@ The more friends, the more you earn!
             .build();
 
         await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+    }
+
+    /**
+     * Handle quick play button
+     */
+    private async handlePlayQuick(ctx: Context): Promise<void> {
+        if (!ctx.from) return;
+
+        try {
+            await ctx.answerCbQuery('Opening game lobby...');
+
+            const message = `
+${EMOJI.GAME} *Choose Your Game Mode:*
+
+🎯 *Ande Zeg* (50 Birr)
+   Complete 1 line or 4 corners
+
+🎮 *Hulet Zeg* (100 Birr)
+   Complete 2 lines
+
+🏆 *Mulu Zeg* (150 Birr)
+   Blackout - Mark all 25 cells
+
+Click below to start playing!
+            `.trim();
+
+            const keyboard = new KeyboardBuilder()
+                .addWebAppButton(`${EMOJI.GAME} Open Game Lobby`, this.webAppUrl + '/lobby')
+                .addButton('🔙 Back to Menu', 'main_menu')
+                .build();
+
+            await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+        } catch (error) {
+            console.error('Error in handlePlayQuick:', error);
+            await ctx.answerCbQuery('Error opening game. Please try /play command.');
+        }
     }
 }

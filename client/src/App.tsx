@@ -52,12 +52,20 @@ function App() {
 
   const checkDailyReward = async () => {
     try {
+      // Only check if user has a token
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('No token found, skipping daily reward check');
+        return;
+      }
+
       const res = await api.get('/api/rewards/daily/check');
       if (res.data.available && !res.data.alreadyClaimed) {
         setShowDailyReward(true);
       }
     } catch (error) {
       console.error('Failed to check daily reward:', error);
+      // Don't show error to user, just log it
     }
   };
 
