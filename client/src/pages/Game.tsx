@@ -264,16 +264,24 @@ const GamePage: React.FC = () => {
             gameSocket.connect(gameId);
         }
 
-        // Wait a bit for socket to connect, then join game
-        const joinTimer = setTimeout(() => {
+        // Listen for connection, then join game
+        const handleConnect = () => {
             if (gameId && user?.id) {
                 console.log('Joining game room:', gameId);
-                gameSocket.emit('join_game', { gameId, userId: user.id });
+                gameSocket.emit('join_game', { gameId, userId: user.id, username: user.username });
 
                 // Request current selection state
                 gameSocket.emit('request_selection_state', { gameId });
             }
-        }, 500); // Wait 500ms for socket connection
+        };
+
+        // If already connected, join immediately
+        if (gameSocket.connected && gameId && user?.id) {
+            handleConnect();
+        } else {
+            // Wait for connection
+            gameSocket.on('connect', handleConnect);
+        }
 
         // Listen for successful join
         gameSocket.on('joined_successfully', ({ gameId: joinedGameId }: { gameId: string }) => {
@@ -296,7 +304,7 @@ const GamePage: React.FC = () => {
         });
 
         return () => {
-            clearTimeout(joinTimer);
+            gameSocket.off('connect', handleConnect);
             gameSocket.off('joined_successfully');
             gameSocket.off('error');
         };
