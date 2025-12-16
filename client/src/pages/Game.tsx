@@ -259,9 +259,9 @@ const GamePage: React.FC = () => {
         console.log('Game component mounted, starting connection phase');
 
         // CONNECT SOCKET FIRST
-        if (!gameSocket.connected) {
+        if (!gameSocket.connected && gameId) {
             console.log('Connecting socket to server...');
-            gameSocket.connect();
+            gameSocket.connect(gameId);
         }
 
         // Wait a bit for socket to connect, then join game
