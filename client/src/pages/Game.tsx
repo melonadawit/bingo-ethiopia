@@ -328,7 +328,7 @@ const GamePage: React.FC = () => {
         });
 
         // Listen for game reset (server-side auto-restart)
-        gameSocket.on('game_reset', (data: any) => {
+        gameSocket.on('game_reset', () => {
             console.log('Game reset by server - starting new round');
             setStatus('waiting');
             setSelectedCards([]);

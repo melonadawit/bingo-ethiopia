@@ -205,12 +205,12 @@ export default function Lobby() {
                                         console.log('Join Room clicked!', mode.id);
 
                                         try {
-                                            // Create game and get UUID
-                                            const response = await api.post('/game/create', { mode: mode.id });
-                                            const { gameId } = response.data;
-                                            console.log('Game created:', gameId);
+                                            // Use a shared gameId per mode so all players join the same game
+                                            // This ensures multiplayer synchronization
+                                            const gameId = `${mode.id}-global`;
+                                            console.log('Joining shared game:', gameId);
 
-                                            // Navigate to game with proper UUID
+                                            // Navigate to game with shared gameId
                                             navigate(`/game/${gameId}?mode=${mode.id}`);
                                         } catch (error) {
                                             console.error('Failed to create game:', error);

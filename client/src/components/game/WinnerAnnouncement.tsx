@@ -129,7 +129,13 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
                             </div>
 
                             {/* Card Grid */}
-                            <div className="card-grid gap-0.5 p-0.5">
+                            <div className="card-grid gap-0.5 p-0.5" style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(5, 1fr)',
+                                gridTemplateRows: 'repeat(5, 1fr)',
+                                maxHeight: 'none',
+                                overflow: 'visible'
+                            }}>
                                 {winner.card?.map((row, rowIndex) => (
                                     <React.Fragment key={rowIndex}>
                                         {row.map((num, colIndex) => {

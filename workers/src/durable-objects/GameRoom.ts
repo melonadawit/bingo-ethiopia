@@ -54,6 +54,9 @@ export class GameRoom {
             startTime: null,
             pendingClaims: new Map(),
         };
+
+        // Start perpetual game loop immediately
+        this.startPerpetualLoop();
     }
 
     async fetch(request: Request) {
@@ -155,17 +158,6 @@ export class GameRoom {
                 playerCount: this.gameState.players.size,
             },
         }, ws);
-
-        // Auto-start countdown if this is the first player and game is in waiting state
-        if (this.gameState.players.size === 1 && this.gameState.status === 'waiting') {
-            console.log('First player joined - auto-starting countdown in 30 seconds');
-            // Start countdown after 30 seconds
-            setTimeout(() => {
-                if (this.gameState.status === 'waiting' || this.gameState.status === 'selecting') {
-                    this.handleStartCountdown();
-                }
-            }, 30000); // 30 seconds
-        }
     }
 
     handlePlayerLeave(userId: string) {
@@ -522,6 +514,17 @@ export class GameRoom {
             const j = Math.floor(Math.random() * (i + 1));
             [array[i], array[j]] = [array[j], array[i]];
         }
+    }
+
+    startPerpetualLoop() {
+        console.log('Starting perpetual game loop');
+
+        // Start the first countdown immediately (30 seconds)
+        setTimeout(() => {
+            if (this.gameState.status === 'waiting' || this.gameState.status === 'selecting') {
+                this.handleStartCountdown();
+            }
+        }, 30000); // 30 seconds for card selection
     }
 
     resetGame() {
