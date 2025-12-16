@@ -310,19 +310,8 @@ const GamePage: React.FC = () => {
         };
     }, [user, navigate, gameId]);
 
-    // Auto-start countdown after 30 seconds
-    // If player selects cards within 30 seconds -> they play
-    // If player doesn't select cards within 30 seconds -> they watch
-    useEffect(() => {
-        if (status === 'selection') {
-            console.log('Selection phase started - 30 second timer begins');
-            const timer = setTimeout(() => {
-                console.log('30 seconds elapsed - starting countdown');
-                gameSocket.emit('start_countdown', { gameId });
-            }, 30000); // 30 seconds
-            return () => clearTimeout(timer);
-        }
-    }, [status, gameId]);
+    // Players manually start countdown when ready
+    // No auto-start to avoid timing issues
 
     // Listen for real game win events
     useEffect(() => {
@@ -575,11 +564,11 @@ const GamePage: React.FC = () => {
 
             if (winningCard && gameId && user?.id) {
                 gameSocket.emit('claim_bingo', {
-                    gameId,
-                    userId: user.id,
                     cardId: winningCard.id,
-                    board: winningCard.numbers, // 2D array
-                    markedNumbers: Array.from(currentCalled) // Convert Set to Array
+                    card: {
+                        id: winningCard.id,
+                        numbers: winningCard.numbers
+                    }
                 });
             }
         } else {
