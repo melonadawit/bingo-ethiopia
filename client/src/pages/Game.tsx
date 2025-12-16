@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { socket } from '../services/socket';
+import { gameSocket } from '../services/socket';
 import { Button } from '../components/ui/Button';
 import { Loader2, Volume2, RefreshCw, VolumeX } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -246,50 +246,50 @@ const GamePage: React.FC = () => {
         console.log('Game component setup for game:', gameId);
 
         // Aggressively clean up any existing listeners first
-        socket.off('card_selected');
-        socket.off('card_deselected');
-        socket.off('selection_state');
-        socket.off('countdown_tick');
-        socket.off('number_called');
-        socket.off('game_started');
-        socket.off('game_state_changed');
-        socket.off('game_won');
-        socket.off('game_ended');
+        gameSocket.off('card_selected');
+        gameSocket.off('card_deselected');
+        gameSocket.off('selection_state');
+        gameSocket.off('countdown_tick');
+        gameSocket.off('number_called');
+        gameSocket.off('game_started');
+        gameSocket.off('game_state_changed');
+        gameSocket.off('game_won');
+        gameSocket.off('game_ended');
 
         console.log('Game component mounted, starting connection phase');
 
         // CONNECT SOCKET FIRST
-        if (!socket.connected) {
+        if (!gameSocket.connected) {
             console.log('Connecting socket to server...');
-            socket.connect();
+            gameSocket.connect();
         }
 
         // Wait a bit for socket to connect, then join game
         const joinTimer = setTimeout(() => {
             if (gameId && user?.id) {
                 console.log('Joining game room:', gameId);
-                socket.emit('join_game', { gameId, userId: user.id });
+                gameSocket.emit('join_game', { gameId, userId: user.id });
 
                 // Request current selection state
-                socket.emit('request_selection_state', { gameId });
+                gameSocket.emit('request_selection_state', { gameId });
             }
         }, 500); // Wait 500ms for socket connection
 
         // Listen for successful join
-        socket.on('joined_successfully', ({ gameId: joinedGameId }) => {
+        gameSocket.on('joined_successfully', ({ gameId: joinedGameId }: { gameId: string }) => {
             console.log('✅ Successfully joined game:', joinedGameId);
             setStatus('selection');
         });
 
         // Listen for join errors and retry
-        socket.on('error', ({ message }) => {
+        gameSocket.on('error', ({ message }: { message: string }) => {
             console.log('❌ Join error:', message);
             if (message === 'Game not found') {
                 console.log('Retrying join in 1 second...');
                 setTimeout(() => {
                     if (gameId && user?.id) {
-                        socket.emit('join_game', { gameId, userId: user.id });
-                        socket.emit('request_selection_state', { gameId });
+                        gameSocket.emit('join_game', { gameId, userId: user.id });
+                        gameSocket.emit('request_selection_state', { gameId });
                     }
                 }, 1000);
             }
@@ -297,8 +297,8 @@ const GamePage: React.FC = () => {
 
         return () => {
             clearTimeout(joinTimer);
-            socket.off('joined_successfully');
-            socket.off('error');
+            gameSocket.off('joined_successfully');
+            gameSocket.off('error');
         };
     }, [user, navigate, gameId]);
 
@@ -307,7 +307,7 @@ const GamePage: React.FC = () => {
         if (status === 'selection' && previewCards.length === 0 && countdown === 0) {
             const timer = setTimeout(() => {
                 console.log('Auto-starting countdown (no cards selected)');
-                socket.emit('start_countdown', { gameId });
+                gameSocket.emit('start_countdown', { gameId });
             }, 3000);
             return () => clearTimeout(timer);
         }
@@ -315,7 +315,7 @@ const GamePage: React.FC = () => {
 
     // Listen for real game win events
     useEffect(() => {
-        socket.on('game_won', (data) => {
+        gameSocket.on('game_won', (data: any) => {
             console.log('Game Won!', data);
             setWinners(data.winners);
             setStatus('ended');
@@ -329,13 +329,13 @@ const GamePage: React.FC = () => {
         });
 
         // Real-time card selection events
-        socket.on('card_selected', ({ cardId, userId, playerCount }) => {
+        gameSocket.on('card_selected', ({ cardId, userId, playerCount }: { cardId: number; userId: string; playerCount: number }) => {
             console.log('Card selected:', cardId, 'by', userId);
             setSelectedCardsByPlayer((prev) => ({ ...prev, [cardId]: userId }));
             setRealPlayerCount(playerCount);
         });
 
-        socket.on('card_deselected', ({ cardId, playerCount }) => {
+        gameSocket.on('card_deselected', ({ cardId, playerCount }: { cardId: number; playerCount: number }) => {
             console.log('Card deselected:', cardId);
             setSelectedCardsByPlayer((prev) => {
                 const next = { ...prev };
@@ -345,7 +345,7 @@ const GamePage: React.FC = () => {
             setRealPlayerCount(playerCount);
         });
 
-        socket.on('selection_state', ({ selectedCards, playerCount, status: serverStatus, countdown: serverCountdown, drawnNumbers }) => {
+        gameSocket.on('selection_state', ({ selectedCards, playerCount, status: serverStatus, countdown: serverCountdown, drawnNumbers }: { selectedCards: any; playerCount: number; status?: GameStatus; countdown?: number; drawnNumbers?: number[] }) => {
             console.log('Got selection state:', selectedCards, playerCount, serverStatus, serverCountdown);
             setSelectedCardsByPlayer(selectedCards);
             setRealPlayerCount(playerCount);
@@ -356,7 +356,7 @@ const GamePage: React.FC = () => {
                 // If still in selecting phase and countdown hasn't started, trigger start
                 if (serverStatus === 'selecting' && (serverCountdown === undefined || serverCountdown === 30)) {
                     console.log('Fallback: emitting start_countdown from client');
-                    socket.emit('start_countdown', { gameId });
+                    gameSocket.emit('start_countdown', { gameId });
                 }
             } else {
                 setStatus('selection');
@@ -369,7 +369,7 @@ const GamePage: React.FC = () => {
         });
 
         // SERVER-CONTROLLED COUNTDOWN
-        socket.on('countdown_tick', ({ countdown }) => {
+        gameSocket.on('countdown_tick', ({ countdown }: { countdown: number }) => {
             console.log('Server countdown:', countdown);
             setCountdown(countdown);
             // Transition to countdown UI
@@ -378,7 +378,7 @@ const GamePage: React.FC = () => {
 
         // SERVER-CONTROLLED NUMBER CALLING
         // SERVER-CONTROLLED NUMBER CALLING
-        socket.on('number_called', ({ number, history }) => {
+        gameSocket.on('number_called', ({ number, history }: { number: number; history: number[] }) => {
             try {
                 console.log('Server called number:', number);
                 setCurrentNumber(number);
@@ -397,7 +397,7 @@ const GamePage: React.FC = () => {
 
         // SERVER GAME START
         // SERVER GAME START
-        socket.on('game_started', () => {
+        gameSocket.on('game_started', () => {
             console.log('Server started game');
 
             // PROMOTE PREVIEW CARDS TO ACTIVE CARDS
@@ -418,22 +418,22 @@ const GamePage: React.FC = () => {
             }
         });
 
-        socket.on('game_state_changed', ({ state }) => {
+        gameSocket.on('game_state_changed', ({ state }: { state: GameStatus }) => {
             console.log('Game state changed to:', state);
             setStatus(state);
         });
 
         return () => {
             console.log('🧹 Cleaning up socket listeners');
-            socket.off('card_selected');
-            socket.off('card_deselected');
-            socket.off('selection_state');
-            socket.off('countdown_tick');
-            socket.off('number_called');
-            socket.off('game_started');
-            socket.off('game_state_changed');
-            socket.off('game_won');
-            socket.off('game_ended');
+            gameSocket.off('card_selected');
+            gameSocket.off('card_deselected');
+            gameSocket.off('selection_state');
+            gameSocket.off('countdown_tick');
+            gameSocket.off('number_called');
+            gameSocket.off('game_started');
+            gameSocket.off('game_state_changed');
+            gameSocket.off('game_won');
+            gameSocket.off('game_ended');
 
         };
     }, [gameId]);
@@ -449,7 +449,7 @@ const GamePage: React.FC = () => {
 
         // Leave the old ended game
         if (gameId) {
-            socket.emit('leave_game', { gameId });
+            gameSocket.emit('leave_game', { gameId });
             // Wait for server to process leave before creating new game
             await new Promise(resolve => setTimeout(resolve, 500));
         }
@@ -486,8 +486,8 @@ const GamePage: React.FC = () => {
 
             // Join the new game
             if (user?.id) {
-                socket.emit('join_game', { gameId: data.gameId, userId: user.id });
-                socket.emit('request_selection_state', { gameId: data.gameId });
+                gameSocket.emit('join_game', { gameId: data.gameId, userId: user.id });
+                gameSocket.emit('request_selection_state', { gameId: data.gameId });
             }
         } catch (error) {
             console.error('Error joining next round:', error);
@@ -505,7 +505,7 @@ const GamePage: React.FC = () => {
             setPreviewCards(prev => prev.filter(c => c.id !== id));
 
             // EMIT DESELECT TO SERVER
-            socket.emit('deselect_card', {
+            gameSocket.emit('deselect_card', {
                 gameId,
                 cardId: id,
                 userId: user?.id
@@ -519,7 +519,7 @@ const GamePage: React.FC = () => {
                 setPreviewCards(prev => [...prev, newCard]);
 
                 // EMIT SELECT TO SERVER
-                socket.emit('select_card', {
+                gameSocket.emit('select_card', {
                     gameId,
                     cardId: id,
                     userId: user?.id
@@ -567,7 +567,7 @@ const GamePage: React.FC = () => {
             });
 
             if (winningCard && gameId && user?.id) {
-                socket.emit('claim_bingo', {
+                gameSocket.emit('claim_bingo', {
                     gameId,
                     userId: user.id,
                     cardId: winningCard.id,
