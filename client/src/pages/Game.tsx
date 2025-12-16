@@ -528,6 +528,9 @@ const GamePage: React.FC = () => {
 
     // startGame REMOVED - Server controls game start via 'game_started' event
 
+    // handleNextGame is defined earlier in the file (line 445)
+
+
     const handleBingoClaim = () => {
         // Validation: Verify if user actually has a bingo
         const myCards = selectedCardsRef.current.map(id =>
