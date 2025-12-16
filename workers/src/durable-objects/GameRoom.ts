@@ -155,6 +155,17 @@ export class GameRoom {
                 playerCount: this.gameState.players.size,
             },
         }, ws);
+
+        // Auto-start countdown if this is the first player and game is in waiting state
+        if (this.gameState.players.size === 1 && this.gameState.status === 'waiting') {
+            console.log('First player joined - auto-starting countdown in 30 seconds');
+            // Start countdown after 30 seconds
+            setTimeout(() => {
+                if (this.gameState.status === 'waiting' || this.gameState.status === 'selecting') {
+                    this.handleStartCountdown();
+                }
+            }, 30000); // 30 seconds
+        }
     }
 
     handlePlayerLeave(userId: string) {
@@ -371,6 +382,18 @@ export class GameRoom {
                         prizeShare: simultaneousClaims.length > 1 ? 'split' : 'full',
                     },
                 });
+
+                // Auto-restart game after 10 seconds (winner announcement duration)
+                setTimeout(() => {
+                    console.log('Auto-restarting game after winner announcement');
+                    this.resetGame();
+                    // Start new countdown after 30 seconds
+                    setTimeout(() => {
+                        if (this.gameState.status === 'waiting' || this.gameState.status === 'selecting') {
+                            this.handleStartCountdown();
+                        }
+                    }, 30000); // 30 seconds
+                }, 10000); // 10 seconds for winner announcement
             }, 500); // 500ms window for simultaneous claims
         } else {
             ws.send(JSON.stringify({
@@ -499,5 +522,43 @@ export class GameRoom {
             const j = Math.floor(Math.random() * (i + 1));
             [array[i], array[j]] = [array[j], array[i]];
         }
+    }
+
+    resetGame() {
+        console.log('Resetting game for next round');
+
+        // Clear game state but keep players
+        this.gameState.status = 'waiting';
+        this.gameState.selectedCards.clear();
+        this.gameState.calledNumbers = [];
+        this.gameState.currentNumber = null;
+        this.gameState.countdown = 30;
+        this.gameState.winners = [];
+        this.gameState.startTime = null;
+        this.gameState.pendingClaims.clear();
+
+        // Clear player card selections
+        this.gameState.players.forEach(player => {
+            player.selectedCards = [];
+        });
+
+        // Clear intervals
+        if (this.countdownInterval) {
+            clearInterval(this.countdownInterval);
+            this.countdownInterval = null;
+        }
+        if (this.gameInterval) {
+            clearInterval(this.gameInterval);
+            this.gameInterval = null;
+        }
+
+        // Broadcast reset to all players
+        this.broadcast({
+            type: 'game_reset',
+            data: {
+                status: 'waiting',
+                countdown: 30,
+            },
+        });
     }
 }
