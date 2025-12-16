@@ -517,14 +517,10 @@ export class GameRoom {
     }
 
     startPerpetualLoop() {
-        console.log('Starting perpetual game loop');
+        console.log('Starting perpetual game loop - countdown begins immediately');
 
-        // Start the first countdown immediately (30 seconds)
-        setTimeout(() => {
-            if (this.gameState.status === 'waiting' || this.gameState.status === 'selecting') {
-                this.handleStartCountdown();
-            }
-        }, 30000); // 30 seconds for card selection
+        // Start the countdown immediately (no delay)
+        this.handleStartCountdown();
     }
 
     resetGame() {
