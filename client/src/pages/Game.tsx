@@ -310,10 +310,24 @@ const GamePage: React.FC = () => {
         };
     }, [user, navigate, gameId]);
 
-    // Players manually start countdown when ready
-    // No auto-start to avoid timing issues
+    // Auto-start countdown after 30 seconds
+    const countdownStartedRef = useRef(false);
+    useEffect(() => {
+        if ((status === 'waiting' || status === 'selection') && !countdownStartedRef.current) {
+            console.log('Selection phase started - 30 second timer begins');
+            countdownStartedRef.current = true;
+            const timer = setTimeout(() => {
+                console.log('30 seconds elapsed - starting countdown');
+                gameSocket.emit('start_countdown', { gameId });
+            }, 30000); // 30 seconds
+            return () => {
+                clearTimeout(timer);
+                countdownStartedRef.current = false;
+            };
+        }
+    }, [status, gameId]);
 
-    // Listen for real game win events
+    // Listen for all game events
     useEffect(() => {
         gameSocket.on('game_won', (data: any) => {
             console.log('Game Won!', data);
