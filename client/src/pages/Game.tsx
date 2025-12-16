@@ -310,13 +310,13 @@ const GamePage: React.FC = () => {
         };
     }, [user, navigate, gameId]);
 
-    // Auto-start countdown if no cards selected after a short delay (useful for testing)
+    // Auto-start countdown after 30 seconds if no cards selected
     useEffect(() => {
         if (status === 'selection' && previewCards.length === 0 && countdown === 0) {
             const timer = setTimeout(() => {
-                console.log('Auto-starting countdown (no cards selected)');
+                console.log('Auto-starting countdown after 30 seconds (no cards selected)');
                 gameSocket.emit('start_countdown', { gameId });
-            }, 3000);
+            }, 30000); // 30 seconds
             return () => clearTimeout(timer);
         }
     }, [status, previewCards, countdown, gameId]);
