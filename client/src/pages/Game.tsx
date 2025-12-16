@@ -310,16 +310,19 @@ const GamePage: React.FC = () => {
         };
     }, [user, navigate, gameId]);
 
-    // Auto-start countdown after 30 seconds if no cards selected
+    // Auto-start countdown after 30 seconds
+    // If player selects cards within 30 seconds -> they play
+    // If player doesn't select cards within 30 seconds -> they watch
     useEffect(() => {
-        if (status === 'selection' && previewCards.length === 0 && countdown === 0) {
+        if (status === 'selection') {
+            console.log('Selection phase started - 30 second timer begins');
             const timer = setTimeout(() => {
-                console.log('Auto-starting countdown after 30 seconds (no cards selected)');
+                console.log('30 seconds elapsed - starting countdown');
                 gameSocket.emit('start_countdown', { gameId });
             }, 30000); // 30 seconds
             return () => clearTimeout(timer);
         }
-    }, [status, previewCards, countdown, gameId]);
+    }, [status, gameId]);
 
     // Listen for real game win events
     useEffect(() => {
