@@ -130,7 +130,7 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
 
                             {/* Card Grid */}
                             <div className="card-grid gap-0.5 p-0.5">
-                                {winner.card.map((row, rowIndex) => (
+                                {winner.card?.map((row, rowIndex) => (
                                     <React.Fragment key={rowIndex}>
                                         {row.map((num, colIndex) => {
                                             const isCalled = isNumberCalled(num);
