@@ -512,11 +512,9 @@ const GamePage: React.FC = () => {
             setSelectedCards(prev => prev.filter(c => c !== id));
             setPreviewCards(prev => prev.filter(c => c.id !== id));
 
-            // EMIT DESELECT TO SERVER
+            // EMIT DESELECT TO SERVER (Durable Objects format)
             gameSocket.emit('deselect_card', {
-                gameId,
-                cardId: id,
-                userId: user?.id
+                cardId: id
             });
         } else {
             if (selectedCards.length < 2) {
@@ -526,11 +524,9 @@ const GamePage: React.FC = () => {
                 setSelectedCards(prev => [...prev, id]);
                 setPreviewCards(prev => [...prev, newCard]);
 
-                // EMIT SELECT TO SERVER
+                // EMIT SELECT TO SERVER (Durable Objects format)
                 gameSocket.emit('select_card', {
-                    gameId,
-                    cardId: id,
-                    userId: user?.id
+                    cardId: id
                 });
             } else {
                 console.log('Cannot select more than 2 cards');
