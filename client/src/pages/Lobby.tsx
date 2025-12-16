@@ -200,22 +200,16 @@ export default function Lobby() {
                             >
                                 <div
                                     className="group h-full flex flex-col relative overflow-hidden bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-3xl p-5 cursor-pointer hover:bg-white/[0.07] hover:border-indigo-500/50 hover:shadow-[0_0_40px_-10px_rgba(99,102,241,0.3)] transition-all duration-500 hover:-translate-y-2"
-                                    onClick={async (e) => {
+                                    onClick={(e) => {
                                         e.preventDefault();
                                         console.log('Join Room clicked!', mode.id);
 
-                                        try {
-                                            // Use a shared gameId per mode so all players join the same game
-                                            // This ensures multiplayer synchronization
-                                            const gameId = `${mode.id}-global`;
-                                            console.log('Joining shared game:', gameId);
+                                        // Use a shared gameId per mode so all players join the same game
+                                        const gameId = `${mode.id}-global`;
+                                        console.log('Joining shared game:', gameId);
 
-                                            // Navigate to game with shared gameId
-                                            navigate(`/game/${gameId}?mode=${mode.id}`);
-                                        } catch (error) {
-                                            console.error('Failed to create game:', error);
-                                            alert('Failed to join game. Please try again.');
-                                        }
+                                        // Navigate to game with shared gameId
+                                        navigate(`/game/${gameId}?mode=${mode.id}`);
                                     }}
                                 >
                                     {/* Glowing Background Blob */}
