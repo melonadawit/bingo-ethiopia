@@ -1,170 +1,212 @@
-import { useState } from 'react';
-import { Trophy, Clock, Users, Coins, ChevronDown } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { useGameHistory } from '../hooks/useGameHistory';
+import { ArrowUpRight, ArrowDownRight, Filter, Calendar } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '../utils/cn';
 
+// Helper to format currency
+const formatMoney = (amount: number) => {
+    return new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB' }).format(amount).replace('ETB', '').trim();
+};
+
 const History = () => {
     const [filter, setFilter] = useState<'all' | 'won' | 'lost'>('all');
+    const { data: userStats, isLoading } = useGameHistory();
 
-    // Mock game history
-    const games = [
-        { id: 1, mode: 'Speed Bingo', result: 'won', prize: 500, players: 24, date: '2 hours ago', position: 1 },
-        { id: 2, mode: 'Classic Bingo', result: 'lost', prize: 0, players: 18, date: '3 hours ago', position: 8 },
-        { id: 3, mode: 'Speed Bingo', result: 'won', prize: 250, players: 30, date: '5 hours ago', position: 2 },
-        { id: 4, mode: 'Mega Bingo', result: 'lost', prize: 0, players: 50, date: '1 day ago', position: 15 },
-        { id: 5, mode: 'Speed Bingo', result: 'won', prize: 150, players: 20, date: '1 day ago', position: 3 },
-        { id: 6, mode: 'Classic Bingo', result: 'lost', prize: 0, players: 25, date: '2 days ago', position: 12 },
-    ];
+    const games = useMemo(() => {
+        if (!userStats?.recent_games) return [];
+        return userStats.recent_games.map(game => ({
+            id: game.game_id || game.id, // Prefer game_id if available (UUID), or row ID
+            displayId: (game.game_id || game.id || '').toString().slice(0, 8).toUpperCase(),
+            mode: game.game?.mode || 'Unknown',
+            result: ((Number(game.winnings) || 0) > 0 ? 'won' : 'lost') as 'won' | 'lost',
+            prize: Number(game.winnings) || 0,
+            stake: Number((game.game as any)?.entry_fee) || 0,
+            date: new Date(game.joined_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            time: new Date(game.joined_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+            fullDate: new Date(game.joined_at),
+            timestamp: new Date(game.joined_at).getTime(),
+            card_id: game.card_id || 0,
+            total_spent: Number((game.game as any)?.entry_fee) || 0
+        }));
+    }, [userStats]);
 
     const filteredGames = games.filter(game =>
         filter === 'all' ? true : game.result === filter
     );
 
     const stats = {
-        totalGames: games.length,
-        wins: games.filter(g => g.result === 'won').length,
-        totalWinnings: games.reduce((sum, g) => sum + g.prize, 0),
-        winRate: Math.round((games.filter(g => g.result === 'won').length / games.length) * 100)
+        totalWonCount: userStats?.games_won || 0,
+        totalLostCount: (userStats?.games_played || 0) - (userStats?.games_won || 0),
+        totalWonAmount: Number(userStats?.total_winnings) || 0,
+        totalLostAmount: games.filter(g => g.result === 'lost').reduce((acc, g) => acc + g.stake, 0) // Estimate lost amount from local games list
     };
 
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-[#110C1D] flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+            </div>
+        );
+    }
+
     return (
-        <div className="min-h-screen bg-[#0B1120]">
-            {/* Stats Overview */}
-            <motion.div
-                initial={{ y: -20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                className="bg-gradient-to-br from-purple-900/50 to-indigo-900/50 rounded-2xl p-6 mb-6 border border-purple-500/20"
-            >
-                <h1 className="text-2xl font-black text-white mb-4">Game History</h1>
+        <div className="min-h-screen bg-[#110C1D] text-white p-4 font-sans">
+            {/* Top Tabs (REMOVED as per user request) */}
 
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-black/20 rounded-xl p-3">
-                        <div className="text-slate-400 text-xs mb-1">Total Games</div>
-                        <div className="text-2xl font-bold text-white">{stats.totalGames}</div>
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+                {/* Won Card */}
+                <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="bg-gradient-to-br from-teal-600 to-teal-800 rounded-2xl p-4 shadow-lg border-t border-teal-400/20"
+                >
+                    <div className="flex items-center gap-2 mb-2">
+                        <ArrowUpRight size={16} className="text-white" />
+                        <span className="text-sm font-medium text-teal-100">Total Won</span>
                     </div>
-                    <div className="bg-black/20 rounded-xl p-3">
-                        <div className="text-slate-400 text-xs mb-1">Wins</div>
-                        <div className="text-2xl font-bold text-green-400">{stats.wins}</div>
+                    <div className="text-3xl font-black text-white mb-1">{stats.totalWonCount}</div>
+                    <div className="text-[10px] text-teal-200 font-medium">
+                        {formatMoney(stats.totalWonAmount)} Birr earned
                     </div>
-                    <div className="bg-black/20 rounded-xl p-3">
-                        <div className="text-slate-400 text-xs mb-1">Total Won</div>
-                        <div className="text-2xl font-bold text-yellow-400">{stats.totalWinnings} Birr</div>
-                    </div>
-                    <div className="bg-black/20 rounded-xl p-3">
-                        <div className="text-slate-400 text-xs mb-1">Win Rate</div>
-                        <div className="text-2xl font-bold text-indigo-400">{stats.winRate}%</div>
-                    </div>
-                </div>
-            </motion.div>
+                </motion.div>
 
-            {/* Filter Tabs */}
-            <div className="flex gap-2 mb-4">
-                {[
-                    { key: 'all', label: 'All Games' },
-                    { key: 'won', label: 'Wins' },
-                    { key: 'lost', label: 'Losses' }
-                ].map((tab) => (
-                    <button
-                        key={tab.key}
-                        onClick={() => setFilter(tab.key as any)}
-                        className={cn(
-                            "flex-1 py-2 px-4 rounded-xl font-bold text-sm transition-all",
-                            filter === tab.key
-                                ? "bg-indigo-600 text-white"
-                                : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                        )}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
+                {/* Lost Card */}
+                <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="bg-gradient-to-br from-rose-600 to-pink-700 rounded-2xl p-4 shadow-lg border-t border-pink-400/20"
+                >
+                    <div className="flex items-center gap-2 mb-2">
+                        <ArrowDownRight size={16} className="text-white" />
+                        <span className="text-sm font-medium text-pink-100">Total Lost</span>
+                    </div>
+                    <div className="text-3xl font-black text-white mb-1">{stats.totalLostCount}</div>
+                    <div className="text-[10px] text-pink-200 font-medium">
+                        {formatMoney(stats.totalLostAmount)} Birr spent
+                    </div>
+                </motion.div>
+            </div>
+
+            {/* Filter Pills */}
+            <div className="flex gap-3 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+                <button
+                    onClick={() => setFilter('all')}
+                    className={cn(
+                        "flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-colors",
+                        filter === 'all'
+                            ? "bg-cyan-500 text-white shadow-cyan-500/30 shadow-lg"
+                            : "bg-[#2C2440] text-slate-400"
+                    )}
+                >
+                    <Filter size={14} />
+                    All ({games.length})
+                </button>
+                <button
+                    onClick={() => setFilter('won')}
+                    className={cn(
+                        "px-5 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-colors",
+                        filter === 'won'
+                            ? "bg-[#333060] text-teal-400 border border-teal-500/50"
+                            : "bg-[#2C2440] text-slate-400"
+                    )}
+                >
+                    Won ({games.filter(g => g.result === 'won').length})
+                </button>
+                <button
+                    onClick={() => setFilter('lost')}
+                    className={cn(
+                        "px-5 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-colors",
+                        filter === 'lost'
+                            ? "bg-[#333060] text-pink-400 border border-pink-500/50"
+                            : "bg-[#2C2440] text-slate-400"
+                    )}
+                >
+                    Lost ({games.filter(g => g.result === 'lost').length})
+                </button>
             </div>
 
             {/* Game List */}
-            <div className="space-y-3">
+            <div className="space-y-4">
                 {filteredGames.map((game, index) => (
                     <motion.div
-                        key={game.id}
-                        initial={{ x: -20, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
+                        key={`${game.id}-${index}`}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.05 }}
-                        className={cn(
-                            "bg-slate-900/50 rounded-2xl p-4 border",
-                            game.result === 'won'
-                                ? "border-green-500/30 bg-gradient-to-r from-green-900/10 to-transparent"
-                                : "border-slate-800"
-                        )}
+                        className="bg-[#1E192D] rounded-2xl p-4 border border-white/5 shadow-xl relative overflow-hidden"
                     >
+                        {/* Decorative background glow */}
+                        <div className={cn(
+                            "absolute top-0 right-0 w-32 h-32 rounded-full blur-[60px] opacity-10 pointer-events-none",
+                            game.result === 'won' ? "bg-teal-500" : "bg-pink-500"
+                        )} />
+
                         {/* Header */}
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                                {game.result === 'won' ? (
-                                    <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
-                                        <Trophy size={20} className="text-green-400" />
-                                    </div>
-                                ) : (
-                                    <div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center">
-                                        <Trophy size={20} className="text-slate-500" />
-                                    </div>
-                                )}
-                                <div>
-                                    <div className="text-white font-bold">{game.mode}</div>
-                                    <div className="text-slate-400 text-xs flex items-center gap-1">
-                                        <Clock size={12} />
-                                        {game.date}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {game.result === 'won' && (
-                                <div className="text-right">
-                                    <div className="text-green-400 font-black text-xl">+{game.prize}</div>
-                                    <div className="text-slate-400 text-xs">Birr</div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Stats */}
-                        <div className="grid grid-cols-3 gap-2 bg-black/20 rounded-xl p-2">
-                            <div className="text-center">
-                                <div className="text-slate-400 text-[10px] mb-1">Position</div>
+                        <div className="flex justify-between items-start mb-4 relative z-10">
+                            <div className="flex items-start gap-3">
                                 <div className={cn(
-                                    "font-bold text-sm",
-                                    game.position <= 3 ? "text-yellow-400" : "text-slate-300"
+                                    "w-10 h-10 rounded-xl flex items-center justify-center",
+                                    game.result === 'won' ? "bg-teal-500/20 text-teal-400" : "bg-pink-500/20 text-pink-400"
                                 )}>
-                                    #{game.position}
+                                    {game.result === 'won' ? <ArrowUpRight size={20} /> : <ArrowDownRight size={20} />}
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-white text-base">Game {game.displayId}</h3>
+                                    <div className="flex items-center gap-1.5 text-slate-400 text-xs mt-0.5">
+                                        <Calendar size={10} />
+                                        <span>{game.date}, {game.time}</span>
+                                        <span className="text-white/40">•</span>
+                                        <span>Card #{game.card_id}</span>
+                                        <span className="text-white/40">•</span>
+                                        <span>{formatMoney(game.total_spent)}</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="text-center">
-                                <div className="text-slate-400 text-[10px] mb-1">Players</div>
-                                <div className="font-bold text-sm text-slate-300 flex items-center justify-center gap-1">
-                                    <Users size={12} />
-                                    {game.players}
-                                </div>
-                            </div>
-                            <div className="text-center">
-                                <div className="text-slate-400 text-[10px] mb-1">Prize Pool</div>
-                                <div className="font-bold text-sm text-slate-300 flex items-center justify-center gap-1">
-                                    <Coins size={12} />
-                                    {game.players * 50}
-                                </div>
+
+                            <div className={cn(
+                                "px-3 py-1 rounded-lg text-xs font-bold",
+                                game.result === 'won'
+                                    ? "bg-teal-500/10 text-teal-400 border border-teal-500/20"
+                                    : "bg-pink-500/10 text-pink-400 border border-pink-500/20"
+                            )}>
+                                {game.result === 'won' ? 'Won' : 'Lost'}
                             </div>
                         </div>
 
-                        {/* View Details */}
-                        <button className="w-full mt-2 py-2 text-indigo-400 hover:text-indigo-300 text-sm font-medium flex items-center justify-center gap-1 transition-colors">
-                            View Details
-                            <ChevronDown size={16} />
-                        </button>
+                        {/* Grid Stats */}
+                        <div className="grid grid-cols-3 gap-2 relative z-10">
+                            <div className="bg-[#262038] rounded-xl p-2.5 flex flex-col items-center justify-center">
+                                <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Stake</span>
+                                <span className="text-white font-bold">{game.stake}</span>
+                            </div>
+                            <div className="bg-[#262038] rounded-xl p-2.5 flex flex-col items-center justify-center">
+                                <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Prize</span>
+                                <span className={cn(
+                                    "font-bold",
+                                    game.result === 'won' ? "text-teal-400" : "text-white"
+                                )}>{game.prize}</span>
+                            </div>
+                            <div className="bg-[#262038] rounded-xl p-2.5 flex flex-col items-center justify-center">
+                                <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Mode</span>
+                                <span className="text-white font-bold text-xs capitalize">{game.mode.replace('-', ' ')}</span>
+                            </div>
+                        </div>
                     </motion.div>
                 ))}
+
+                {filteredGames.length === 0 && (
+                    <div className="text-center py-20 opacity-50">
+                        <p className="mb-2">No games found yet.</p>
+                        <p className="text-sm">Play a game to start tracking your history!</p>
+                    </div>
+                )}
             </div>
 
-            {filteredGames.length === 0 && (
-                <div className="text-center py-12">
-                    <Trophy size={48} className="text-slate-700 mx-auto mb-4" />
-                    <p className="text-slate-400">No games found</p>
-                </div>
-            )}
+
         </div>
     );
 };

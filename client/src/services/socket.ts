@@ -1,7 +1,13 @@
 // Native WebSocket client for Cloudflare Durable Objects
 // Replaces Socket.IO with direct WebSocket connection
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3002';
+// Derive WS URL from API URL
+const getWsUrl = () => {
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://bingo-api.melonadawit71.workers.dev';
+    return apiUrl.replace(/^http/, 'ws');
+};
+
+const WS_URL = import.meta.env.VITE_WS_URL || getWsUrl();
 
 export class GameWebSocket {
     private ws: WebSocket | null = null;

@@ -21,7 +21,10 @@
         "wrangler": "^3.22.1"
     },
     "dependencies": {
-        "@supabase/supabase-js": "^2.39.0"
+        "@resvg/resvg-wasm": "^2.6.2",
+        "@supabase/supabase-js": "^2.39.0",
+        "@upstash/redis": "^1.35.8",
+        "satori": "^0.18.3"
     },
     "type": "commonjs"
 }

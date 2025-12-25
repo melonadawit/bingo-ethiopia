@@ -13,10 +13,22 @@ CREATE TABLE users (
   username TEXT,
   first_name TEXT,
   last_name TEXT,
+  phone_number TEXT,
   balance DECIMAL(10,2) DEFAULT 1000.00,
   total_games_played INTEGER DEFAULT 0,
   total_wins INTEGER DEFAULT 0,
   total_winnings DECIMAL(10,2) DEFAULT 0,
+  -- Telegram bot fields
+  referral_code TEXT UNIQUE,
+  referred_by BIGINT,
+  referral_count INTEGER DEFAULT 0,
+  referral_earnings DECIMAL(10,2) DEFAULT 0,
+  last_daily_claim DATE,
+  daily_streak INTEGER DEFAULT 0,
+  total_daily_earned DECIMAL(10,2) DEFAULT 0,
+  is_registered BOOLEAN DEFAULT FALSE,
+  total_deposited DECIMAL(10,2) DEFAULT 0,
+  total_withdrawn DECIMAL(10,2) DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -133,12 +145,44 @@ CREATE TABLE transactions (
 -- ============================================
 CREATE TABLE referrals (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  referrer_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  referred_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  reward_amount DECIMAL(10,2) DEFAULT 50.00,
-  is_claimed BOOLEAN DEFAULT FALSE,
+  referrer_id BIGINT NOT NULL,
+  referred_id BIGINT NOT NULL,
+  reward_amount DECIMAL(10,2) DEFAULT 10.00,
+  status TEXT DEFAULT 'completed' CHECK (status IN ('pending', 'completed')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================
+-- PAYMENT REQUESTS TABLE (for Telegram bot)
+-- ============================================
+CREATE TABLE payment_requests (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id BIGINT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('deposit', 'withdraw')),
+  amount DECIMAL(10,2) NOT NULL,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  payment_method TEXT,
+  bank_account_number TEXT,
+  screenshot_url TEXT,
+  telebirr_phone TEXT,
+  reference_code TEXT,
+  admin_note TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE (referrer_id, referred_id)
+  processed_at TIMESTAMPTZ,
+  processed_by BIGINT
+);
+
+-- ============================================
+-- DAILY CLAIMS TABLE (for Telegram bot)
+-- ============================================
+CREATE TABLE daily_claims (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id BIGINT NOT NULL,
+  claim_date DATE NOT NULL,
+  reward_amount DECIMAL(10,2) NOT NULL,
+  streak_day INTEGER NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, claim_date)
 );
 
 -- ============================================
@@ -170,6 +214,19 @@ CREATE INDEX idx_leaderboard_rank ON leaderboard_entries(period, rank);
 CREATE INDEX idx_transactions_user_id ON transactions(user_id);
 CREATE INDEX idx_transactions_type ON transactions(type);
 CREATE INDEX idx_transactions_created_at ON transactions(created_at);
+
+-- Payment requests indexes
+CREATE INDEX idx_payment_requests_user_id ON payment_requests(user_id);
+CREATE INDEX idx_payment_requests_status ON payment_requests(status);
+CREATE INDEX idx_payment_requests_created_at ON payment_requests(created_at DESC);
+
+-- Daily claims indexes
+CREATE INDEX idx_daily_claims_user ON daily_claims(user_id);
+CREATE INDEX idx_daily_claims_date ON daily_claims(claim_date DESC);
+
+-- Referrals indexes
+CREATE INDEX idx_referrals_referrer ON referrals(referrer_id);
+CREATE INDEX idx_referrals_referred ON referrals(referred_id);
 
 -- ============================================
 -- ROW LEVEL SECURITY (RLS)
@@ -262,6 +319,48 @@ CREATE TRIGGER update_leaderboard_ranks
   AFTER INSERT OR UPDATE ON leaderboard_entries
   FOR EACH ROW
   EXECUTE FUNCTION calculate_leaderboard_ranks();
+
+-- ============================================
+-- HELPER FUNCTIONS FOR TELEGRAM BOT
+-- ============================================
+
+-- Function to increment user balance
+CREATE OR REPLACE FUNCTION increment_balance(user_telegram_id BIGINT, amount DECIMAL)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE users 
+  SET balance = balance + amount,
+      total_deposited = total_deposited + amount
+  WHERE telegram_id = user_telegram_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to decrement user balance
+CREATE OR REPLACE FUNCTION decrement_balance(user_telegram_id BIGINT, amount DECIMAL)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE users 
+  SET balance = balance - amount,
+      total_withdrawn = total_withdrawn + amount
+  WHERE telegram_id = user_telegram_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to generate unique referral code
+CREATE OR REPLACE FUNCTION generate_referral_code()
+RETURNS TEXT AS $$
+DECLARE
+  code TEXT;
+  exists BOOLEAN;
+BEGIN
+  LOOP
+    code := 'BINGO' || LPAD(FLOOR(RANDOM() * 1000000)::TEXT, 6, '0');
+    SELECT EXISTS(SELECT 1 FROM users WHERE referral_code = code) INTO exists;
+    EXIT WHEN NOT exists;
+  END LOOP;
+  RETURN code;
+END;
+$$ LANGUAGE plpgsql;
 
 -- ============================================
 -- VIEWS FOR COMMON QUERIES

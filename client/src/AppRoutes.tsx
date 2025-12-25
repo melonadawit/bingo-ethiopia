@@ -1,4 +1,3 @@
-
 import { Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import Lobby from './pages/Lobby';
@@ -7,6 +6,10 @@ import History from './pages/History';
 import Settings from './pages/Settings';
 import GamePage from './pages/Game';
 import Leaderboard from './pages/Leaderboard';
+import Tournaments from './pages/Tournaments';
+import Events from './pages/Events';
+import ReferralPage from './pages/ReferralPage';
+import DailyBonus from './pages/DailyBonus';
 import DashboardLayout from './layouts/DashboardLayout';
 
 const AppRoutes = () => {
@@ -15,6 +18,10 @@ const AppRoutes = () => {
             <Route path="/" element={<DashboardLayout />}>
                 <Route index element={<HomePage />} />
                 <Route path="/lobby" element={<Lobby />} />
+                <Route path="tournaments" element={<Tournaments />} />
+                <Route path="events" element={<Events />} />
+                <Route path="referral" element={<ReferralPage />} />
+                <Route path="daily-bonus" element={<DailyBonus />} />
                 <Route path="wallet" element={<Wallet />} />
                 <Route path="history" element={<History />} />
                 <Route path="leaderboard" element={<Leaderboard />} />

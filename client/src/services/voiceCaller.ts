@@ -8,6 +8,10 @@ export class AmharicVoiceCaller {
     private voiceGender: 'female' | 'male' = 'female'; // Use generated Amharic MP3 files
 
     constructor() {
+        // Initialize state from local storage
+        const savedMuted = localStorage.getItem('voice_muted');
+        this.isEnabled = savedMuted !== 'true';
+
         // Initialize voices immediately if possible
         if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
             window.speechSynthesis.getVoices();
@@ -27,6 +31,19 @@ export class AmharicVoiceCaller {
         return this.voiceGender;
     }
 
+    public setMuted(muted: boolean) {
+        this.isEnabled = !muted;
+        localStorage.setItem('voice_muted', muted.toString());
+        if (muted) {
+            this.stop(); // Stop any currently playing audio when muting
+        }
+        console.log(`🔇 Voice caller ${muted ? 'MUTED' : 'UNMUTED'}`);
+    }
+
+    public isMuted(): boolean {
+        return !this.isEnabled;
+    }
+
     public async callNumber(number: number): Promise<void> {
         if (!this.isEnabled) return;
         return this.playAudio(`number_${number}`);
@@ -38,29 +55,12 @@ export class AmharicVoiceCaller {
         return this.playAudio('game_start');
     }
 
-    public async announceWinner(cartelaNumber?: number): Promise<void> {
+    public async announceWinner(): Promise<void> {
         if (!this.isEnabled) return;
 
-        // If no cartela number provided, play generic winner sound
-        if (!cartelaNumber) {
-            console.log('🏆 Announcing: Generic BINGO winner!');
-            return this.playAudio('winner');
-        }
-
-        console.log(`🏆 Announcing: Cartela ${cartelaNumber} is the winner!`);
-
-        // If Male voice, we can use TTS for simple "Winner is Cartela X"
-        // BUT we are using 'female' setting to force MP3 usage now.
-        if (this.voiceGender === 'male') {
-            this.speak(`The winner is cartela number ${cartelaNumber}`);
-            return;
-        }
-
-        try {
-            await this.playAudio(`cartelas/${cartelaNumber}`);
-        } catch (err) {
-            console.error("Error in winner announcement sequence:", err);
-        }
+        // Always play generic BINGO winner sound
+        console.log('🏆 Announcing: BINGO!');
+        return this.playAudio('winner');
     }
 
     private speak(text: string) {

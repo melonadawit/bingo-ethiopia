@@ -18,7 +18,17 @@ export async function handleGameRoutes(request: Request, env: Env): Promise<Resp
             return jsonResponse({ error: error.message }, 500);
         }
 
-        return jsonResponse(data || []);
+        const formattedData = (data || []).map((mode: any) => ({
+            id: mode.id,
+            title: mode.title,
+            description: mode.description,
+            minBet: mode.min_bet, // Map min_bet -> minBet
+            icon: mode.icon,
+            color: mode.color,
+            activePlayers: 0 // Default to 0, or map if available
+        }));
+
+        return jsonResponse(formattedData);
     }
 
     // GET /api/game/stats

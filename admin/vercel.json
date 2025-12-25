@@ -1,0 +1,9 @@
+{
+    "framework": "nextjs",
+    "rewrites": [
+        {
+            "source": "/api/(.*)",
+            "destination": "https://bingo-api.melonadawit71.workers.dev/admin/$1"
+        }
+    ]
+}

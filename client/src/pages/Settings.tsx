@@ -1,20 +1,13 @@
 import { useState } from 'react';
-import { User, Bell, Shield, HelpCircle, LogOut, ChevronRight, Moon, Sun } from 'lucide-react';
+import { User, ChevronRight, Volume2, VolumeX } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { cn } from '../utils/cn';
+import { voiceCaller } from '../services/voiceCaller';
 
 const Settings = () => {
-    const { user, logout } = useAuth();
-    const navigate = useNavigate();
-    const [darkMode, setDarkMode] = useState(true);
-    const [notifications, setNotifications] = useState(true);
-
-    const handleLogout = () => {
-        logout();
-        navigate('/lobby');
-    };
+    const { user } = useAuth();
+    const [isMuted, setIsMuted] = useState(voiceCaller.isMuted());
 
     type SettingsItem = {
         icon: any;
@@ -24,43 +17,29 @@ const Settings = () => {
         value?: boolean;
     };
 
+
     const settingsSections: { title: string; items: SettingsItem[] }[] = [
-        {
-            title: 'Account',
-            items: [
-                { icon: User, label: 'Profile Information', action: () => { } },
-                { icon: Shield, label: 'Privacy & Security', action: () => { } },
-            ]
-        },
         {
             title: 'Preferences',
             items: [
                 {
-                    icon: darkMode ? Moon : Sun,
-                    label: 'Dark Mode',
-                    action: () => setDarkMode(!darkMode),
+                    icon: isMuted ? VolumeX : Volume2,
+                    label: 'Caller Sound',
+                    action: () => {
+                        const newState = !isMuted;
+                        setIsMuted(newState);
+                        voiceCaller.setMuted(newState);
+                    },
                     toggle: true,
-                    value: darkMode
-                },
-                {
-                    icon: Bell,
-                    label: 'Notifications',
-                    action: () => setNotifications(!notifications),
-                    toggle: true,
-                    value: notifications
-                },
+                    value: !isMuted // "On" if not muted
+                }
             ]
         },
-        {
-            title: 'Support',
-            items: [
-                { icon: HelpCircle, label: 'Help & FAQ', action: () => { } },
-            ]
-        }
+
     ];
 
     return (
-        <div className="min-h-screen bg-[#0B1120]">
+        <div className="min-h-screen bg-[#0B1120] pb-20">
             {/* Profile Header */}
             <motion.div
                 initial={{ y: -20, opacity: 0 }}
@@ -126,23 +105,88 @@ const Settings = () => {
                         </div>
                     </motion.div>
                 ))}
-            </div>
 
-            {/* Logout Button */}
-            <motion.button
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.4 }}
-                onClick={handleLogout}
-                className="w-full mt-6 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-colors"
-            >
-                <LogOut size={20} />
-                Logout
-            </motion.button>
+                {/* HOW TO PLAY SECTION (Accordion) */}
+                <motion.div
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                >
+                    <details className="group bg-slate-900/50 rounded-2xl border border-slate-800 overflow-hidden">
+                        <summary className="flex items-center justify-between p-4 cursor-pointer list-none hover:bg-slate-800/50 transition-colors">
+                            <h3 className="text-slate-400 text-sm font-bold uppercase">HOW TO PLAY</h3>
+                            <ChevronRight size={20} className="text-slate-500 transition-transform group-open:rotate-90" />
+                        </summary>
+
+                        <div className="p-6 pt-0 text-slate-300 space-y-4 border-t border-slate-800/50">
+                            <section>
+                                <h4 className="text-white font-bold mb-2">🃏 መጫወቻ ካርድ</h4>
+                                <ul className="list-disc pl-4 space-y-2 text-sm">
+                                    <li>ጨዋታውን ለመጀመር ከሚመጣልን ከ1-300 የመጫወቻ ካርድ ውስጥ አንዱን እንመርጣለን።</li>
+                                    <li>የመጫወቻ ካርዱ ላይ በቀይ ቀለም የተመረጡ ቁጥሮች የሚያሳዩት መጫወቻ ካርድ በሌላ ተጫዋች መመረጡን ነው።</li>
+                                    <li>የመጫወቻ ካርድ ስንነካው ከታች በኩል ካርድ ቁጥሩ የሚይዘዉን መጫወቻ ካርድ ያሳየናል።</li>
+                                    <li>ወደ ጨዋታው ለመግባት የምንፈልገዉን ካርድ ከመረጥን ለምዝገባ የተሰጠው ሰኮንድ ዜሮ ሲሆን ቀጥታ ወደ ጨዋታ ያስገባናል።</li>
+                                </ul>
+                            </section>
+
+                            <section>
+                                <h4 className="text-white font-bold mb-2">🎮 ጨዋታ</h4>
+                                <ul className="list-disc pl-4 space-y-2 text-sm">
+                                    <li>ወደ ጨዋታው ስንገባ በመረጥነው የካርድ ቁጥር መሰረት የመጫወቻ ካርድ እናገኛለን።</li>
+                                    <li>ጨዋታው ሲጀምር የተለያዪ ቁጥሮች ከ1 እስከ 75 መጥራት ይጀምራል።</li>
+                                    <li>የሚጠራው ቁጥር የኛ መጫወቻ ካርድ ውስጥ ካለ የተጠራውን ቁጥር ክሊክ በማረግ መምረጥ እንችላለን።</li>
+                                    <li>የመረጥነውን ቁጥር ማጥፋት ከፈለግን መልሰን እራሱን ቁጥር ክሊክ በማረግ ማጥፋት እንችላለን።</li>
+                                </ul>
+                            </section>
+
+                            <section>
+                                <h4 className="text-white font-bold mb-2">🏆 አሸናፊ</h4>
+                                <ul className="list-disc pl-4 space-y-2 text-sm">
+                                    <li>ቁጥሮቹ ሲጠሩ ከመጫወቻ ካርዳችን ላይ እየመረጥን ወደጎን ወይም ወደታች ወይም ወደሁለቱም አግዳሚ ወይም አራቱን ማእዘናት ከመረጥን ወዲያውኑ ከታች በኩል bingo የሚለውን በመንካት ማሸነፍ እንችላለን።</li>
+                                    <li>ወደጎን ወይም ወደታች ወይም ወደሁለቱም አግዳሚ ወይም አራቱን ማእዘናት ሳይጠሩ bingo የሚለውን ክሊክ ካደረግን ከጨዋታው እንታገዳለን።</li>
+                                    <li>ሁለት ወይም ከዚያ በላይ ተጫዋቾች እኩል ቢያሸንፉ ደራሹ ለቁጥራቸው ይካፈላል።</li>
+                                </ul>
+                            </section>
+                        </div>
+                    </details>
+                </motion.div>
+
+                {/* FAQ SECTION (Accordion) */}
+                <motion.div
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.4 }}
+                >
+                    <details className="group bg-slate-900/50 rounded-2xl border border-slate-800 overflow-hidden">
+                        <summary className="flex items-center justify-between p-4 cursor-pointer list-none hover:bg-slate-800/50 transition-colors">
+                            <h3 className="text-slate-400 text-sm font-bold uppercase">FAQ</h3>
+                            <ChevronRight size={20} className="text-slate-500 transition-transform group-open:rotate-90" />
+                        </summary>
+
+                        <div className="p-4 pt-0 space-y-3 border-t border-slate-800/50">
+                            {/* FAQ Item 1 */}
+                            <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50">
+                                <h4 className="text-white font-bold text-sm mb-1">ገንዘብ እንዴት ማስገባት ይቻላል?</h4>
+                                <p className="text-slate-400 text-xs">Wallet ገብተው Deposit የሚለውን ይጫኑ። የመረጡትን ባንክ እና መጠን በማስገባት ክፍያ መፈጸም ይችላሉ።</p>
+                            </div>
+                            {/* FAQ Item 2 */}
+                            <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50">
+                                <h4 className="text-white font-bold text-sm mb-1">ዕለታዊ ጉርሻ (Daily Bonus) ምንድን ነው?</h4>
+                                <p className="text-slate-400 text-xs">በየቀኑ ወደ ቦቱ ሲገቡ የሚሰጥ የነፃ ሳንቲም ሽልማት ነው። ተከታታይ ቀናት በገቡ ቁጥር ሽልማቱ ይጨምራል።</p>
+                            </div>
+                            {/* FAQ Item 3 */}
+                            <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50">
+                                <h4 className="text-white font-bold text-sm mb-1">ክፍያ ቢዘገይ ምን ማድረግ አለብኝ?</h4>
+                                <p className="text-slate-400 text-xs">ክፍያው ከተለመደው ጊዜ (5-10 ደቂቃ) በላይ ከዘገየ፣ Support የሚለውን በመንካት የደንበኞች አገልግሎትን ያነጋግሩ።</p>
+                            </div>
+                        </div>
+                    </details>
+                </motion.div>
+            </div>
 
             {/* App Info */}
             <div className="mt-8 text-center text-slate-500 text-sm">
-                <p>Bingo Ethiopia v1.0.0</p>
+                <p>Bingo Ethiopia v3.3</p>
                 <p className="mt-1">Made with ❤️ in Ethiopia</p>
             </div>
         </div>

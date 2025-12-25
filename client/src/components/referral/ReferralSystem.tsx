@@ -16,9 +16,7 @@ export const ReferralSystem = () => {
             try {
                 // In production, use axios/fetch with auth header. 
                 // Here passing userId as query param as per controller.
-                // Direct connection to local backend to avoid proxy issues
-                // FORCE localhost:5000 for debugging
-                const baseUrl = 'http://localhost:5000';
+                const baseUrl = import.meta.env.VITE_API_URL || 'https://bingo-api.melonadawit71.workers.dev';
 
                 console.group('ReferralSystem Debug');
                 console.log('Fetching from:', `${baseUrl}/api/auth/referrals/stats`);

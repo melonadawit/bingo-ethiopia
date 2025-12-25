@@ -8,7 +8,9 @@ import { cn } from '../utils/cn';
 import { motion, AnimatePresence } from 'framer-motion';
 import { voiceCaller } from '../services/voiceCaller';
 import { WinnerAnnouncement } from '../components/game/WinnerAnnouncement';
-import { checkWinningPattern, type GameMode } from '../utils/bingoLogic';
+import { NoWinnerAnnouncement } from '../components/game/NoWinnerAnnouncement';
+import { ConnectionStatus } from '../components/ui/ConnectionStatus';
+import type { GameMode } from '../utils/bingoLogic';
 import toast from 'react-hot-toast';
 
 // --- Types ---
@@ -195,7 +197,6 @@ const GamePage: React.FC = () => {
 
     const [status, setStatus] = useState<GameStatus>('connecting');
     const [selectedCards, setSelectedCards] = useState<number[]>([]);
-    const [myCards, setMyCards] = useState<BingoCard[]>([]);
     const [previewCards, setPreviewCards] = useState<BingoCard[]>([]);
 
     // Game State
@@ -204,14 +205,19 @@ const GamePage: React.FC = () => {
     const [countdown, setCountdown] = useState(30);
     const [isMuted, setIsMuted] = useState(false);
     const [winners, setWinners] = useState<any[]>([]);
+    const [showNoWinner, setShowNoWinner] = useState(false);
+    const [watchOnly, setWatchOnly] = useState(false);
+
+    // Connection & Error Handling States
+    const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected' | 'reconnecting'>('connecting');
+    const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [_reconnectAttempts, _setReconnectAttempts] = useState(0); // Prefix with _ to suppress unused warning
 
     // Real-time multiplayer card selection state
     const [_selectedCardsByPlayer, setSelectedCardsByPlayer] = useState<Record<number, string>>({});  // cardId -> userId
     const [realPlayerCount, setRealPlayerCount] = useState(0); // Real-time player count from server (USED in UI)
     const [_isSpectator, _setIsSpectator] = useState(false); // True if joined after game started
-
-
-
 
     // Get game mode from URL or default to 'and-zig'
     const [searchParams] = useSearchParams();
@@ -224,6 +230,7 @@ const GamePage: React.FC = () => {
     const previewCardsRef = useRef<BingoCard[]>([]);
     const selectedCardsRef = useRef<number[]>([]);
     const latestIsMuted = useRef(isMuted); // Ref to track mute state in closures
+    const invalidToastShownRef = useRef(false); // Track invalid toast to prevent spam
 
     // Interval Ref for cleaning up the game loop
     const gameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -235,13 +242,24 @@ const GamePage: React.FC = () => {
         latestIsMuted.current = isMuted;
     }, [previewCards, selectedCards, isMuted]);
 
-
+    // Cleanup on unmount - disconnect socket
+    useEffect(() => {
+        return () => {
+            console.log('🧹 Game component unmounting - disconnecting socket');
+            if (gameId) {
+                gameSocket.emit('leave_game', { gameId });
+            }
+            gameSocket.disconnect();
+        };
+    }, [gameId]);
 
     useEffect(() => {
-        if (!user) {
-            navigate('/lobby');
-            return;
-        }
+        // REMOVED: This was causing infinite redirect loops
+        // The user object takes time to load, so redirecting immediately breaks navigation
+        // if (!user) {
+        //     navigate('/lobby');
+        //     return;
+        // }
 
         console.log('Game component setup for game:', gameId);
 
@@ -266,17 +284,25 @@ const GamePage: React.FC = () => {
 
         // Listen for connection, then join game
         const handleConnect = () => {
-            if (gameId && user?.id) {
-                console.log('Joining game room:', gameId);
-                gameSocket.emit('join_game', { gameId, userId: user.id, username: user.username });
+            console.log('✅ WebSocket connected');
+            setConnectionStatus('connected');
+            _setReconnectAttempts(0);
+            setError(null);
 
-                // Request current selection state
-                gameSocket.emit('request_selection_state', { gameId });
-            }
+            // Join game immediately - use Telegram ID if available (matches backend DB), otherwise use temporary guest ID
+            // CRITICAL FIX: Backend expects userId to be the integer Telegram ID for balance operations
+            const userId = user?.telegram_id ? user.telegram_id.toString() : `guest-${Date.now()}`;
+            const username = user?.username || 'Guest';
+
+            console.log('Joining game room:', gameId, 'as', username, '(ID:', userId, ')');
+            gameSocket.emit('join_game', { gameId, userId, username });
+
+            // Request current selection state
+            gameSocket.emit('request_selection_state', { gameId });
         };
 
         // If already connected, join immediately
-        if (gameSocket.connected && gameId && user?.id) {
+        if (gameSocket.connected && gameId) {
             handleConnect();
         } else {
             // Wait for connection
@@ -328,14 +354,18 @@ const GamePage: React.FC = () => {
         });
 
         // Listen for game reset (server-side auto-restart)
-        gameSocket.on('game_reset', () => {
+        gameSocket.on('game_reset', (data: { status?: GameStatus }) => {
             console.log('Game reset by server - starting new round');
-            setStatus('waiting');
-            setSelectedCards([]);
+            // Use status from server if available, otherwise default to waiting
+            setStatus(data?.status || 'waiting');
+            setWinners([]);
+            setShowNoWinner(false); // Clear no-winner state
+            setCalledNumbers(new Set());
             setPreviewCards([]);
+            setSelectedCards([]); // Clear selected cards for new game
             setCalledNumbers(new Set());
             setCurrentNumber(null);
-            setCountdown(30);
+            setCountdown((data as any).countdown || 30);
             setWinners([]);
             setSelectedCardsByPlayer({});
         });
@@ -416,10 +446,10 @@ const GamePage: React.FC = () => {
             const currentPreview = previewCardsRef.current;
             if (currentPreview.length > 0) {
                 console.log('Promoting preview cards to active:', currentPreview);
-                setMyCards([...currentPreview]);
+                // myCards is now computed from selectedCards and previewCards
             } else {
                 console.log('No cards selected - Spectator Mode');
-                setMyCards([]);
+                // myCards will be empty array when selectedCards is empty
             }
 
             setStatus('playing');
@@ -428,6 +458,101 @@ const GamePage: React.FC = () => {
             if (!latestIsMuted.current) {
                 voiceCaller.announceGameStart();
             }
+        });
+
+        // Invalid BINGO claim feedback - OPTIMIZED
+        gameSocket.on('invalid_claim', (data: any) => {
+            console.log('❌ INVALID CLAIM EVENT RECEIVED:', data);
+            setIsLoading(false); // Clear loading state immediately
+
+            if (status === 'ended') return;
+
+            // Only show toast once per BINGO attempt using ref (prevents spam)
+            if (!invalidToastShownRef.current) {
+                invalidToastShownRef.current = true;
+                toast('❌ No BINGO! Pattern not complete', {
+                    id: 'server-invalid-claim',
+                    duration: 3000,
+                    position: 'top-center',
+                    style: {
+                        background: '#ef4444',
+                        color: '#ffffff',
+                        fontWeight: 'bold',
+                        fontSize: '14px',
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)',
+                        zIndex: 9999,
+                    },
+                });
+
+                // Reset flag after toast duration
+                setTimeout(() => {
+                    invalidToastShownRef.current = false;
+                }, 3000);
+            }
+        });
+
+        // No winner scenario
+        gameSocket.on('no_winner', () => {
+            console.log('No winner - all 75 numbers called');
+            setShowNoWinner(true);
+            setStatus('ended');
+        });
+
+        // Player rejoin - active game
+        gameSocket.on('rejoin_active', (data: any) => {
+            console.log('🔄 REJOIN_ACTIVE EVENT RECEIVED:', data);
+            console.log('Selected cards from server:', data.selectedCards);
+
+            if (data.selectedCards && Array.isArray(data.selectedCards) && data.selectedCards.length > 0) {
+                // CRITICAL: Regenerate cards first, then set both states
+                const restoredCards = data.selectedCards.map((cardId: number) => generateBingoCard(cardId));
+
+                console.log('✅ Preview cards regenerated:', restoredCards);
+                console.log('✅ Setting selectedCards:', data.selectedCards);
+
+                // Set both states to restore full card display
+                setPreviewCards(restoredCards);
+                setSelectedCards(data.selectedCards);
+
+                // Force update by setting refs
+                previewCardsRef.current = restoredCards;
+                selectedCardsRef.current = data.selectedCards;
+
+                console.log('✅ Cards fully restored - should be visible now!');
+            } else {
+                console.warn('⚠️ No cards to restore or empty array');
+            }
+
+            setWatchOnly(false);
+            toast.success(data.message || 'Welcome back!', {
+                id: 'rejoin-toast',
+                duration: 3000,
+                position: 'top-center',
+            });
+        });
+
+        // Mode conflict - player already in another mode
+        gameSocket.on('mode_conflict', (data: any) => {
+            console.log('🚫 MODE_CONFLICT EVENT RECEIVED (Ignored to allow switch):', data);
+            // We ignore this now to allow players to switch games freely
+            // The server state will be overwritten by the new join
+        });
+
+        // Player rejoin - watch only
+        gameSocket.on('watch_only', (data: any) => {
+            console.log('👁️ WATCH_ONLY EVENT RECEIVED:', data);
+            setWatchOnly(true);
+            console.log('Watch only mode enabled:', watchOnly); // Use watchOnly variable
+            toast('👁️ ' + (data.message || 'Watching only'), {
+                duration: 4000,
+                position: 'top-center',
+                style: {
+                    background: '#6366F1',
+                    color: 'white',
+                },
+            });
         });
 
         gameSocket.on('game_state_changed', ({ state }: { state: GameStatus }) => {
@@ -447,7 +572,11 @@ const GamePage: React.FC = () => {
             gameSocket.off('game_won');
             gameSocket.off('game_reset');
             gameSocket.off('game_ended');
-
+            gameSocket.off('invalid_claim');
+            gameSocket.off('no_winner');
+            gameSocket.off('rejoin_active');
+            gameSocket.off('watch_only');
+            gameSocket.off('mode_conflict');
         };
     }, [gameId]);
 
@@ -473,7 +602,6 @@ const GamePage: React.FC = () => {
         setCurrentNumber(null);
         setSelectedCards([]);
         setPreviewCards([]);
-        setMyCards([]);
 
         // Reset to selection phase
         setStatus('selecting');
@@ -508,94 +636,150 @@ const GamePage: React.FC = () => {
     };
 
     const handleSelectCard = (id: number) => {
-        console.log('handleSelectCard called with id:', id);
-        console.log('Current selectedCards:', selectedCards);
-        console.log('Current previewCards:', previewCards);
+        console.log(`🖱️ Card Clicked: ${id}`);
 
+        // Safety check
+        if (!gameSocket?.connected) {
+            console.error('❌ Socket not connected in handleSelectCard');
+            toast.error("Connecting... please wait", { id: 'conn-toast' });
+            return;
+        }
+
+        // BALANCE CHECK: Parse explicitly to number
+        const mode = gameId?.split('-global-')[0] || 'ande-zig';
+        const unitPrice = mode === 'ande-zig' ? 10 : mode === 'hulet-zig' ? 20 : 50;
+        const rawBalance = user?.balance;
+        const userBalance = Number(rawBalance || 0);
+
+        console.log(`💰 Balance Check: User=${user?.username}, Balance=${userBalance}, Price=${unitPrice}, Mode=${mode}, Connected=${gameSocket.connected}`);
+
+        // Allow deselection regardless of balance
         if (selectedCards.includes(id)) {
-            console.log('Deselecting card', id);
+            console.log(`📉 Deselecting card ${id}`);
             setSelectedCards(prev => prev.filter(c => c !== id));
             setPreviewCards(prev => prev.filter(c => c.id !== id));
-
-            // EMIT DESELECT TO SERVER (Durable Objects format)
-            gameSocket.emit('deselect_card', {
-                cardId: id
-            });
-        } else {
-            if (selectedCards.length < 2) {
-                console.log('Selecting card', id);
-                const newCard = generateBingoCard(id);
-                console.log('Generated card:', newCard);
-                setSelectedCards(prev => [...prev, id]);
-                setPreviewCards(prev => [...prev, newCard]);
-
-                // EMIT SELECT TO SERVER (Durable Objects format)
-                gameSocket.emit('select_card', {
-                    cardId: id
-                });
-            } else {
-                console.log('Cannot select more than 2 cards');
-            }
+            const socketUserId = user?.telegram_id ? user.telegram_id.toString() : user?.id;
+            gameSocket.emit('deselect_card', { cardId: id, userId: socketUserId });
+            return;
         }
+
+        // Check balance for NEW selection
+        if (userBalance < unitPrice) {
+            console.warn(`❌ Insufficient balance: ${userBalance} < ${unitPrice}`);
+            toast.error(`Need ${unitPrice} Birr to play! (Balance: ${userBalance})`, { id: 'bal-err' });
+            return;
+        }
+
+        // Limit to 2 cards
+        if (selectedCards.length >= 2) {
+            console.warn(`❌ Max cards reached`);
+            toast.error("Max 2 cards allowed", { id: 'max-cards' });
+            return;
+        }
+
+        // Select
+        console.log(`📈 Selecting card ${id}`);
+        const newCard = generateBingoCard(id);
+        setSelectedCards(prev => [...prev, id]);
+        setPreviewCards(prev => [...prev, newCard]);
+        const socketUserId = user?.telegram_id ? user.telegram_id.toString() : user?.id;
+        gameSocket.emit('select_card', { cardId: id, userId: socketUserId });
     };
 
-    // startGame REMOVED - Server controls game start via 'game_started' event
+    const checkCardHasWinPotential = (card: BingoCard, called: Set<number>) => {
+        const grid = card.numbers;
+        const size = 5;
 
-    // handleNextGame is defined earlier in the file (line 445)
+        // Helper to check if a cell is marked
+        const isMarked = (r: number, c: number) => {
+            if (r === 2 && c === 2) return true; // Free space
+            return called.has(grid[r][c]);
+        };
 
+        // Check Rows
+        for (let r = 0; r < size; r++) {
+            let rowFull = true;
+            for (let c = 0; c < size; c++) {
+                if (!isMarked(r, c)) { rowFull = false; break; }
+            }
+            if (rowFull) return true;
+        }
 
-    const handleBingoClaim = () => {
-        // Validation: Verify if user actually has a bingo
-        const myCards = selectedCardsRef.current.map(id =>
-            previewCardsRef.current.find(c => c.id === id) || generateBingoCard(id)
+        // Check Columns
+        for (let c = 0; c < size; c++) {
+            let colFull = true;
+            for (let r = 0; r < size; r++) {
+                if (!isMarked(r, c)) { colFull = false; break; }
+            }
+            if (colFull) return true;
+        }
+
+        // Check Main Diagonal
+        let mainDiagFull = true;
+        for (let i = 0; i < size; i++) {
+            if (!isMarked(i, i)) { mainDiagFull = false; break; }
+        }
+        if (mainDiagFull) return true;
+
+        // Check Anti Diagonal
+        let antiDiagFull = true;
+        for (let i = 0; i < size; i++) {
+            if (!isMarked(i, size - 1 - i)) { antiDiagFull = false; break; }
+        }
+        if (antiDiagFull) return true;
+
+        // Check 4 Corners
+        if (isMarked(0, 0) && isMarked(0, 4) && isMarked(4, 0) && isMarked(4, 4)) {
+            return true;
+        }
+
+        return false;
+    };
+
+    const handleClaimBingo = () => {
+        console.log('🎯 BINGO button clicked - running local validation');
+        setIsLoading(true);
+
+        const currentCards = selectedCards.map(id =>
+            previewCards.find(c => c.id === id) || generateBingoCard(id)
         );
 
-        const currentCalled = new Set(Array.from(calledNumbers)); // Snapshot
-        let hasWinner = false;
-        const newWinners: any[] = [];
+        if (currentCards.length === 0 || !gameId || !user?.id) {
+            setIsLoading(false);
+            return;
+        }
 
-        myCards.forEach(card => {
-            const result = checkWinningPattern(card.numbers, currentCalled, gameMode);
-            if (result.isWinner) {
-                hasWinner = true;
-                newWinners.push({
-                    userId: 'me',
-                    name: user?.firstName || 'You',
-                    cartelaNumber: card.id,
-                    card: card.numbers,
-                    winningPattern: result.winningCells
-                });
-            }
-        });
+        // Strict Local Filter: Only consider cards that have at least one Line or 4 Corners
+        const potentialWinningCards = currentCards.filter(card =>
+            checkCardHasWinPotential(card, calledNumbers)
+        );
 
-        if (hasWinner) {
-            // Valid Claim! Send to server for validation
-            console.log('🎯 Sending BINGO claim to server');
-
-            // Send claim to server with first winning card
-            const winningCard = myCards.find(card => {
-                const result = checkWinningPattern(card.numbers, currentCalled, gameMode);
-                return result.isWinner;
-            });
-
-            if (winningCard && gameId && user?.id) {
+        if (potentialWinningCards.length > 0) {
+            // Send claims ONLY for valid candidates
+            potentialWinningCards.forEach(card => {
+                console.log(`🚀 Sending claim for potentially winning card: ${card.id}`);
                 gameSocket.emit('claim_bingo', {
-                    cardId: winningCard.id,
-                    card: {
-                        id: winningCard.id,
-                        numbers: winningCard.numbers
+                    cardId: card.id,
+                    card: { id: card.id, numbers: card.numbers }
+                });
+            });
+        } else {
+            // Instant feedback if NO cards are valid locally
+            console.log('❌ Local validation failed for all cards');
+            setIsLoading(false);
+
+            if (!invalidToastShownRef.current) {
+                invalidToastShownRef.current = true;
+                toast("❌ Not yet! You need a Line or 4 Corners.", {
+                    id: 'local-invalid-claim',
+                    duration: 2000,
+                    style: {
+                        background: '#ef4444',
+                        color: 'white',
                     }
                 });
+                setTimeout(() => invalidToastShownRef.current = false, 2000);
             }
-        } else {
-            // Invalid Claim - game continues
-            toast.error("Bogus Bingo! Keep playing.", {
-                icon: '🚫',
-                style: {
-                    background: '#1f2937',
-                    color: '#fff',
-                }
-            });
         }
     };
 
@@ -608,23 +792,27 @@ const GamePage: React.FC = () => {
         );
     }
 
-    // Unified check for Selection/Countdown phase (including 'waiting' status from server)
+    // Unified check for Selection/Countdown phase
     if (status === 'waiting' || status === 'selection' || status === 'selecting' || status === 'countdown') {
         return (
             <div className="min-h-screen bg-[#1a1b2e] flex flex-col text-white overflow-hidden">
-                {/* Header with Timer */}
-                <div className="bg-gradient-to-r from-orange-500 to-red-600 p-2 text-center border-b border-white/10">
-                    <div className="flex items-center justify-center gap-4 text-sm">
-                        <div><span className="text-white/70">Time:</span> <span className="font-black text-xl">{countdown}s</span></div>
-                        <div className="h-4 w-px bg-white/20" />
-                        <div><span className="text-white/70">Players:</span> <span className="font-bold">{realPlayerCount}</span></div>
-                        <div className="h-4 w-px bg-white/20" />
-                        <div><span className="text-white/70">Prize:</span> <span className="font-bold">{(() => {
-                            const unitPrice = gameMode === 'and-zig' ? 50 : gameMode === 'hulet-zig' ? 100 : 150;
-                            const totalCards = Object.keys(_selectedCardsByPlayer).length;
-                            const derash = Math.floor(totalCards * unitPrice * 0.85);
-                            return `${derash.toLocaleString()} Birr`;
-                        })()}</span></div>
+                <ConnectionStatus status={connectionStatus} error={error} />
+
+                {/* Header - MOBILE OPTIMIZED */}
+                <div className="bg-gradient-to-r from-orange-500 to-red-600 p-1.5 sm:p-2 text-center border-b border-white/10">
+                    <div className="flex items-center justify-between px-2 sm:px-4">
+                        <div className="flex justify-center">
+                            <button onClick={() => navigate('/lobby')} className="flex items-center gap-1 px-3 py-2 bg-white/20 hover:bg-white/30 rounded-md text-xs font-bold">
+                                <span>Back</span>
+                            </button>
+                        </div>
+                        <div className="flex items-center justify-center gap-2">
+                            <span className="font-black text-2xl text-white">{countdown}s</span>
+                        </div>
+                        <div className="flex items-center justify-center gap-2">
+                            <span className="text-white/80">Players:</span>
+                            <span className="font-bold text-lg text-white">{realPlayerCount}</span>
+                        </div>
                     </div>
                 </div>
 
@@ -632,10 +820,16 @@ const GamePage: React.FC = () => {
                 <div className="flex-1 p-2 overflow-y-auto pb-[200px]">
                     <h2 className="text-center font-bold text-base mb-2">Select Your Cards (Max 2)</h2>
 
-                    <div className="grid grid-cols-7 gap-1.5">
+                    <div className="grid grid-cols-8 gap-2 max-w-4xl mx-auto">
                         {availableCards.map(num => {
                             const isMyCard = selectedCards.includes(num);
-                            const isTakenByOther = _selectedCardsByPlayer[num] && _selectedCardsByPlayer[num] !== user?.id;
+                            // Normalize IDs to strings for comparison to avoid mismatch
+                            const takenById = _selectedCardsByPlayer[num];
+                            // CRITICAL FIX: Use the same ID logic as connection (TelegramID preferred, else UUID)
+                            const mySocketId = user?.telegram_id ? user.telegram_id.toString() : user?.id;
+
+                            // Only taken if ID exists AND it is NOT me
+                            const isTakenByOther = takenById && String(takenById) !== String(mySocketId);
 
                             return (
                                 <button
@@ -647,9 +841,10 @@ const GamePage: React.FC = () => {
                                         isMyCard
                                             ? "bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-lg shadow-green-500/50 transform scale-110 border-2 border-green-300"
                                             : isTakenByOther
-                                                ? "bg-slate-700/50 text-slate-600 cursor-not-allowed opacity-50"
+                                                ? "text-white cursor-not-allowed opacity-90 border-2"
                                                 : "bg-slate-800 text-slate-300 hover:bg-slate-700 hover:scale-105 border border-slate-700"
                                     )}
+                                    style={isTakenByOther ? { backgroundColor: '#617a8f', borderColor: '#4a5f73' } : undefined}
                                 >
                                     {num}
                                 </button>
@@ -658,7 +853,7 @@ const GamePage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Selected Cards Preview - Fixed at Bottom */}
+                {/* Selected Cards Preview */}
                 {previewCards.length > 0 && (
                     <div className="fixed bottom-0 left-0 right-0 bg-slate-900/98 backdrop-blur-lg border-t border-slate-700 p-3 z-20">
                         <h3 className="text-sm font-bold mb-2 text-center">Your Selected Cards</h3>
@@ -677,12 +872,20 @@ const GamePage: React.FC = () => {
     const getLetter = (num: number) => ['B', 'I', 'N', 'G', 'O'][Math.floor((num - 1) / 15)];
     const recentCalls = [...calledNumbers].slice(-4, -1).reverse();
 
+    // Compute myCards from current state (CRITICAL for rejoin to work!)
+    const myCards = selectedCards.map(id =>
+        previewCards.find(c => c.id === id) || generateBingoCard(id)
+    );
+    console.log('🎴 myCards computed:', myCards.length, 'cards');
+
     return (
         <div className="h-screen bg-[#1a1b2e] flex flex-col text-white overflow-hidden">
             {/* Game Info Bar - Compact */}
             <div className="bg-[#2A1B3D] grid grid-cols-5 gap-0.5 p-0.5 border-b border-white/5 h-12 shrink-0">
                 {(() => {
-                    const unitPrice = gameMode === 'and-zig' ? 50 : gameMode === 'hulet-zig' ? 100 : 150;
+                    // Extract mode from gameId (e.g., "ande-zig-global-v24" -> "ande-zig")
+                    const mode = gameId?.split('-global-')[0] || 'ande-zig';
+                    const unitPrice = mode === 'ande-zig' ? 10 : mode === 'hulet-zig' ? 20 : 50;
                     // Calculate total cards selected (from selectedCardsByPlayer Map)
                     const totalCardsSelected = Object.keys(_selectedCardsByPlayer).length;
                     // DERASH = (total cards × unit price) - 15% house fee
@@ -690,7 +893,7 @@ const GamePage: React.FC = () => {
 
                     return [
                         { label: 'GAME ID', val: gameId?.slice(0, 8) || 'ic-bingo' },
-                        { label: 'PLAYERS', val: realPlayerCount.toString() || '0' },
+                        { label: 'BALANCE', val: user?.balance?.toString() || '0' }, // ADDED Balance
                         { label: 'BET', val: unitPrice.toString() },
                         { label: 'DERASH', val: derash.toString() }, // Prize pool after 15% fee
                         { label: 'CALLED', val: calledNumbers.size.toString() },
@@ -728,7 +931,7 @@ const GamePage: React.FC = () => {
                                         'O': 'from-orange-500 to-orange-600'
                                     };
                                     return (
-                                        <div key={i} className={`px-1.5 py-0.5 rounded-full bg-gradient-to-r ${colors[letter as keyof typeof colors]} text-white text-[8px] font-bold text-center`}>
+                                        <div key={i} className={`px-2 py-1 rounded-full bg-gradient-to-r ${colors[letter as keyof typeof colors]} text-white text-[11px] font-bold text-center`}>
                                             {letter}-{num}
                                         </div>
                                     );
@@ -755,7 +958,11 @@ const GamePage: React.FC = () => {
 
                             {/* Mute/Unmute Button */}
                             <button
-                                onClick={() => setIsMuted(!isMuted)}
+                                onClick={() => {
+                                    const newMutedState = !isMuted;
+                                    setIsMuted(newMutedState);
+                                    voiceCaller.setMuted(newMutedState);
+                                }}
                                 className="p-1 hover:bg-slate-700/50 rounded transition-colors"
                                 title={isMuted ? "Unmute voice" : "Mute voice"}
                             >
@@ -779,10 +986,10 @@ const GamePage: React.FC = () => {
                                     <h2 className="text-3xl font-black text-white mb-4">Watching</h2>
                                     <h2 className="text-3xl font-black text-white mb-6">Only</h2>
                                     <p className="text-slate-400 text-sm leading-relaxed">
-                                        ዝህ ዘር ፍቅርያት<br />
-                                        ተደምራል፡፡ እልቦ ዘር<br />
-                                        አስኪጅምር አዚሁ<br />
-                                        ይጠብቁ፡፡
+                                        የዚህ ዙር ጨዋታ<br />
+                                        ተጀምሯል። አዲስ ዙር<br />
+                                        እስኪጀምር እዚሁ<br />
+                                        ይጠብቁ።
                                     </p>
                                 </div>
                             </div>
@@ -808,7 +1015,7 @@ const GamePage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Bottom Actions - Compact */}
+            {/* Bottom Actions - Simple Static Menu (No Collapsible) */}
             <div className="grid grid-cols-3 gap-0.5 p-0.5 bg-[#1a1b2e] border-t border-white/5 h-12 shrink-0">
                 <Button
                     className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-bold rounded-lg shadow-lg text-sm"
@@ -822,14 +1029,22 @@ const GamePage: React.FC = () => {
                 </Button>
                 <Button
                     className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold rounded-lg shadow-lg flex items-center justify-center gap-1 text-sm"
+                    onClick={() => {
+                        console.log('🔄 Refreshing game state...');
+                        gameSocket.emit('request_selection_state');
+                        toast('Refreshing...', {
+                            duration: 1000,
+                            position: 'top-center',
+                        });
+                    }}
                 >
                     <RefreshCw size={14} />
                     Refresh
                 </Button>
                 <Button
                     className="w-full h-full text-2xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-black shadow-[0_0_20px_rgba(251,191,36,0.5)] animate-pulse border-none"
-                    onClick={handleBingoClaim}
-                    disabled={status !== 'playing'}
+                    onClick={handleClaimBingo}
+                    disabled={status !== 'playing' || isLoading}
                 >
                     BINGO!
                 </Button>
@@ -842,6 +1057,11 @@ const GamePage: React.FC = () => {
                     calledNumbers={Array.from(calledNumbers)}
                     onNextGame={handleNextGame}
                 />
+            )}
+
+            {/* No Winner Announcement Overlay */}
+            {showNoWinner && (
+                <NoWinnerAnnouncement onNextGame={handleNextGame} />
             )}
         </div>
     );
