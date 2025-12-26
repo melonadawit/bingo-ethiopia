@@ -16,7 +16,8 @@ import {
     Gamepad2,
     Trophy,
     Sparkles,
-    Bot
+    Bot,
+    Users
 } from "lucide-react"
 import { Command } from "cmdk"
 import { useRouter } from "next/navigation"

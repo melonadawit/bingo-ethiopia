@@ -545,8 +545,8 @@ function FlowsEditor({
     gameRules?: any,
     flowSequences?: any,
     onSave: (f: any) => void,
-    onSaveRules: (r: any) => void,
-    onSaveSequences: (s: any) => void
+    onSaveRules?: (r: any) => void,
+    onSaveSequences?: (s: any) => void
 }) {
     // [Previous defaults logic omitted for brevity as it is preserved in state]
     const defaults = {
@@ -694,7 +694,7 @@ function FlowsEditor({
                                     </div>
                                     <p className="text-[10px] text-white/30 mt-1">Percentage deducted from the Total Pot. Remaining is distributed to winners.</p>
                                 </div>
-                                <Button onClick={() => onSaveRules(rules)} size="sm" className="bg-blue-600">Save Rules</Button>
+                                <Button onClick={() => onSaveRules?.(rules)} size="sm" className="bg-blue-600">Save Rules</Button>
                             </CardContent>
                         </Card>
 
@@ -741,7 +741,7 @@ function FlowsEditor({
                                                     }
                                                 }
                                             }} size="sm" variant="outline" className="flex-1 border-dashed border-white/20 hover:bg-white/5">+ Add Step</Button>
-                                            <Button onClick={() => onSaveSequences(sequences)} size="sm" className="flex-1 bg-green-600 hover:bg-green-700">Save {type} Flow</Button>
+                                            <Button onClick={() => onSaveSequences?.(sequences)} size="sm" className="flex-1 bg-green-600 hover:bg-green-700">Save {type} Flow</Button>
                                         </div>
                                     </CardContent>
                                 </Card>

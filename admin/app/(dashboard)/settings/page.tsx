@@ -109,7 +109,7 @@ export default function SettingsPage() {
                     <Badge variant="outline" className="font-mono bg-blue-500/10 text-blue-400 border-blue-500/20 px-3 py-1">
                         ver: {version || 'v1.0.0'}
                     </Badge>
-                    <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20">
+                    <Button onClick={() => saveMutation.mutate(undefined)} disabled={saveMutation.isPending} className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20">
                         <Save className="h-4 w-4 mr-2" />
                         Deploy Changes
                     </Button>
