@@ -17,21 +17,17 @@ export default function BotStudioPage() {
     const { data: cmsData, isLoading } = useQuery({
         queryKey: ['bot-cms'],
         queryFn: async () => {
-            const res = await fetch('/api/admin/bot/cms');
-            const json = await res.json();
-            return json.success ? json.data : null;
+            const data = await fetchAdmin('/bot/cms');
+            return data.success ? data.data : null;
         }
     });
 
     const updateConfig = useMutation({
         mutationFn: async ({ key, value }: { key: string, value: any }) => {
-            const res = await fetch('/api/admin/bot/cms', {
+            return fetchAdmin('/bot/cms', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ key, value })
             });
-            if (!res.ok) throw new Error('Update failed');
-            return res.json();
         },
         onSuccess: () => {
             toast.success('Configuration Saved');
@@ -45,20 +41,17 @@ export default function BotStudioPage() {
     const { data: botAdmins, refetch: refetchBotAdmins } = useQuery({
         queryKey: ['bot-admins'],
         queryFn: async () => {
-            const res = await fetch('/api/admin/bot/admins');
-            const data = await res.json();
+            const data = await fetchAdmin('/bot/admins');
             return data.admins || [];
         }
     });
 
     const addBotAdminMutation = useMutation({
-        mutationFn: async () => {
-            const res = await fetch('/api/admin/bot/admins', {
+        mutationFn: async (id: string) => {
+            return fetchAdmin('/bot/admins', {
                 method: 'POST',
-                body: JSON.stringify({ telegramId: newBotAdminId })
+                body: JSON.stringify({ userId: id })
             });
-            if (!res.ok) throw new Error('Failed');
-            return res.json();
         },
         onSuccess: () => {
             toast.success('Bot Admin Added');
@@ -364,7 +357,7 @@ export default function BotStudioPage() {
                                     className="bg-white/5 border-white/10"
                                 />
                                 <Button
-                                    onClick={() => addBotAdminMutation.mutate()}
+                                    onClick={() => addBotAdminMutation.mutate(newBotAdminId)}
                                     className="bg-blue-600 hover:bg-blue-700 font-bold"
                                     disabled={!newBotAdminId}
                                 >

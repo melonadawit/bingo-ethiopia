@@ -1,5 +1,5 @@
-const BOT_TOKEN = '8214698066:AAFVjf2wjI1KcxXq0jKYXcjNyI-3zzPnRGE';
-const WEB_APP_URL = 'https://99991e74.bingo-ethiopia.pages.dev';
+const BOT_TOKEN = '8214698066:AAFVjf2wjI1KcxXq0jKYXcjNyIYEMmiXvYE';
+const WEB_APP_URL = 'https://9015dbfa.bingo-client.pages.dev';
 
 async function setMenuButton() {
     const url = `https://api.telegram.org/bot${BOT_TOKEN}/setChatMenuButton`;
