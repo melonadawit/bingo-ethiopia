@@ -1,7 +1,6 @@
 // Tournament routes for Cloudflare Workers
 import type { Env } from '../types';
-import { getSupabase } from '../utils';
-import { jsonResponse } from '../utils';
+import { getSupabase, jsonResponse } from '../utils';
 
 export async function handleTournamentRoutes(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -9,8 +8,9 @@ export async function handleTournamentRoutes(request: Request, env: Env): Promis
 
     // GET /tournaments/active
     if (url.pathname === '/tournaments/active' && request.method === 'GET') {
+        // [FIX] Use public_tournaments_view which handles is_strictly_active
         const { data, error } = await supabase
-            .from('active_tournaments_view')
+            .from('public_tournaments_view')
             .select('*')
             .order('end_date', { ascending: true });
 
@@ -18,7 +18,13 @@ export async function handleTournamentRoutes(request: Request, env: Env): Promis
             return jsonResponse({ error: error.message }, 500);
         }
 
-        return jsonResponse({ tournaments: data || [] });
+        // Map is_strictly_active to is_active for client compatibility
+        const tournaments = (data || []).map((t: any) => ({
+            ...t,
+            is_active: t.is_strictly_active
+        }));
+
+        return jsonResponse({ tournaments });
     }
 
     // POST /tournaments/join
@@ -27,6 +33,17 @@ export async function handleTournamentRoutes(request: Request, env: Env): Promis
 
         if (!tournamentId || !userId) {
             return jsonResponse({ error: 'Missing tournamentId or userId' }, 400);
+        }
+
+        // [FIX] Check tournament exists and is strictly active
+        const { data: tournament } = await supabase
+            .from('public_tournaments_view')
+            .select('*')
+            .eq('id', tournamentId)
+            .single();
+
+        if (!tournament || !tournament.is_strictly_active) {
+            return jsonResponse({ error: 'Tournament not found or not active' }, 404);
         }
 
         // Check if already joined
@@ -39,18 +56,6 @@ export async function handleTournamentRoutes(request: Request, env: Env): Promis
 
         if (existing) {
             return jsonResponse({ error: 'Already joined this tournament' }, 400);
-        }
-
-        // Check tournament exists and is active
-        const { data: tournament } = await supabase
-            .from('tournaments')
-            .select('*')
-            .eq('id', tournamentId)
-            .eq('status', 'active')
-            .single();
-
-        if (!tournament) {
-            return jsonResponse({ error: 'Tournament not found or not active' }, 404);
         }
 
         // Join tournament

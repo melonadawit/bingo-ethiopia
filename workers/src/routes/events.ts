@@ -1,7 +1,6 @@
 // Events routes for Cloudflare Workers
 import type { Env } from '../types';
-import { getSupabase } from '../utils';
-import { jsonResponse } from '../utils';
+import { getSupabase, jsonResponse } from '../utils';
 
 export async function handleEventRoutes(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -9,13 +8,20 @@ export async function handleEventRoutes(request: Request, env: Env): Promise<Res
 
     // GET /events/active
     if (url.pathname === '/events/active' && request.method === 'GET') {
-        const { data, error } = await supabase.rpc('get_active_events');
+        // [FIX] Use get_public_events RPC which handles is_strictly_active correctly
+        const { data, error } = await supabase.rpc('get_public_events');
 
         if (error) {
             return jsonResponse({ error: error.message }, 500);
         }
 
-        return jsonResponse({ events: data || [] });
+        // Map is_strictly_active to is_active for client compatibility
+        const events = (data || []).map((e: any) => ({
+            ...e,
+            is_active: e.is_strictly_active
+        }));
+
+        return jsonResponse({ events });
     }
 
     // POST /events/join
@@ -24,6 +30,14 @@ export async function handleEventRoutes(request: Request, env: Env): Promise<Res
 
         if (!eventId || !userId) {
             return jsonResponse({ error: 'Missing eventId or userId' }, 400);
+        }
+
+        // [FIX] Validate if event is active before joining
+        const { data: events } = await supabase.rpc('get_public_events');
+        const event = (events || []).find((e: any) => e.id === eventId);
+
+        if (!event || !event.is_strictly_active) {
+            return jsonResponse({ error: 'This event is no longer active' }, 400);
         }
 
         // Check if already joined
@@ -57,20 +71,20 @@ export async function handleEventRoutes(request: Request, env: Env): Promise<Res
 
     // GET /events/check-multiplier
     if (url.pathname === '/events/check-multiplier' && request.method === 'GET') {
-        const { data: events } = await supabase.rpc('get_active_events');
+        const { data: events } = await supabase.rpc('get_public_events');
+        const activeEvents = (events || []).filter((e: any) => e.is_strictly_active);
 
         let totalMultiplier = 1.0;
-        if (events && events.length > 0) {
-            // Multiply all active event multipliers
-            totalMultiplier = events.reduce((acc: number, event: any) =>
+        if (activeEvents.length > 0) {
+            totalMultiplier = activeEvents.reduce((acc: number, event: any) =>
                 acc * parseFloat(event.multiplier), 1.0
             );
         }
 
         return jsonResponse({
             multiplier: totalMultiplier,
-            events: events || [],
-            hasActiveEvents: events && events.length > 0
+            events: activeEvents,
+            hasActiveEvents: activeEvents.length > 0
         });
     }
 

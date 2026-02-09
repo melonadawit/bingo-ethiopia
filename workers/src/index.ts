@@ -85,6 +85,75 @@ export default {
             return handleAdminRequest(request, env);
         }
 
+        // --- PUBLIC CONFIG ROUTE ---
+        if (url.pathname === '/config/latest') {
+            const { getSupabase } = await import('./utils');
+            const supabase = getSupabase(env);
+            const { data, error } = await supabase!
+                .from('game_configs')
+                .select('*')
+                .eq('is_active', true)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (error || !data) {
+                return jsonResponse({
+                    version: 'v0.0.0',
+                    rules: { ande_zig: { timer: 30, entry_fee: 10 }, hulet_zig: { timer: 45, entry_fee: 20 }, mulu_zig: { timer: 60, entry_fee: 50 } },
+                    features: { chat_enabled: false }
+                });
+            }
+
+            // HARDEN: Filter stale announcements OR announcements for ended events
+            let announcement = data.features?.announcement;
+            if (announcement && announcement.enabled) {
+                const createdAt = new Date(announcement.created_at || data.updated_at || data.created_at);
+                const now = new Date();
+                const ageHours = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+
+                // 1. Time-based stale check (24h)
+                if (ageHours > 24) {
+                    announcement = null;
+                } else if (announcement.action_url) {
+                    const actionUrl = announcement.action_url.toLowerCase();
+
+                    // 2. Logic-based check if announcement is tied to an event/tournament
+                    if (actionUrl.includes('/tournaments')) {
+                        const tid = announcement.action_url.split(/\/tournaments\//i)[1]?.split(/[?#/]/)[0];
+                        if (tid && tid.length > 20) {
+                            const { data: t } = await supabase!.from('public_tournaments_view').select('is_strictly_active').eq('id', tid).single();
+                            if (!t || !t.is_strictly_active) announcement = null;
+                        } else {
+                            const { data: t } = await supabase!.from('public_tournaments_view').select('id').eq('is_strictly_active', true).limit(1);
+                            if (!t || t.length === 0) announcement = null;
+                        }
+                    } else if (actionUrl.includes('/events') || actionUrl.includes('/special-events')) {
+                        const eid = announcement.action_url.split(/\/events\/|\/special-events\//i)[1]?.split(/[?#/]/)[0];
+                        if (eid && eid.length > 20) {
+                            const { data: events } = await supabase!.rpc('get_public_events');
+                            const e = (events || []).find((x: any) => x.id === eid);
+                            if (!e || !e.is_strictly_active) announcement = null;
+                        } else {
+                            const { data: events } = await supabase!.rpc('get_public_events');
+                            const active = (events || []).filter((e: any) => e.is_strictly_active);
+                            if (active.length === 0) announcement = null;
+                        }
+                    }
+                }
+            } else if (announcement && !announcement.enabled) {
+                announcement = null;
+            }
+
+            return jsonResponse({
+                ...data,
+                features: {
+                    ...data.features,
+                    announcement
+                }
+            });
+        }
+
         // Bot webhook
         if (url.pathname === '/bot/webhook') {
             return handleBotWebhook(request, env);
