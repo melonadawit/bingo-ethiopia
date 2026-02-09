@@ -15,7 +15,7 @@ import { FlowManager } from './flowManager';
 import { handleTournaments, handleEvents, handleTournamentCallbacks } from './tournamentHandlers';
 
 // User state tracking
-const userStates = new Map<number, { action: string; data?: any }>();
+const userStates = new Map<number, { action: string; data?: any; flow?: string; stepIndex?: number }>();
 
 export async function handleBotWebhook(request: Request, env: Env): Promise<Response> {
     if (request.method !== 'POST') {
@@ -157,6 +157,7 @@ async function handleCommand(chatId: number, userId: number, text: string, usern
             break;
 
         case '/transactions':
+        case '/history':
         case '📜 Transactions':
             await handleTransactions(chatId, userId, env, supabase);
             break;
@@ -167,6 +168,7 @@ async function handleCommand(chatId: number, userId: number, text: string, usern
             break;
 
         case '/instruction':
+        case '/help':
         case '📘 Instructions':
             await sendMessage(chatId, config.botFlows?.support?.instructions || config.instructions, env);
             break;
@@ -606,7 +608,7 @@ async function handleCallbackQuery(callbackQuery: any, env: Env, supabase: any, 
             if (currentState && currentState.flow) {
                 // Update state with bank selection
                 currentState.data.bank = bankKey;
-                currentState.stepIndex++; // Manually advance since this is a callback, not text input
+                currentState.stepIndex = (currentState.stepIndex || 0) + 1; // Manually advance since this is a callback, not text input
 
                 // Trigger next step via FlowManager
                 const flowManager = new FlowManager();
@@ -628,26 +630,25 @@ async function handleCallbackQuery(callbackQuery: any, env: Env, supabase: any, 
                 // If I updated FlowManager 'bank' handler to accept text matching keys, it would work.
 
                 // Temporary Fix: Manually advance.
-                const sequence = flowManager.getSequence(config, currentState.flow);
+                const sequence = flowManager.getSequence(config, currentState.flow!);
                 if (currentState.stepIndex < sequence.length) {
                     const nextStep = sequence[currentState.stepIndex];
                     // We need context to send prompt
                     await flowManager.sendPrompt({
                         chatId, userId, text: '', userState: currentState, env, config, supabase: null
-                    }, nextStep, currentState.flow);
+                    }, nextStep, currentState.flow!);
 
                     userStates.set(userId, currentState);
                 } else {
                     await flowManager.finalize({
                         chatId, userId, text: '', userState: currentState, env, config, supabase: null
-                    }, currentState.flow, currentState.data);
+                    }, currentState.flow!, currentState.data);
                     userStates.delete(userId);
                 }
             }
             break;
 
-        case 'deposit_bank':
-        case 'withdraw_bank':
+
     }
 }
 

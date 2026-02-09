@@ -5,7 +5,24 @@ import { BotConfig, PAYMENT_CONFIG } from './config';
 
 // Default fallback config (hardcoded values as safety net)
 const DEFAULT_CONFIG: BotConfig = {
-    methods: {}, // Should be populated from DB or empty
+    methods: {
+        telebirr: {
+            name: 'Telebirr',
+            instructions: { am: 'በ Telebirr ወደ 0931503559 ያስገቡ።\n\nያስገቡትን የገንዘብ መጠን: {amount} ብር' }
+        },
+        cbe: {
+            name: 'CBE (Commercial Bank)',
+            instructions: { am: 'በኢትዮጵያ ንግድ ባንክ ወደ 1000326458998 ያስገቡ።\n\nያስገቡትን የገንዘብ መጠን: {amount} ብር' }
+        },
+        awash: {
+            name: 'Awash Bank',
+            instructions: { am: 'በአዋሽ ባንክ ወደ 0132098765432 ያስገቡ።\n\nያስገቡትን የገንዘብ መጠን: {amount} ብር' }
+        },
+        abyssinia: {
+            name: 'Bank of Abyssinia',
+            instructions: { am: 'በአቢሲኒያ ባንክ ወደ 1456789098765 ያስገቡ።\n\nያስገቡትን የገንዘብ መጠን: {amount} ብር' }
+        }
+    },
     prompts: {
         depositAmount: '💰 ማስገባት የሚፈልጉትን መጠን ከ10 ብር ጀምሮ ያስገቡ።',
         selectDepositBank: 'እባክዎት ማስገባት የሚፈልጉበትን ባንክ ይምረጡ።',
