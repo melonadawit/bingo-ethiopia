@@ -44,7 +44,10 @@ export class GameWebSocket {
         this.ws.onmessage = (event) => {
             try {
                 const message = JSON.parse(event.data);
-                console.log('WebSocket message:', message);
+                // CRITICAL DEBUG: Log ALL incoming messages to verify real-time arrival
+                if (message.type !== 'countdown_tick') { // Filter spam if needed, but for now log all
+                    console.log('📥 [RECV] WebSocket message:', message);
+                }
 
                 if (message.type) {
                     this.trigger(message.type, message.data);

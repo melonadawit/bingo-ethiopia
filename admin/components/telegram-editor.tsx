@@ -15,9 +15,10 @@ interface TelegramEditorProps {
     description?: string;
     minHeight?: string;
     variables?: string[];
+    placeholder?: string;
 }
 
-export function TelegramEditor({ value, onChange, label, description, minHeight = "150px", variables }: TelegramEditorProps) {
+export function TelegramEditor({ value, onChange, label, description, minHeight = "150px", variables, placeholder }: TelegramEditorProps) {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [showPreview, setShowPreview] = useState(false);
 
@@ -143,8 +144,15 @@ export function TelegramEditor({ value, onChange, label, description, minHeight 
                     onChange={e => onChange(e.target.value)}
                     className="font-mono text-sm leading-relaxed"
                     style={{ minHeight }}
+                    placeholder={placeholder}
                 />
             )}
+
+
+            {/* Limit Warning */}
+            <div className={`text-[10px] text-right mt-1 ${value.length > 4096 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>
+                {value.length} / 4096
+            </div>
 
             {description && <p className="text-xs text-muted-foreground">{description}</p>}
 
@@ -165,3 +173,4 @@ export function TelegramEditor({ value, onChange, label, description, minHeight 
         </div>
     );
 }
+

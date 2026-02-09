@@ -18,7 +18,8 @@ import {
     Bot,
     Trophy,
     Sparkles,
-    Shield
+    Shield,
+    PanelLeft
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -33,9 +34,9 @@ const sidebarItems = [
     { href: '/finance', label: 'Finance', icon: Wallet },
     { href: '/marketing', label: 'Marketing', icon: Megaphone },
     { href: '/risk', label: 'Risk Console', icon: ShieldAlert },
-    { href: '/tournaments', label: 'Tournaments', icon: Trophy },
+    { href: '/tournaments', label: 'Tournaments & Events', icon: Trophy },
     { href: '/content', label: 'Content Studio', icon: Sparkles },
-    { href: '/settings/bot-studio', label: 'Bot Studio', icon: Bot },
+    { href: '/bot', label: 'Bot Studio', icon: Bot },
     { href: '/settings/team', label: 'Role Manager', icon: Shield },
     { href: '/settings', label: 'Settings', icon: Settings },
 ];
@@ -122,14 +123,18 @@ export default function DashboardLayout({
             {/* Sidebar */}
             <aside
                 className={cn(
-                    "fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 shadow-lg transition-transform duration-200 lg:static lg:translate-x-0",
-                    !isSidebarOpen && "-translate-x-full lg:w-0 lg:overflow-hidden"
+                    "fixed inset-y-0 left-0 z-50 bg-white dark:bg-gray-800 shadow-lg transition-all duration-300 lg:static lg:translate-x-0 border-r border-gray-200 dark:border-gray-800",
+                    isSidebarOpen ? "w-64" : "w-0 lg:w-20 -translate-x-full lg:translate-x-0"
                 )}
             >
                 <div className="flex h-full flex-col">
                     {/* Header */}
-                    <div className="flex h-16 items-center border-b px-6">
-                        <span className="text-xl font-bold text-primary">BingoAdmin</span>
+                    <div className={cn("flex h-16 items-center border-b px-6", !isSidebarOpen && "justify-center px-2")}>
+                        {isSidebarOpen ? (
+                            <span className="text-xl font-bold text-primary">BingoAdmin</span>
+                        ) : (
+                            <span className="text-xl font-bold text-primary">B</span>
+                        )}
                     </div>
 
                     {/* Navigation */}
@@ -149,22 +154,28 @@ export default function DashboardLayout({
                                             : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                                     )}
                                 >
-                                    <Icon className="mr-3 h-5 w-5" />
-                                    {item.label}
+                                    <Icon className={cn("h-5 w-5", isSidebarOpen ? "mr-3" : "mx-auto")} />
+                                    {isSidebarOpen && item.label}
                                 </Link>
                             );
                         })}
                     </nav>
 
                     {/* Footer */}
-                    <div className="border-t p-4">
+                    <div className="border-t p-4 space-y-2">
+                        {isSidebarOpen && (
+                            <div className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded text-xs text-center text-green-600 font-mono">
+                                v2.3
+                            </div>
+                        )}
                         <Button
                             variant="outline"
-                            className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
+                            className={cn("w-full text-red-500 hover:text-red-600 hover:bg-red-50", isSidebarOpen ? "justify-start" : "justify-center px-0")}
                             onClick={handleLogout}
+                            title="Logout"
                         >
-                            <LogOut className="mr-3 h-4 w-4" />
-                            Logout
+                            <LogOut className={cn("h-4 w-4", isSidebarOpen && "mr-3")} />
+                            {isSidebarOpen && "Logout"}
                         </Button>
                     </div>
                 </div>
@@ -178,9 +189,8 @@ export default function DashboardLayout({
                         variant="ghost"
                         size="icon"
                         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                        className="lg:hidden"
                     >
-                        {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                        {isSidebarOpen ? <PanelLeft className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                     </Button>
                     <div className="flex items-center space-x-4">
                         <NotificationsPopover />

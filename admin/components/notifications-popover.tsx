@@ -6,22 +6,42 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
+import { useQuery } from '@tanstack/react-query';
+import { fetchAdmin } from '@/lib/api';
 
-const MOCK_NOTIFS = [
-    { id: 1, type: 'risk', title: 'High Risk Activity', desc: 'User @alex_j triggered a win-anomaly flag.', time: '2m ago', read: false },
-    { id: 2, type: 'ticket', title: 'New Support Ticket', desc: 'Deposit issue reported by @helen_r.', time: '15m ago', read: false },
-    { id: 3, type: 'finance', title: 'Large Withdrawal', desc: '50,000 ETB withdrawal requires approval.', time: '1h ago', read: true },
-    { id: 4, type: 'system', title: 'Backup Completed', desc: 'Daily database backup successful.', time: '4h ago', read: true },
-]
 
 export function NotificationsPopover() {
-    const [open, setOpen] = React.useState(false)
-    const [notifs, setNotifs] = React.useState(MOCK_NOTIFS)
-    const unreadCount = notifs.filter(n => !n.read).length
+
+    // Use TanStack Query
+    const { data: serverNotifs = [] } = useQuery({
+        queryKey: ['admin-notifications'],
+        queryFn: async () => {
+            const res = await fetchAdmin('/notifications');
+            return res.notifications || [];
+        },
+        refetchInterval: 10000,
+    });
+
+    const [open, setOpen] = React.useState(false);
+    const [localNotifs, setLocalNotifs] = React.useState<any[]>([]);
+
+    // Sync server data to local state (to allow "marking as read" locally)
+    React.useEffect(() => {
+        if (serverNotifs.length > 0) {
+            setLocalNotifs(prev => {
+                // Merge new items
+                const newItems = serverNotifs.filter((n: any) => !prev.find(p => p.id === n.id));
+                return [...newItems, ...prev].slice(0, 50); // Keep last 50
+            });
+        }
+    }, [serverNotifs]);
+
+    const notifs = localNotifs;
+    const unreadCount = notifs.filter(n => !n.read).length;
 
     const markAllRead = () => {
-        setNotifs(notifs.map(n => ({ ...n, read: true })))
-    }
+        setLocalNotifs(notifs.map(n => ({ ...n, read: true })));
+    };
 
     const getIcon = (type: string) => {
         switch (type) {
@@ -30,7 +50,7 @@ export function NotificationsPopover() {
             case 'finance': return <CreditCard className="h-4 w-4 text-green-500" />;
             default: return <Bell className="h-4 w-4 text-gray-500" />;
         }
-    }
+    };
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -90,5 +110,5 @@ export function NotificationsPopover() {
                 </ScrollArea>
             </PopoverContent>
         </Popover>
-    )
+    );
 }

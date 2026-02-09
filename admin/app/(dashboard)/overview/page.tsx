@@ -8,22 +8,9 @@ import { cn } from "@/lib/utils";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Bar, BarChart } from 'recharts';
 import { motion } from 'framer-motion';
 
-const MOCK_AREA_DATA = [
-    { time: '00:00', revenue: 4000, traffic: 240 },
-    { time: '04:00', revenue: 3000, traffic: 139 },
-    { time: '08:00', revenue: 2000, traffic: 980 },
-    { time: '12:00', revenue: 2780, traffic: 390 },
-    { time: '16:00', revenue: 1890, traffic: 480 },
-    { time: '20:00', revenue: 2390, traffic: 380 },
-    { time: '24:00', revenue: 3490, traffic: 430 },
-];
+// MOCK_AREA_DATA removed to enforce real data usage
 
-const SERVER_NODES = [
-    { id: 'SVR-01', location: 'Addis Ababa', status: 'online', load: 45, users: 1240 },
-    { id: 'SVR-02', location: 'Adama', status: 'high_load', load: 88, users: 890 },
-    { id: 'SVR-03', location: 'Hawassa', status: 'online', load: 32, users: 450 },
-    { id: 'DB-01', location: 'Primary DB', status: 'online', load: 12, users: 0 },
-];
+// SERVER_NODES removed
 
 export default function OverviewPage() {
     const { data, isLoading } = useQuery<OverviewStats>({
@@ -38,7 +25,7 @@ export default function OverviewPage() {
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                 <div>
                     <h1 className="text-4xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white to-white/50">
-                        MISSION CONTROL
+                        MISSION CONTROL (LIVE)
                     </h1>
                     <p className="text-muted-foreground font-mono text-xs uppercase tracking-widest mt-1">
                         System Status: <span className="text-green-500 animate-pulse">OPTIMAL</span>
@@ -60,7 +47,7 @@ export default function OverviewPage() {
             <div className="grid gap-4 md:grid-cols-4">
                 <MetricCard
                     title="Active Players"
-                    value={data?.totalUsers || '2,543'}
+                    value={data?.totalUsers?.toLocaleString() || '0'}
                     trend="+12%"
                     trendUp={true}
                     icon={Users}
@@ -69,7 +56,7 @@ export default function OverviewPage() {
                 />
                 <MetricCard
                     title="Realtime Revenue"
-                    value={`ETB ${data?.totalRevenue || '45.2k'}`}
+                    value={`ETB ${data?.totalRevenue?.toLocaleString() || '0'}`}
                     trend="+8.4%"
                     trendUp={true}
                     icon={Coins}
@@ -78,7 +65,7 @@ export default function OverviewPage() {
                 />
                 <MetricCard
                     title="Games Running"
-                    value={data?.totalGames || '142'}
+                    value={data?.totalGames?.toString() || '0'}
                     trend="-2%"
                     trendUp={false}
                     icon={Gamepad2}
@@ -109,63 +96,20 @@ export default function OverviewPage() {
                             </div>
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="h-[300px] min-h-[300px]">
-                        <div style={{ width: '100%', height: '100%' }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={MOCK_AREA_DATA}>
-                                    <defs>
-                                        <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <XAxis dataKey="time" stroke="#525252" fontSize={12} tickLine={false} axisLine={false} />
-                                    <YAxis stroke="#525252" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `ETB ${value}`} />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: '#000', border: '1px solid #333', borderRadius: '8px' }}
-                                        itemStyle={{ color: '#fff' }}
-                                    />
-                                    <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorRev)" />
-                                </AreaChart>
-                            </ResponsiveContainer>
+                    <CardContent className="h-[300px] min-h-[300px] p-0">
+                        <div className="w-full h-full flex items-center justify-center">
+                            {/* In a real app, this chart data should come from /stats/analytics. 
+                                For this "Overview" widget, we might not have the historical series 
+                                unless we fetch it. Changing to use data?.history or empty state. */}
+                            <div className="text-white/30 text-sm">
+                                No real-time revenue history available yet.
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
 
                 {/* Server Matrix (Right) */}
-                <Card className="col-span-3 bg-black/40 border-white/10 backdrop-blur-xl shadow-2xl">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Server className="w-5 h-5 text-indigo-400" />
-                            Infrastructure Status
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {SERVER_NODES.map((node) => (
-                            <div key={node.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5 hover:border-white/10 transition-colors">
-                                <div className="flex items-center gap-3">
-                                    <div className={cn(
-                                        "w-2 h-2 rounded-full shadow-[0_0_8px]",
-                                        node.status === 'online' ? "bg-green-500 shadow-green-500/50" : "bg-red-500 shadow-red-500/50 animate-pulse"
-                                    )} />
-                                    <div>
-                                        <div className="text-sm font-bold text-white">{node.location}</div>
-                                        <div className="text-[10px] text-muted-foreground font-mono">{node.id}</div>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <div className="text-xs font-mono text-white/80">{node.load}% Load</div>
-                                    <div className="w-24 h-1 bg-white/10 rounded-full mt-1 overflow-hidden">
-                                        <div
-                                            className={cn("h-full rounded-full transition-all duration-1000", node.load > 80 ? 'bg-red-500' : 'bg-blue-500')}
-                                            style={{ width: `${node.load}%` }}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </CardContent>
-                </Card>
+                {/* Server Matrix Removed (Mock Data) */}
             </div>
         </div>
     );

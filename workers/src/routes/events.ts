@@ -9,18 +9,30 @@ export async function handleEventRoutes(request: Request, env: Env): Promise<Res
 
     // GET /events/active
     if (url.pathname === '/events/active' && request.method === 'GET') {
-        const { data, error } = await supabase.rpc('get_active_events');
+        const { data, error } = await supabase.rpc('get_public_events');
 
         if (error) {
             return jsonResponse({ error: error.message }, 500);
         }
 
-        return jsonResponse({ events: data || [] });
+        const now = new Date();
+        const events = (data || []).map((e: any) => {
+            const startTime = new Date(e.start_time);
+            const endTime = new Date(e.end_time);
+            const isActive = e.status === 'active' && now >= startTime && now <= endTime;
+
+            return {
+                ...e,
+                is_active: isActive
+            };
+        });
+
+        return jsonResponse({ events });
     }
 
     // POST /events/join
     if (url.pathname === '/events/join' && request.method === 'POST') {
-        const { eventId, userId } = await request.json();
+        const { eventId, userId } = await request.json() as { eventId: string, userId: string };
 
         if (!eventId || !userId) {
             return jsonResponse({ error: 'Missing eventId or userId' }, 400);
@@ -36,6 +48,32 @@ export async function handleEventRoutes(request: Request, env: Env): Promise<Res
 
         if (existing) {
             return jsonResponse({ error: 'Already joined this event' }, 400);
+        }
+
+        // Check event exists and is active
+        const { data: event } = await supabase
+            .from('special_events')
+            .select('*')
+            .eq('id', eventId)
+            .single();
+
+        if (!event) {
+            return jsonResponse({ error: 'Event not found' }, 404);
+        }
+
+        // STRICT TIME CHECK
+        const now = new Date();
+        const startTime = new Date(event.start_time);
+        const endTime = new Date(event.end_time);
+
+        if (now < startTime) {
+            return jsonResponse({ error: 'Event has not started yet' }, 403);
+        }
+        if (now > endTime) {
+            return jsonResponse({ error: 'Event has already ended' }, 403);
+        }
+        if (event.status !== 'active') {
+            return jsonResponse({ error: 'Event is not in active state' }, 403);
         }
 
         // Join event
@@ -57,20 +95,27 @@ export async function handleEventRoutes(request: Request, env: Env): Promise<Res
 
     // GET /events/check-multiplier
     if (url.pathname === '/events/check-multiplier' && request.method === 'GET') {
-        const { data: events } = await supabase.rpc('get_active_events');
+        const { data: events } = await supabase.rpc('get_public_events');
+        const now = new Date();
 
         let totalMultiplier = 1.0;
-        if (events && events.length > 0) {
+        const activeEvents = (events || []).filter((e: any) => {
+            const startTime = new Date(e.start_time);
+            const endTime = new Date(e.end_time);
+            return e.status === 'active' && now >= startTime && now <= endTime;
+        });
+
+        if (activeEvents.length > 0) {
             // Multiply all active event multipliers
-            totalMultiplier = events.reduce((acc: number, event: any) =>
+            totalMultiplier = activeEvents.reduce((acc: number, event: any) =>
                 acc * parseFloat(event.multiplier), 1.0
             );
         }
 
         return jsonResponse({
             multiplier: totalMultiplier,
-            events: events || [],
-            hasActiveEvents: events && events.length > 0
+            events: activeEvents,
+            hasActiveEvents: activeEvents.length > 0
         });
     }
 

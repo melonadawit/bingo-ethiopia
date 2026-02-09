@@ -5,6 +5,8 @@ import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { Shield, Zap, User, DollarSign, Trophy, Minus, Maximize2, X, GripHorizontal, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useQuery } from '@tanstack/react-query';
+import { fetchAdmin } from '@/lib/api';
 
 interface Event {
     id: string;
@@ -13,35 +15,29 @@ interface Event {
     timestamp: Date;
 }
 
-const MOCK_EVENTS = [
-    { type: 'JOIN', message: 'User @alex_j joined the lobby' },
-    { type: 'WIN', message: 'BigWin: 500 ETB payout triggered' },
-    { type: 'RISK', message: 'Anomaly detected: Win rate > 80%' },
-    { type: 'INFO', message: 'Tournament "Friday Night" auto-started' },
-    { type: 'WIN', message: 'Jackpot accumulator increased to 50,000' },
-];
 
 export function LiveFeed() {
-    const [events, setEvents] = useState<Event[]>([]);
+
+    // Use TanStack Query
+    const { data: events = [] } = useQuery({
+        queryKey: ['admin-feed'],
+        queryFn: async () => {
+            const res = await fetchAdmin('/feed');
+            // Map backend format to UI format if needed
+            // Backend returns { events: [{id, type, message, timestamp}]}
+            // We need to parse timestamp
+            return (res.events || []).map((e: any) => ({
+                ...e,
+                timestamp: new Date(e.timestamp)
+            }));
+        },
+        refetchInterval: 5000,
+    });
+
     const [isMinimized, setIsMinimized] = useState(false);
     const [isMaximized, setIsMaximized] = useState(false);
     const [isVisible, setIsVisible] = useState(true);
     const constraintsRef = useRef(null);
-
-    // Mock WebSocket simulation
-    useEffect(() => {
-        const interval = setInterval(() => {
-            const randomEvent = MOCK_EVENTS[Math.floor(Math.random() * MOCK_EVENTS.length)];
-            const newEvent: Event = {
-                id: Math.random().toString(36).substr(2, 9),
-                type: randomEvent.type as any,
-                message: randomEvent.message,
-                timestamp: new Date()
-            };
-            setEvents(prev => [newEvent, ...prev].slice(0, isMaximized ? 20 : 5));
-        }, 2000);
-        return () => clearInterval(interval);
-    }, [isMaximized]);
 
     const getIcon = (type: string) => {
         switch (type) {
@@ -101,7 +97,7 @@ export function LiveFeed() {
             {!isMinimized && (
                 <div className="flex-1 overflow-y-auto p-3 space-y-2 relative font-mono scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
                     <AnimatePresence initial={false}>
-                        {events.map((event) => (
+                        {events.map((event: any) => (
                             <motion.div
                                 key={event.id}
                                 initial={{ opacity: 0, x: -10 }}
@@ -136,4 +132,3 @@ export function LiveFeed() {
         </motion.div>
     );
 }
-

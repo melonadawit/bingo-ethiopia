@@ -49,7 +49,11 @@ export default function UsersPage() {
 
     const { data: users, isLoading } = useQuery<User[]>({
         queryKey: ['admin-users', search],
-        queryFn: () => fetchAdmin(`/users?q=${search}`),
+        queryFn: async () => {
+            const res = await fetchAdmin(`/users?q=${search}`);
+            // If API returns { users: [] } wrapper, handle it. currently returns array directly.
+            return Array.isArray(res) ? res : (res.users || []);
+        },
     });
 
     // Mock Segmentation (Client-side for demo)

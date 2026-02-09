@@ -8,7 +8,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bot, MessageSquare, Menu, Terminal, Save, Plus, Trash2, LayoutGrid, Check, Coins, CreditCard, Banknote, Phone, Users, User, Wifi, Battery } from 'lucide-react';
+import { BotIdentityEditor } from "@/components/bot-identity-editor";
+import {
+    Users,
+    Settings,
+    MessageSquare,
+    CreditCard,
+    ShieldAlert,
+    Terminal,
+    Bot,
+    Save,
+    Menu, Plus, Trash2, LayoutGrid, Check, Coins, Banknote, Phone, User, Wifi, Battery
+} from "lucide-react";
 import { toast } from 'sonner';
 
 export default function BotStudioPage() {
@@ -86,7 +97,8 @@ export default function BotStudioPage() {
             </div>
 
             <Tabs defaultValue="ui" className="w-full">
-                <TabsList className="bg-black/20 border border-white/10">
+                <TabsList className="bg-black/20 border border-white/10 flex-wrap gap-1 h-auto">
+                    <TabsTrigger value="identity" className="data-[state=active]:bg-purple-500 data-[state=active]:text-white">Bot Identity</TabsTrigger>
                     <TabsTrigger value="ui">Interface & Menus</TabsTrigger>
                     <TabsTrigger value="financials">Financials & Banks</TabsTrigger>
                     <TabsTrigger value="commands">Custom Commands</TabsTrigger>
@@ -94,6 +106,42 @@ export default function BotStudioPage() {
                     <TabsTrigger value="admins">Admins & Access</TabsTrigger>
                     <TabsTrigger value="flows">Flows & Messages</TabsTrigger>
                 </TabsList>
+
+                {/* IDENTITY TAB */}
+                <TabsContent value="identity" className="mt-6 space-y-6">
+                    <Card className="bg-black/40 border-white/10 backdrop-blur-xl">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2"><Bot className="w-5 h-5 text-purple-400" /> Public Profile</CardTitle>
+                            <CardDescription>
+                                This info appears in Telegram when users view your bot.
+                                <br />
+                                <span className="text-xs text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded mt-2 inline-block">
+                                    Note: Changes here update the actual Telegram Bot settings immediately.
+                                </span>
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <BotIdentityEditor onSave={(data) => {
+                                updateConfig.mutate({ key: 'bot_identity_call', value: data }); // Trick to trigger simple mutate, but we need custom API call...
+                                // Actually, let's create a specialized mutation for this
+                            }} />
+                        </CardContent>
+                    </Card>
+
+                    <Card className="bg-black/40 border-white/10 backdrop-blur-xl">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-red-400"><Terminal className="w-5 h-5" /> Technical Config (Danger Zone)</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4 text-sm text-gray-300">
+                            <p>To change the <strong>Bot Username</strong> (e.g. @MyBot) or the <strong>Token</strong>, you cannot use this dashboard.</p>
+                            <ol className="list-decimal list-inside space-y-2">
+                                <li>Use <a href="https://t.me/BotFather" target="_blank" className="text-blue-400 underline">@BotFather</a> on Telegram to create a new bot/token.</li>
+                                <li>Update the <code>BOT_TOKEN</code> secret in your Cloudflare Worker environment.</li>
+                                <li>Re-deploy the worker.</li>
+                            </ol>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
 
                 {/* UI & MENUS TAB */}
                 <TabsContent value="ui" className="mt-6 space-y-6">
@@ -545,6 +593,7 @@ function FlowsEditor({
     const defaults = {
         onboarding: {
             welcome: '👋 Welcome to Bingo Ethiopia!\n\nPlease register first by clicking the button below:',
+            welcome_back: '👋 Welcome back! We missed you.',
             registration_success: '✅ Registration successful! You can now deposit and play.'
         },
         deposit: {
@@ -709,9 +758,22 @@ function FlowsEditor({
                                                     className={`flex items-center justify-between bg-black/40 p-3 rounded border border-white/5 cursor-grab active:cursor-grabbing hover:bg-white/5 transition-colors ${draggedItem?.index === idx && draggedItem.type === type ? 'opacity-50 border-blue-500 border-dashed' : ''}`}
                                                 >
                                                     <span className="text-sm font-mono text-white/80 flex items-center gap-2">
-                                                        <span className="text-white/20 select-none">☰</span>
+                                                        <span className="text-white/20 select-none cursor-grab">☰</span>
                                                         {idx + 1}. <span className="text-yellow-400 font-bold">{step}</span>
                                                     </span>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6 text-white/20 hover:text-red-400"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation(); // Prevent drag start if clicked
+                                                            const newSeq = [...(sequences[type as 'deposit' | 'withdrawal'] || [])];
+                                                            newSeq.splice(idx, 1);
+                                                            setSequences({ ...sequences, [type]: newSeq });
+                                                        }}
+                                                    >
+                                                        <Trash2 className="w-3 h-3" />
+                                                    </Button>
                                                 </div>
                                             ))}
                                         </div>

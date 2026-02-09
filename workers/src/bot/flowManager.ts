@@ -36,27 +36,50 @@ export class FlowManager {
 
             if (flowType === 'deposit') {
                 if (amount < limits.minDeposit)
-                    return { success: false, errorMsg: config.botFlows?.deposit?.invalid_amount?.replace('{min}', limits.minDeposit.toString()) || `Min: ${limits.minDeposit}` };
+                    // return { success: false, errorMsg: config.botFlows?.deposit?.invalid_amount?.replace('{min}', limits.minDeposit.toString()) || `Min: ${limits.minDeposit}` };
+                    return { success: false, errorMsg: `❌ Invalid Amount. Min: ${limits.minDeposit}` }; // Fallback, though config should have it
             } else if (flowType === 'withdrawal') {
                 if (amount < limits.minWithdrawal)
-                    return { success: false, errorMsg: config.botFlows?.withdrawal?.min_error?.replace('{min}', limits.minWithdrawal.toString()) };
+                    return { success: false, errorMsg: config.prompts.withdrawMinError.replace('{min}', limits.minWithdrawal.toString()) };
                 if (amount > limits.maxWithdrawal)
-                    return { success: false, errorMsg: config.botFlows?.withdrawal?.max_error?.replace('{max}', limits.maxWithdrawal.toString()) };
+                    return { success: false, errorMsg: config.prompts.withdrawMaxError.replace('{max}', limits.maxWithdrawal.toString()) };
 
-                // TODO: Balance check could be here if we had user balance in context
+                // BALANCE CHECK
+                try {
+                    const { data: user, error } = await ctx.supabase
+                        .from('users')
+                        .select('balance')
+                        .eq('telegram_id', ctx.userId)
+                        .single();
+
+                    if (error || !user) {
+                        console.error('Balance check failed:', error);
+                        return { success: false, errorMsg: '❌ System error checking balance. Please try again.' };
+                    }
+
+                    if (user.balance < amount) {
+                        return {
+                            success: false,
+                            errorMsg: config.prompts.withdrawBalanceError
+                                .replace('{balance}', user.balance.toString())
+                                .replace('{amount}', amount.toString())
+                        };
+                    }
+                } catch (err) {
+                    console.error('Balance check exception:', err);
+                    return { success: false, errorMsg: '❌ System error. Please try again.' };
+                }
             }
             return { success: true, data: { amount } };
         },
 
         'bank': async (ctx) => {
-            // Usually handled by callback, but if text matches a bank name, allow it?
-            // For now, assume this step expects a button click which comes in as text via specialized handler or just fails text.
             return { success: false, errorMsg: 'Please select a bank from the menu.' };
         },
 
         'phone': async (ctx) => {
             if (ctx.text.length < 9) return { success: false, errorMsg: '❌ Invalid phone number.' };
-            return { success: true, data: { phone: ctx.text, account: ctx.text } }; // Store in both for compatibility
+            return { success: true, data: { phone: ctx.text, account: ctx.text } };
         },
 
         'account': async (ctx) => {
@@ -64,21 +87,18 @@ export class FlowManager {
             const bank = userState.data.bank || '';
             const isMobile = bank.toLowerCase().includes('telebirr') ||
                 bank.toLowerCase().includes('m-pesa') ||
-                bank.toLowerCase().includes('cbe birr'); // Basic detection
+                bank.toLowerCase().includes('cbe birr');
 
-            // Mobile Money Validation
             if (isMobile) {
                 if (ctx.text.length < 9) return { success: false, errorMsg: '❌ Invalid phone number format.' };
                 return { success: true, data: { phone: ctx.text, account: ctx.text } };
             }
 
-            // Bank Account Validation
             if (ctx.text.length < 5) return { success: false, errorMsg: '❌ Invalid account number.' };
             return { success: true, data: { account: ctx.text } };
         },
 
         'receipt': async (ctx) => {
-            // Accept any text or assumes helper extracted photo file_id/url
             return { success: true, data: { receipt: ctx.text } };
         }
     };
@@ -89,17 +109,12 @@ export class FlowManager {
         if (sequence.length === 0) return null;
 
         const firstStep = sequence[0];
-
-        // Initial State
         const newState = {
             flow: flowType,
             stepIndex: 0,
             data: {}
         };
-
-        // Send Prompt
         await this.sendPrompt(ctx, firstStep, flowType);
-
         return newState;
     }
 
@@ -107,38 +122,31 @@ export class FlowManager {
     async handleInput(ctx: StepContext): Promise<any> {
         const { userState, config } = ctx;
         const sequence = this.getSequence(config, userState.flow);
-
-        // Safety check
         if (!sequence || userState.stepIndex >= sequence.length) return null;
 
         const currentStepId = sequence[userState.stepIndex];
         const handler = this.handlers[currentStepId];
 
-        // 1. VALIDATE/PROCESS INPUT
         if (handler) {
             const result = await handler(ctx);
             if (!result.success) {
                 await sendMessage(ctx.chatId, result.errorMsg || 'Invalid input', ctx.env);
-                return userState; // Return same state to retry
+                return userState;
             }
-            // Merge data
             userState.data = { ...userState.data, ...result.data };
+        } else {
+            userState.data = { ...userState.data, [currentStepId]: ctx.text };
         }
 
-        // 2. ADVANCE TO NEXT STEP
         const nextIndex = userState.stepIndex + 1;
-
         if (nextIndex < sequence.length) {
             const nextStepId = sequence[nextIndex];
-            userState.stepIndex = nextIndex; // Update index
-
-            // Send Next Prompt
+            userState.stepIndex = nextIndex;
             await this.sendPrompt(ctx, nextStepId, userState.flow);
             return userState;
         } else {
-            // 3. FINALIZE FLOW
             await this.finalize(ctx, userState.flow, userState.data);
-            return null; // Clear state
+            return null;
         }
     }
 
@@ -151,25 +159,16 @@ export class FlowManager {
             return;
         }
 
-        // Specific Logic: If Deposit Bank is selected, show instructions!
-        // The 'bank' step implies SELECTION. The NEXT step might be 'receipt'.
-        // If the previous step was 'bank', we might need to show instructions now.
-        // ACTUALLY: The standard flow is -> Bank Select -> Show Info -> Ask Receipt.
-        // We can model "Show Info" as part of the prompt for "receipt" OR as a distinct step?
-        // Let's assume 'receipt' step prompts with the bank info.
-
-        let sentText = '';
-
         if (stepId === 'receipt' && userState?.data?.bank) {
             const methodKey = userState.data.bank;
             const method = config.methods[methodKey];
             const amount = userState.data.amount || 0;
             if (method) {
+                // Use bank-specific instructions directly (now includes full text from admin dashboard)
                 const instruction = method.instructions['am'].replace('{amount}', amount.toString());
                 await sendMessage(chatId, instruction, env);
-                // And then wait for receipt...
-                // implicit prompt "Please send receipt"
             }
+            return;
         }
 
         const promptText = this.getPromptText(config, flowType, stepId, userState);
@@ -186,30 +185,22 @@ export class FlowManager {
     }
 
     // HELPER: Get Prompt Text
-    // Now accepts ctx or userState to make decisions
     getPromptText(config: BotConfig, flow: string, step: string, userState?: any): string | null {
-        const flows = config.botFlows;
-        if (!flows) return `Enter ${step}`;
-
-        // Smart Logic for 'account' step
-        if (step === 'account' && userState?.data?.bank) {
-            const bank = userState.data.bank.toLowerCase();
-            const isMobile = bank.includes('telebirr') || bank.includes('m-pesa') || bank.includes('cbe birr');
-
-            if (isMobile) {
-                return flows.withdrawal?.prompt_phone || 'Please enter your phone number:';
-            }
-            // For standard banks, fall through to default 'prompt_account'
-        }
+        // Use New Standard Prompts
+        const p = config.prompts;
 
         if (flow === 'deposit') {
-            // @ts-ignore
-            return flows.deposit[`prompt_${step}`] || flows.deposit.prompt_amount;
+            if (step === 'amount') return p.depositAmount;
         }
 
         if (flow === 'withdrawal') {
-            // @ts-ignore
-            return flows.withdrawal[`prompt_${step}`] || flows.withdrawal.prompt_amount;
+            if (step === 'amount') return p.withdrawAmount;
+
+            if (step === 'account') {
+                const bank = userState?.data?.bank?.toLowerCase() || '';
+                const isMobile = bank.includes('telebirr') || bank.includes('m-pesa') || bank.includes('cbe birr');
+                return isMobile ? p.enterPhone : p.enterAccount;
+            }
         }
 
         return `Please enter ${step}`;
@@ -217,20 +208,20 @@ export class FlowManager {
 
     // HELPER: Bank Selection
     async sendBankSelection(ctx: StepContext, flowType: string) {
-        // Implement inline keyboard logic here
         const config = ctx.config;
-        const banks = Object.keys(config.methods).map(key => ({
-            text: `🏦 ${config.methods[key].name}`,
-            callback_data: `bank_select:${key}` // New generic callback format
-        }));
+        const banks = Object.keys(config.methods)
+            .filter(key => config.methods[key].enabled) // [FIX] Filter enabled only
+            .map(key => ({
+                text: `🏦 ${config.methods[key].name}`,
+                callback_data: `bank_select:${key}`
+            }));
 
-        // Chunking...
         const keyboard = [];
         for (let i = 0; i < banks.length; i += 2) {
             keyboard.push(banks.slice(i, i + 2));
         }
 
-        const prompt = flowType === 'deposit' ? config.botFlows?.deposit?.prompt_bank : config.botFlows?.withdrawal?.prompt_bank;
+        const prompt = flowType === 'deposit' ? config.prompts.selectDepositBank : config.prompts.selectWithdrawBank;
 
         await sendMessage(ctx.chatId, prompt || 'Select Bank', ctx.env, {
             inline_keyboard: keyboard
@@ -249,27 +240,131 @@ export class FlowManager {
     async createDeposit(ctx: StepContext, data: any) {
         const { supabase, userId, env, config, chatId } = ctx;
         const refCode = generateRefCode('DEP');
+        const amount = parseFloat(data.amount);
 
         const { data: payment, error } = await supabase.from('payment_requests').insert({
             user_id: userId,
             type: 'deposit',
-            amount: data.amount,
+            amount: amount,
             status: 'pending',
             reference_code: refCode,
             screenshot_url: data.receipt || 'Text Receipt',
-            // bank: data.bank // Should add bank column or metadata
+            payment_method: data.bank // Map bank to payment_method
         }).select().single();
 
         if (!error) {
-            await sendMessage(chatId, config.botFlows?.deposit?.pending_message || '✅ Pending...', env, getMainKeyboard(userId, config));
-            // Notify Admin (omitted for brevity, can call shared notify function)
+            await sendMessage(chatId, config.prompts.depositPending, env, getMainKeyboard(userId, config));
+
+            // NOTIFY ADMIN
+            await this.notifyAdmin(ctx, 'deposit', {
+                amount: amount,
+                bank: data.bank,
+                ref: refCode,
+                user: ctx.userState?.username || userId,
+                receipt: data.receipt
+            });
         } else {
-            await sendMessage(chatId, '❌ Server Error', env);
+            console.error('Deposit DB Error:', error);
+            // DEBUG: Show actual error to user
+            await sendMessage(chatId, `❌ System Error: ${error.message || JSON.stringify(error)}`, env);
         }
     }
 
     async createWithdrawal(ctx: StepContext, data: any) {
-        // ... Similar logic ...
-        await sendMessage(ctx.chatId, '✅ Withdrawal Request Sent!', ctx.env);
+        const { supabase, userId, env, config, chatId } = ctx;
+        const refCode = generateRefCode('WTH');
+        const amount = parseFloat(data.amount);
+        const bank = data.bank || 'Unknown';
+        const account = data.account || data.phone || 'Unknown';
+
+        // 1. Insert into DB (Pending)
+        const { data: payment, error } = await supabase.from('payment_requests').insert({
+            user_id: userId,
+            type: 'withdraw',
+            amount: amount,
+            status: 'pending',
+            reference_code: refCode,
+            payment_method: bank,
+            bank_account_number: account,
+            telebirr_phone: data.phone || null // Ensure null if undefined
+        }).select().single();
+
+        if (!error) {
+            // 2. Notify User 
+            await sendMessage(chatId, config.prompts.withdrawPending, env, getMainKeyboard(userId, config));
+
+            // 3. NOTIFY ADMIN
+            await this.notifyAdmin(ctx, 'withdraw', {
+                amount: amount,
+                bank: bank,
+                account: account,
+                ref: refCode,
+                user: ctx.userState?.username || userId
+            });
+
+        } else {
+            console.error('Withdrawal DB Error:', error);
+            // DEBUG: Show actual error to user
+            await sendMessage(chatId, `❌ System Error: ${error.message || JSON.stringify(error)}`, env);
+        }
+    }
+
+    // HELPER: Notify Admin
+    async notifyAdmin(ctx: StepContext, type: 'deposit' | 'withdraw', info: any) {
+        const { env, config } = ctx;
+        // Use Env var OR Config Admin IDs
+        const adminIds: (number | string)[] = [];
+
+        if (env.TELEGRAM_ADMIN_CHAT_ID) adminIds.push(env.TELEGRAM_ADMIN_CHAT_ID);
+
+        if (config.adminIds && Array.isArray(config.adminIds)) {
+            config.adminIds.forEach(id => {
+                if (!adminIds.includes(id)) adminIds.push(id);
+            });
+        }
+
+        if (adminIds.length === 0) {
+            console.warn('⚠️ No Admin IDs found. Notification skipped.');
+            return;
+        }
+
+        const emoji = type === 'deposit' ? '💰' : '💸';
+        const title = type === 'deposit' ? 'NEW DEPOSIT' : 'NEW WITHDRAWAL';
+
+        let message = `<b>${emoji} ${title} ALERT</b>\n\n`;
+        message += `👤 <b>User:</b> ${info.user}\n`;
+        message += `💵 <b>Amount:</b> ${info.amount} ETB\n`;
+        message += `🏦 <b>Bank:</b> ${info.bank}\n`;
+        message += `🔖 <b>Ref:</b> <code>${info.ref}</code>\n`;
+
+        if (type === 'withdraw') {
+            message += `🔢 <b>Account:</b> <code>${info.account}</code>\n`;
+        }
+
+        // Add Approve/Decline Buttons (Callback Data)
+        const keyboard = {
+            inline_keyboard: [
+                [
+                    { text: '✅ Approve', callback_data: `admin:approve:${info.ref}` },
+                    { text: '❌ Decline', callback_data: `admin:decline:${info.ref}` }
+                ]
+            ]
+        };
+
+        // Send to ALL admins
+        for (const adminId of adminIds) {
+            try {
+                // If deposit has a receipt image, send photo
+                if (type === 'deposit' && info.receipt && info.receipt.startsWith('http')) {
+                    await import('./utils').then(u => u.sendPhoto(Number(adminId), info.receipt, message, env, keyboard));
+                } else if (type === 'deposit' && info.receipt) {
+                    await sendMessage(Number(adminId), message + `\n📄 <b>Receipt:</b> ${info.receipt}`, env, keyboard);
+                } else {
+                    await sendMessage(Number(adminId), message, env, keyboard);
+                }
+            } catch (err) {
+                console.error(`Failed to notify admin ${adminId}:`, err);
+            }
+        }
     }
 }

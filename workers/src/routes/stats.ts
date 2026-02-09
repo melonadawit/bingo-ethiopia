@@ -7,7 +7,10 @@ export async function handleStatsRoutes(request: Request, env: Env): Promise<Res
     const url = new URL(request.url);
     const supabase = getSupabase(env);
 
-    const path = url.pathname.replace('/api/stats', '').replace('/stats', '');
+    const path = url.pathname
+        .replace('/api/stats', '')
+        .replace('/stats', '')
+        .replace('/api/leaderboard', '/leaderboard'); // Normnalize to /leaderboard
 
     // GET /user - Get user game statistics for wallet (mapped from /stats/user)
     if (path === '/user' && request.method === 'GET') {

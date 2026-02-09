@@ -25,6 +25,19 @@ export default function SettingsPage() {
     const [chatEnabled, setChatEnabled] = useState(false);
     const [signupEnabled, setSignupEnabled] = useState(true);
     const [gameTimer, setGameTimer] = useState(30);
+    const [announcement, setAnnouncement] = useState<any>({
+        enabled: false,
+        id: '',
+        title: '',
+        message: '',
+        image_url: '',
+        action_text: '',
+        action_url: ''
+    });
+
+    const updateAnnouncement = (key: string, value: any) => {
+        setAnnouncement((prev: any) => ({ ...prev, [key]: value }));
+    };
 
     const { data: currentConfig, isLoading } = useQuery({
         queryKey: ['admin-config'],
@@ -41,7 +54,11 @@ export default function SettingsPage() {
             setMaintenanceMode(features?.maintenance_mode || false);
             setChatEnabled(features?.chat_enabled || false);
             setSignupEnabled(features?.signup_enabled !== false);
+            setSignupEnabled(features?.signup_enabled !== false);
             setGameTimer(rules?.ande_zig?.timer || 30);
+            if (features?.announcement) {
+                setAnnouncement(features.announcement);
+            }
         }
     }, [currentConfig]);
 
@@ -58,7 +75,13 @@ export default function SettingsPage() {
                 } else {
                     // Update from Visuals
                     const current = JSON.parse(configJson);
-                    features = { ...current.features, maintenance_mode: maintenanceMode, chat_enabled: chatEnabled, signup_enabled: signupEnabled };
+                    features = {
+                        ...current.features,
+                        maintenance_mode: maintenanceMode,
+                        chat_enabled: chatEnabled,
+                        signup_enabled: signupEnabled,
+                        announcement: announcement
+                    };
                     rules = { ...current.rules, ande_zig: { ...current.rules?.ande_zig, timer: gameTimer } };
                 }
 
@@ -162,32 +185,44 @@ export default function SettingsPage() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <Timer className="w-5 h-5 text-yellow-500" />
-                                Game Parameters (Ande Zig)
+                                Game Parameters
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                            <div className="grid gap-6 md:grid-cols-2">
-                                <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5">
-                                    <div className="flex justify-between">
-                                        <Label>Turn Timer</Label>
-                                        <span className="font-mono font-bold text-yellow-400">{gameTimer}s</span>
-                                    </div>
-                                    <Input
-                                        type="range" min="15" max="90" step="5"
-                                        value={gameTimer}
-                                        onChange={(e) => setGameTimer(parseInt(e.target.value))}
-                                        className="h-2 bg-white/10 accent-yellow-500"
-                                    />
-                                    <p className="text-xs text-muted-foreground">Seconds allowed per number call.</p>
-                                </div>
-                                <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5 opacity-50 pointer-events-none">
-                                    <div className="flex justify-between">
-                                        <Label>Entry Fee (Coming Soon)</Label>
-                                        <span className="font-mono font-bold text-green-400">10 ETB</span>
-                                    </div>
-                                    <Input type="range" disabled className="h-2 bg-white/10" />
-                                </div>
-                            </div>
+                            <Tabs defaultValue="ande" className="w-full">
+                                <TabsList className="bg-white/5 border border-white/5 w-full justify-start">
+                                    <TabsTrigger value="ande">Ande Zig</TabsTrigger>
+                                    <TabsTrigger value="hulet">Hulet Zig</TabsTrigger>
+                                    <TabsTrigger value="mulu">Mulu Zig</TabsTrigger>
+                                </TabsList>
+
+                                {['ande', 'hulet', 'mulu'].map((mode) => (
+                                    <TabsContent key={mode} value={mode} className="space-y-4 mt-4">
+                                        <div className="grid gap-6 md:grid-cols-2">
+                                            <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5">
+                                                <div className="flex justify-between">
+                                                    <Label>Turn Timer</Label>
+                                                    <span className="font-mono font-bold text-yellow-400">{gameTimer}s</span>
+                                                </div>
+                                                <Input
+                                                    type="range" min="15" max="90" step="5"
+                                                    value={gameTimer}
+                                                    onChange={(e) => setGameTimer(parseInt(e.target.value))}
+                                                    className="h-2 bg-white/10 accent-yellow-500"
+                                                />
+                                                <p className="text-xs text-muted-foreground">Seconds allowed per number call.</p>
+                                            </div>
+                                            <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5 opacity-50 pointer-events-none">
+                                                <div className="flex justify-between">
+                                                    <Label>Entry Fee (Coming Soon)</Label>
+                                                    <span className="font-mono font-bold text-green-400">10 ETB</span>
+                                                </div>
+                                                <Input type="range" disabled className="h-2 bg-white/10" />
+                                            </div>
+                                        </div>
+                                    </TabsContent>
+                                ))}
+                            </Tabs>
                         </CardContent>
                     </Card>
 

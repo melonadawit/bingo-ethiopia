@@ -10,20 +10,43 @@ export async function handleTournamentRoutes(request: Request, env: Env): Promis
     // GET /tournaments/active
     if (url.pathname === '/tournaments/active' && request.method === 'GET') {
         const { data, error } = await supabase
-            .from('active_tournaments_view')
+            .from('public_tournaments_view')
             .select('*')
-            .order('end_date', { ascending: true });
+            .order('end_time', { ascending: true });
 
         if (error) {
             return jsonResponse({ error: error.message }, 500);
         }
 
-        return jsonResponse({ tournaments: data || [] });
+        const now = new Date();
+
+        // Transform data to match client interface
+        const tournaments = (data || []).map((t: any) => {
+            const startTime = new Date(t.start_time);
+            const endTime = new Date(t.end_time);
+            const isActive = t.status === 'active' && now >= startTime && now <= endTime;
+
+            return {
+                id: t.id,
+                name: t.title, // Map title -> name
+                type: 'tournament',
+                end_date: t.end_time,
+                start_date: t.start_time,
+                participant_count: 0,
+                prize_pool: t.prize_pool,
+                entry_fee: t.entry_fee,
+                description: t.description,
+                status: t.status,
+                is_active: isActive
+            };
+        });
+
+        return jsonResponse({ tournaments });
     }
 
     // POST /tournaments/join
     if (url.pathname === '/tournaments/join' && request.method === 'POST') {
-        const { tournamentId, userId } = await request.json();
+        const { tournamentId, userId } = await request.json() as { tournamentId: string, userId: string };
 
         if (!tournamentId || !userId) {
             return jsonResponse({ error: 'Missing tournamentId or userId' }, 400);
@@ -46,11 +69,26 @@ export async function handleTournamentRoutes(request: Request, env: Env): Promis
             .from('tournaments')
             .select('*')
             .eq('id', tournamentId)
-            .eq('status', 'active')
+            .in('status', ['active', 'scheduled'])
             .single();
 
         if (!tournament) {
             return jsonResponse({ error: 'Tournament not found or not active' }, 404);
+        }
+
+        // STRICT TIME CHECK
+        const now = new Date();
+        const startTime = new Date(tournament.start_time);
+        const endTime = new Date(tournament.end_time);
+
+        if (now < startTime) {
+            return jsonResponse({ error: 'Tournament has not started yet' }, 403);
+        }
+        if (now > endTime) {
+            return jsonResponse({ error: 'Tournament has already ended' }, 403);
+        }
+        if (tournament.status !== 'active') {
+            return jsonResponse({ error: 'Tournament is not in active state' }, 403);
         }
 
         // Join tournament

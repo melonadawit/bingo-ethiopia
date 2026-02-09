@@ -37,7 +37,7 @@ export default function Leaderboard() {
     const fetchLeaderboard = async () => {
         setLoading(true);
         try {
-            const res = await api.get(`/api/leaderboard/${period}`);
+            const res = await api.get(`/api/leaderboard?period=${period}`);
             setLeaderboard(res.data);
         } catch (error) {
             console.error('Failed to fetch leaderboard:', error);
@@ -77,8 +77,8 @@ export default function Leaderboard() {
                             key={p}
                             onClick={() => setPeriod(p)}
                             className={`px-6 py-3 rounded-xl font-bold whitespace-nowrap transition-all ${period === p
-                                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-105'
-                                    : 'bg-slate-800 text-gray-400 hover:bg-slate-700'
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-105'
+                                : 'bg-slate-800 text-gray-400 hover:bg-slate-700'
                                 }`}
                         >
                             {p.charAt(0).toUpperCase() + p.slice(1)}

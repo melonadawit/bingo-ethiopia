@@ -16,7 +16,7 @@ interface BingoCard {
     numbers: number[][];
 }
 
-type GameStatus = 'waiting' | 'selecting' | 'countdown' | 'playing' | 'ended';
+type GameStatus = 'waiting' | 'selecting' | 'countdown' | 'playing' | 'ending' | 'ended';
 type GameMode = 'ande-zig' | 'hulet-zig' | 'mulu-zig';
 
 export class GameRoom {
@@ -95,18 +95,23 @@ export class GameRoom {
 
         // Start countdown immediately - no delay!
         this.countdownInterval = setInterval(() => {
-            if (this.gameState.countdown <= 0) {
-                if (this.countdownInterval) {
-                    clearInterval(this.countdownInterval);
-                    this.countdownInterval = null;
+            try {
+                if (this.gameState.countdown <= 0) {
+                    if (this.countdownInterval) {
+                        clearInterval(this.countdownInterval);
+                        this.countdownInterval = null;
+                    }
+                    // Fire and forget, don't await to avoid stalling the interval
+                    this.startGame().catch(err => console.error('Error starting game after countdown:', err));
+                } else {
+                    this.gameState.countdown--;
+                    this.broadcast({
+                        type: 'countdown_tick',
+                        data: { countdown: this.gameState.countdown }
+                    });
                 }
-                this.startGame();
-            } else {
-                this.gameState.countdown--;
-                this.broadcast({
-                    type: 'countdown_tick',
-                    data: { countdown: this.gameState.countdown }
-                });
+            } catch (err) {
+                console.error('🔥 [CRITICAL] Error in countdown interval:', err);
             }
         }, 1000);
     }
@@ -571,6 +576,7 @@ export class GameRoom {
         }
 
         try {
+            console.log(`[DB] Creating new game record for mode ${this.gameState.mode}...`);
             const { data: newGame, error: gameError } = await supabase
                 .from('games')
                 .insert({
@@ -586,7 +592,7 @@ export class GameRoom {
                 console.log(`🆕 Created new DB Game ID: ${newGame.id} (replacing room ID ${this.gameState.gameId})`);
                 this.gameState.gameId = newGame.id;
             } else if (gameError) {
-                console.error('Failed to create new game db record:', gameError);
+                console.error('[DB ERROR] Failed to create new game db record:', gameError);
             }
         } catch (err) {
             console.error('Error creating game record:', err);
@@ -700,47 +706,56 @@ export class GameRoom {
         const numbers = Array.from({ length: 75 }, (_, i) => i + 1);
         this.shuffleArray(numbers);
 
+        console.log(`🚀 [GAME START] Interval starting for GameId: ${this.gameState.gameId}. Total players: ${this.gameState.players.size}`);
+
         let index = 0;
         this.gameInterval = setInterval(() => {
-            if (index >= numbers.length || this.gameState.status === 'ended') {
-                clearInterval(this.gameInterval);
+            try {
+                if (index >= numbers.length || this.gameState.status === 'ended') {
+                    console.log(`⏹️ [GAME LOOP END] Reason: ${index >= numbers.length ? 'All numbers called' : 'Status set to ended'}`);
+                    clearInterval(this.gameInterval);
 
-                // Check for no-winner scenario (all 75 numbers called, no winner)
-                if (index >= numbers.length && this.gameState.status !== 'ended' && this.gameState.winners.length === 0) {
-                    console.log('[NO WINNER] All 75 numbers called without a BINGO claim');
-                    this.gameState.status = 'ended';
+                    // Check for no-winner scenario (all 75 numbers called, no winner)
+                    if (index >= numbers.length && this.gameState.status !== 'ended' && this.gameState.winners.length === 0) {
+                        console.log('[NO WINNER] All 75 numbers called without a BINGO claim');
+                        this.gameState.status = 'ended';
 
-                    // Broadcast no-winner event
-                    this.broadcast({
-                        type: 'no_winner',
-                        data: { message: 'All 75 numbers called, no winner this round' },
-                    });
+                        // Broadcast no-winner event
+                        this.broadcast({
+                            type: 'no_winner',
+                            data: { message: 'All 75 numbers called, no winner this round' },
+                        });
 
-                    // Auto-restart after 10 seconds (same as winner announcement)
-                    setTimeout(() => {
-                        console.log('Auto-restarting after no-winner scenario');
-                        this.resetGame();
-                        if (['waiting', 'selecting'].includes(this.gameState.status)) {
-                            this.startPerpetualLoop();
-                        }
-                    }, 10000); // 10 seconds
+                        // Auto-restart after 10 seconds (same as winner announcement)
+                        setTimeout(() => {
+                            console.log('Auto-restarting after no-winner scenario');
+                            this.resetGame();
+                            if (['waiting', 'selecting'].includes(this.gameState.status)) {
+                                this.startPerpetualLoop();
+                            }
+                        }, 10000); // 10 seconds
+                    }
+
+                    return;
                 }
 
-                return;
-            }
+                const number = numbers[index++];
+                this.gameState.currentNumber = number;
+                this.gameState.calledNumbers.push(number);
 
-            const number = numbers[index++];
-            this.gameState.currentNumber = number;
-            this.gameState.calledNumbers.push(number);
-            const num = this.gameState.calledNumbers[this.gameState.calledNumbers.length - 1];
-            console.log(`📢 [NUMBER CALLED] GameId: ${this.gameState.gameId} | Mode: ${this.gameState.mode} | Number: ${num} | Total called: ${this.gameState.calledNumbers.length}`);
-            this.broadcast({
-                type: 'number_called',
-                data: {
-                    number,
-                    history: this.gameState.calledNumbers,
-                },
-            });
+                console.log(`📢 [NUMBER CALLED] GameId: ${this.gameState.gameId} | Mode: ${this.gameState.mode} | Number: ${number} | Seq: ${index}/75`);
+
+                this.broadcast({
+                    type: 'number_called',
+                    data: {
+                        number,
+                        history: this.gameState.calledNumbers,
+                    },
+                });
+            } catch (err) {
+                console.error('💥 [CRITICAL] Error in game interval loop:', err);
+                // Try to keep going unless it's a fatal state error
+            }
         }, 4000);
     }
 
@@ -831,11 +846,29 @@ export class GameRoom {
                 const commissionPct = config.gameRules?.commissionPct ?? 15; // Default 15%
                 const returnRate = 1 - (commissionPct / 100);
 
-                // Apply dynamic fee
-                const grossPot = totalCards * betAmount;
-                const totalPot = grossPot * returnRate;
-                const prizePerWinner = totalPot / simultaneousClaims.length;
+                // Check for active events (Multipliers)
+                let eventMultiplier = 1.0;
                 const supabase = getSupabase(this.env);
+                try {
+                    const { data: events } = await supabase.rpc('get_active_events');
+                    if (events && events.length > 0) {
+                        events.forEach((e: any) => {
+                            const m = parseFloat(e.multiplier);
+                            if (!isNaN(m) && m > 0) eventMultiplier *= m;
+                        });
+                        if (eventMultiplier > 1) {
+                            console.log(`[EVENT] Applying active event multiplier: ${eventMultiplier}x`);
+                        }
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch active events for multiplier:', err);
+                }
+
+                // Apply dynamic fee & Multiplier
+                const grossPot = totalCards * betAmount;
+                const basePot = grossPot * returnRate;
+                const totalPot = basePot * eventMultiplier; // Apply multiplier to final pot
+                const prizePerWinner = totalPot / simultaneousClaims.length;
 
                 // Import notification service dynamically to avoid top-level issues
                 const { notifyWinner, notifyBalanceUpdate } = await import('../bot/notifications');
@@ -1219,15 +1252,31 @@ export class GameRoom {
 
     broadcast(message: any, exclude?: WebSocket) {
         const msg = JSON.stringify(message);
+        let count = 0;
+        let closedCount = 0;
+        let blockedCount = 0;
+
+        // Reverting to manual session map iteration
+        // state.getWebSockets() seems to cause issues with non-hibernatable DOs in some contexts
         this.sessions.forEach((userId, ws) => {
             if (ws !== exclude) {
-                try {
-                    ws.send(msg);
-                } catch (error) {
-                    console.error('Error broadcasting:', error);
+                if (ws.readyState === 1) { // WebSocket.OPEN
+                    try {
+                        ws.send(msg);
+                        count++;
+                    } catch (error) {
+                        console.error(`[BROADCAST ERROR] Failed to send to ${userId}:`, error);
+                    }
+                } else {
+                    closedCount++;
                 }
+            } else {
+                blockedCount++;
             }
         });
+
+        // Log broadcast status for debugging live update issues
+        console.log(`📡 [BROADCAST] ${message.type} sent to ${count} clients. (Skipped: ${closedCount} closed/connecting, ${blockedCount} excluded). Total sessions: ${this.sessions.size}`);
     }
 
     shuffleArray(array: number[]) {
