@@ -6,9 +6,10 @@ import { sendMessage, getWebAppUrl, answerCallback } from './utils';
 async function handleTournaments(chatId: number, userId: number, env: Env, supabase: any) {
     // Get active tournaments
     const { data: tournaments, error } = await supabase
-        .from('active_tournaments_view')
+        .from('public_tournaments_view')
         .select('*')
-        .order('end_date', { ascending: true });
+        .eq('is_strictly_active', true)
+        .order('end_time', { ascending: true });
 
     if (error || !tournaments || tournaments.length === 0) {
         await sendMessage(chatId, '🏆 <b>No Active Tournaments</b>\n\nThere are no tournaments running right now. Check back soon!', env);
@@ -38,7 +39,7 @@ async function handleTournaments(chatId: number, userId: number, env: Env, supab
 
 async function handleEvents(chatId: number, userId: number, env: Env, supabase: any) {
     // Get active events
-    const { data: events, error } = await supabase.rpc('get_active_events');
+    const { data: events, error } = await supabase.rpc('get_public_events');
 
     if (error || !events || events.length === 0) {
         await sendMessage(chatId, '🎉 <b>No Active Events</b>\n\nThere are no special events running right now. Check back soon!', env);
@@ -50,7 +51,9 @@ async function handleEvents(chatId: number, userId: number, env: Env, supabase: 
         const now = new Date();
         const minutesLeft = Math.floor((endTime.getTime() - now.getTime()) / (1000 * 60));
 
-        let message = `🎉 <b>${event.name}</b>\n\n`;
+        if (!event.is_strictly_active) continue; // Skip if ended
+
+        let message = `🎉 <b>${event.name || event.title}</b>\n\n`;
         message += `${event.description}\n\n`;
         message += `🎁 Multiplier: ${event.multiplier}x Rewards\n`;
         message += `⏰ Ends in: ${minutesLeft} minutes\n\n`;
@@ -81,6 +84,18 @@ async function handleTournamentCallbacks(data: string, chatId: number, userId: n
 
         if (existing) {
             await answerCallback(callbackQueryId, env, 'You already joined this tournament!');
+            return;
+        }
+
+        // Check if tournament is still active
+        const { data: tournament } = await supabase
+            .from('public_tournaments_view')
+            .select('is_strictly_active')
+            .eq('id', tournamentId)
+            .single();
+
+        if (!tournament || !tournament.is_strictly_active) {
+            await answerCallback(callbackQueryId, env, '❌ This tournament has ended or is not joinable.');
             return;
         }
 

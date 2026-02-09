@@ -257,30 +257,54 @@ export default {
                 }
 
                 // HARDEN: Filter stale announcements OR announcements for ended events
-                let announcement = data.announcement;
+                let announcement = data.features?.announcement;
                 if (announcement && announcement.enabled) {
                     const createdAt = new Date(announcement.created_at || data.updated_at || data.created_at);
                     const now = new Date();
                     const ageHours = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
 
-                    // 1. Time-based stale check (48h)
-                    if (ageHours > 48) {
+                    // 1. Time-based stale check (Reduce to 24h to be more aggressive)
+                    if (ageHours > 24) {
                         announcement = null;
+                    } else if (announcement.action_url) {
+                        const actionUrl = announcement.action_url.toLowerCase();
+
+                        // 2. Logic-based check if announcement is tied to an event/tournament
+                        if (actionUrl.includes('/tournaments')) {
+                            const tid = announcement.action_url.split(/\/tournaments\//i)[1]?.split(/[?#/]/)[0];
+                            if (tid && tid.length > 20) {
+                                const { data: t } = await supabase!.from('public_tournaments_view').select('is_strictly_active').eq('id', tid).single();
+                                if (!t || !t.is_strictly_active) announcement = null;
+                            } else {
+                                const { data: t } = await supabase!.from('public_tournaments_view').select('id').eq('is_strictly_active', true).limit(1);
+                                if (!t || t.length === 0) announcement = null;
+                            }
+                        } else if (actionUrl.includes('/events') || actionUrl.includes('/special-events')) {
+                            const eid = announcement.action_url.split(/\/events\/|\/special-events\//i)[1]?.split(/[?#/]/)[0];
+                            if (eid && eid.length > 20) {
+                                const { data: events } = await supabase!.rpc('get_public_events');
+                                const e = (events || []).find((x: any) => x.id === eid);
+                                if (!e || !e.is_strictly_active) announcement = null;
+                            } else {
+                                const { data: events } = await supabase!.rpc('get_public_events');
+                                const active = (events || []).filter((e: any) => e.is_strictly_active);
+                                if (active.length === 0) announcement = null;
+                            }
+                        }
                     }
 
-                    // 2. Logic-based check if announcement is tied to an event/tournament
-                    // We can check if the message or title contains keywords and then verify?
-                    // Actually, a better way is to rely on a 'related_id' if we had one.
-                    // Since we don't have it explicitly yet, we'll stick to the strict 48h limit 
-                    // which matches the user's intent to "forget ended ones".
-                    // If the user wants it even stricter, they should disable it in admin.
+                    // 3. Status check: Any final fallback could go here
                 } else if (announcement && !announcement.enabled) {
                     announcement = null;
                 }
 
                 return jsonResponse({
                     ...data,
-                    announcement
+                    announcement: announcement === null ? null : (data.announcement || announcement),
+                    features: {
+                        ...data.features,
+                        announcement
+                    }
                 });
             }
         }

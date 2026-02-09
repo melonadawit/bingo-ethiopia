@@ -624,6 +624,40 @@ export async function handleAdminRequest(request: Request, env: Env): Promise<Re
             }
         }
 
+        // --- TOURNAMENT ACTIONS ---
+        const tournamentActionMatch = path.match(/^\/tournaments\/([^\/]+)$/);
+        if (tournamentActionMatch) {
+            const tournamentId = tournamentActionMatch[1];
+            const supabase = getSupabase(env);
+
+            if (request.method === 'PATCH') {
+                const body = await request.json() as { status?: string, end_time?: string };
+                const updates: any = {};
+                if (body.status) updates.status = body.status;
+                if (body.end_time) updates.end_time = body.end_time;
+
+                const { data, error } = await supabase!
+                    .from('tournaments')
+                    .update(updates)
+                    .eq('id', tournamentId)
+                    .select()
+                    .single();
+
+                if (error) return jsonResponse({ error: error.message }, 500);
+                return jsonResponse({ success: true, data });
+            }
+
+            if (request.method === 'DELETE') {
+                const { error } = await supabase!
+                    .from('tournaments')
+                    .delete()
+                    .eq('id', tournamentId);
+
+                if (error) return jsonResponse({ error: error.message }, 500);
+                return jsonResponse({ success: true });
+            }
+        }
+
         if (path === '/tournaments/schedule') {
             const supabase = getSupabase(env);
             const { data, error } = await supabase!.from('scheduled_events').select('*').order('trigger_at', { ascending: true });
@@ -693,6 +727,40 @@ export async function handleAdminRequest(request: Request, env: Env): Promise<Re
                 }
 
                 return jsonResponse(data);
+            }
+        }
+
+        // --- EVENT ACTIONS ---
+        const eventActionMatch = path.match(/^\/events\/([^\/]+)$/);
+        if (eventActionMatch) {
+            const eventId = eventActionMatch[1];
+            const supabase = getSupabase(env);
+
+            if (request.method === 'PATCH') {
+                const body = await request.json() as { status?: string, end_time?: string };
+                const updates: any = {};
+                if (body.status) updates.status = body.status;
+                if (body.end_time) updates.end_time = body.end_time;
+
+                const { data, error } = await supabase!
+                    .from('special_events')
+                    .update(updates)
+                    .eq('id', eventId)
+                    .select()
+                    .single();
+
+                if (error) return jsonResponse({ error: error.message }, 500);
+                return jsonResponse({ success: true, data });
+            }
+
+            if (request.method === 'DELETE') {
+                const { error } = await supabase!
+                    .from('special_events')
+                    .delete()
+                    .eq('id', eventId);
+
+                if (error) return jsonResponse({ error: error.message }, 500);
+                return jsonResponse({ success: true });
             }
         }
 

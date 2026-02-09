@@ -15,17 +15,11 @@ export async function handleEventRoutes(request: Request, env: Env): Promise<Res
             return jsonResponse({ error: error.message }, 500);
         }
 
-        const now = new Date();
-        const events = (data || []).map((e: any) => {
-            const startTime = new Date(e.start_time);
-            const endTime = new Date(e.end_time);
-            const isActive = e.status === 'active' && now >= startTime && now <= endTime;
-
-            return {
-                ...e,
-                is_active: isActive
-            };
-        });
+        const events = (data || []).map((e: any) => ({
+            ...e,
+            name: e.title, // Standardized mapping for client
+            is_active: e.is_strictly_active
+        }));
 
         return jsonResponse({ events });
     }
@@ -50,30 +44,27 @@ export async function handleEventRoutes(request: Request, env: Env): Promise<Res
             return jsonResponse({ error: 'Already joined this event' }, 400);
         }
 
-        // Check event exists and is active
-        const { data: event } = await supabase
-            .from('special_events')
-            .select('*')
-            .eq('id', eventId)
-            .single();
+        // Check event exists and is strictly active
+        const { data: event } = await supabase.rpc('get_public_events');
+        const targetEvent = (event || []).find((e: any) => e.id === eventId);
 
-        if (!event) {
-            return jsonResponse({ error: 'Event not found' }, 404);
+        if (!targetEvent) {
+            return jsonResponse({ error: 'Event not found or not joinable' }, 404);
         }
 
-        // STRICT TIME CHECK
-        const now = new Date();
-        const startTime = new Date(event.start_time);
-        const endTime = new Date(event.end_time);
+        // STRICT TIME CHECK using server flag
+        if (targetEvent.is_strictly_active === false) {
+            return jsonResponse({ error: 'Event is not joinable at this time' }, 403);
+        }
 
-        if (now < startTime) {
-            return jsonResponse({ error: 'Event has not started yet' }, 403);
-        }
-        if (now > endTime) {
-            return jsonResponse({ error: 'Event has already ended' }, 403);
-        }
-        if (event.status !== 'active') {
-            return jsonResponse({ error: 'Event is not in active state' }, 403);
+        // BACKUP: Manual time check if flag is missing or null
+        if (targetEvent.is_strictly_active === undefined || targetEvent.is_strictly_active === null) {
+            const now = new Date();
+            const startsAt = new Date(targetEvent.start_time);
+            const endsAt = new Date(targetEvent.end_time);
+            if (targetEvent.status !== 'active' || now < startsAt || now > endsAt) {
+                return jsonResponse({ error: 'Event is not joinable (manual check)' }, 403);
+            }
         }
 
         // Join event
@@ -96,14 +87,8 @@ export async function handleEventRoutes(request: Request, env: Env): Promise<Res
     // GET /events/check-multiplier
     if (url.pathname === '/events/check-multiplier' && request.method === 'GET') {
         const { data: events } = await supabase.rpc('get_public_events');
-        const now = new Date();
-
         let totalMultiplier = 1.0;
-        const activeEvents = (events || []).filter((e: any) => {
-            const startTime = new Date(e.start_time);
-            const endTime = new Date(e.end_time);
-            return e.status === 'active' && now >= startTime && now <= endTime;
-        });
+        const activeEvents = (events || []).filter((e: any) => e.is_strictly_active);
 
         if (activeEvents.length > 0) {
             // Multiply all active event multipliers
@@ -135,6 +120,38 @@ export async function handleEventRoutes(request: Request, env: Env): Promise<Res
         }
 
         return jsonResponse({ event: data });
+    }
+
+    // PATCH /events/:id
+    if (eventMatch && request.method === 'PATCH') {
+        const eventId = eventMatch[1];
+        const body = await request.json() as any;
+
+        const { data, error } = await supabase
+            .from('special_events')
+            .update({
+                status: body.status,
+                end_time: body.end_time,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', eventId)
+            .select()
+            .single();
+
+        if (error) return jsonResponse({ error: error.message }, 500);
+        return jsonResponse({ success: true, event: data });
+    }
+
+    // DELETE /events/:id
+    if (eventMatch && request.method === 'DELETE') {
+        const eventId = eventMatch[1];
+        const { error } = await supabase
+            .from('special_events')
+            .delete()
+            .eq('id', eventId);
+
+        if (error) return jsonResponse({ error: error.message }, 500);
+        return jsonResponse({ success: true });
     }
 
     return jsonResponse({ error: 'Not found' }, 404);

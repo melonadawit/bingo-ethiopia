@@ -765,7 +765,15 @@ async function handleCallbackQuery(callbackQuery: any, env: Env, supabase: any, 
             }
             break;
 
-
+        default:
+            // Fallback to specialized handlers for tournament/event callbacks
+            console.log('Delegating for action:', action);
+            if (data.startsWith('join_tournament:') || data.startsWith('tournament_leaderboard:')) {
+                await handleTournamentCallbacks(data, chatId, userId, callbackQuery.id, env, supabase);
+            } else if (data === 'refresh_events') {
+                await handleEvents(chatId, userId, env, supabase);
+            }
+            break;
     }
 }
 

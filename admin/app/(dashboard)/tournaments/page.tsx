@@ -250,26 +250,58 @@ export default function TournamentsPage() {
             return fetchAdmin('/events', {
                 method: 'POST',
                 body: JSON.stringify({
-                    ...eventForm,
+                    title: eventForm.title,
+                    description: eventForm.description,
+                    type: eventForm.type,
                     multiplier: parseFloat(eventForm.multiplier),
                     start_time: new Date(eventForm.start_time).toISOString(),
                     end_time: new Date(eventForm.end_time).toISOString(),
+                    announce: eventForm.announce
                 })
             });
         },
         onSuccess: () => {
             setIsEventCreateOpen(false);
-            toast.success('Special Event Launched!');
-            if (eventForm.announce) toast.success('Global announcement triggered!');
-            queryClient.invalidateQueries({ queryKey: ['admin-events'] });
-            // Reset
             setEventForm({
-                title: '', description: '', type: 'happy_hour', multiplier: '1.5',
-                start_time: '', end_time: '', announce: true
+                title: '',
+                description: '',
+                type: 'happy_hour',
+                multiplier: '1.5',
+                start_time: '',
+                end_time: '',
+                announce: true
             });
+            toast.success('Special event scheduled!');
+            queryClient.invalidateQueries({ queryKey: ['admin-events'] });
         },
-        onError: () => toast.error('Failed to launch event')
+        onError: () => toast.error('Failed to schedule event')
     });
+
+    // --- MANAGE ACTIONS ---
+    const handleAction = async (type: 'tournaments' | 'events', id: string, action: 'end' | 'delete') => {
+        const confirmMsg = action === 'delete' ? "Are you sure you want to PERMANENTLY delete this?" : "End this early?";
+        if (!confirm(confirmMsg)) return;
+
+        try {
+            if (action === 'end') {
+                await fetchAdmin(`/${type}/${id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        status: type === 'tournaments' ? 'completed' : 'ended',
+                        end_time: new Date().toISOString()
+                    })
+                });
+                toast.success("Ended successfully");
+            } else {
+                await fetchAdmin(`/${type}/${id}`, { method: 'DELETE' });
+                toast.success("Deleted successfully");
+            }
+            queryClient.invalidateQueries({ queryKey: [type === 'tournaments' ? 'tournaments' : 'admin-events'] });
+        } catch (e) {
+            console.error(e);
+            toast.error("Action failed");
+        }
+    };
 
 
     return (
@@ -649,6 +681,27 @@ export default function TournamentsPage() {
                                             <div className="text-xl font-bold">{(t.entry_fee || 0) > 0 ? t.entry_fee : 'FREE'}</div>
                                         </div>
                                     </div>
+
+                                    <div className="flex flex-col gap-2">
+                                        {!isEnded && t.status !== 'completed' && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                                                onClick={() => handleAction('tournaments', t.id, 'end')}
+                                            >
+                                                End Now
+                                            </Button>
+                                        )}
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                            onClick={() => handleAction('tournaments', t.id, 'delete')}
+                                        >
+                                            Delete
+                                        </Button>
+                                    </div>
                                 </CardContent>
                             </Card>
                         );
@@ -732,6 +785,27 @@ export default function TournamentsPage() {
                                             <div className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Type</div>
                                             <div className="text-xl font-bold capitalize">{e.type.replace('_', ' ')}</div>
                                         </div>
+                                    </div>
+
+                                    <div className="flex flex-col gap-2">
+                                        {!isEnded && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                                                onClick={() => handleAction('events', e.id, 'end')}
+                                            >
+                                                End Now
+                                            </Button>
+                                        )}
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                            onClick={() => handleAction('events', e.id, 'delete')}
+                                        >
+                                            Delete
+                                        </Button>
                                     </div>
                                 </CardContent>
                             </Card>

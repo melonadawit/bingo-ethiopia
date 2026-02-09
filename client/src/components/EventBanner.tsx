@@ -28,14 +28,16 @@ export default function EventBanner() {
     // Only show on Lobby
     if (location.pathname !== '/lobby') return null;
 
-    if (!isVisible || !events || events.length === 0) {
+    const activeEvents = (events || []).filter(e => e.is_active);
+
+    if (!isVisible || activeEvents.length === 0) {
         return null;
     }
 
     return (
         <div className="fixed top-20 left-0 right-0 z-40 pointer-events-none">
             <div className="max-w-4xl mx-auto px-4 pointer-events-auto">
-                {events.map((event) => {
+                {activeEvents.map((event) => {
                     const endTime = new Date(event.end_time);
                     const minutesLeft = Math.floor((endTime.getTime() - Date.now()) / (1000 * 60));
 

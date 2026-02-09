@@ -37,8 +37,8 @@ export default function EventsPage() {
         <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-indigo-900 p-6">
             <div className="max-w-4xl mx-auto">
                 <header className="text-center mb-12">
-                    <h1 className="text-5xl font-black text-white mb-4 tracking-tight uppercase">
-                        Special Events
+                    <h1 className="text-4xl font-bold text-white mb-4 tracking-tight uppercase">
+                        🏆 Active Events
                     </h1>
                     <p className="text-white/60 text-lg max-w-2xl mx-auto">
                         Boost your winnings with limited-time rewards and special game modes!
@@ -47,8 +47,15 @@ export default function EventsPage() {
 
                 {!events || events.length === 0 ? (
                     <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 text-center">
-                        <p className="text-white text-xl">No events available right now</p>
-                        <p className="text-white/70 mt-2">Check back soon for special events!</p>
+                        <p className="text-white text-xl">No active events right now</p>
+                        <p className="text-white/70 mt-2">Check back soon!</p>
+
+                        <div className="mt-8 p-4 bg-zinc-900/50 rounded-xl border border-white/5 text-left max-w-sm mx-auto">
+                            <h3 className="text-sm font-bold text-white/50 mb-2 uppercase tracking-widest">Debugging info:</h3>
+                            <p className="text-xs text-white/70 font-mono">Is Loading: No</p>
+                            <p className="text-xs text-white/70 font-mono">Data Count: {events?.length || 0}</p>
+                            <p className="text-xs text-white/70 font-mono break-all">API URL: https://bingo-api.melonadawit71.workers.dev</p>
+                        </div>
                     </div>
                 ) : (
                     <div className="space-y-12">
@@ -66,9 +73,16 @@ export default function EventsPage() {
                                 </div>
                             </section>
                         ) : (
-                            <div className="text-center py-20 bg-white/5 rounded-3xl border border-dashed border-white/10">
-                                <h3 className="text-xl text-white/50">No Active Events</h3>
-                                <p className="text-white/30 mt-2">Check back soon for special rewards!</p>
+                            <div className="bg-white/11 backdrop-blur-lg rounded-2xl p-8 text-center border mr-2 border-white/5">
+                                <p className="text-white text-xl">No active events right now</p>
+                                <p className="text-white/70 mt-2">Check back soon!</p>
+
+                                <div className="mt-8 p-4 bg-zinc-900/50 rounded-xl border border-white/5 text-left max-w-sm mx-auto">
+                                    <h3 className="text-sm font-bold text-white/50 mb-2 uppercase tracking-widest">Debugging info:</h3>
+                                    <p className="text-xs text-white/70 font-mono">Is Loading: No</p>
+                                    <p className="text-xs text-white/70 font-mono">Data Count: {events?.length || 0}</p>
+                                    <p className="text-xs text-white/70 font-mono break-all">API URL: https://bingo-api.melonadawit71.workers.dev</p>
+                                </div>
                             </div>
                         )}
                     </div>

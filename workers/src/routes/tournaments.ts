@@ -21,25 +21,11 @@ export async function handleTournamentRoutes(request: Request, env: Env): Promis
         const now = new Date();
 
         // Transform data to match client interface
-        const tournaments = (data || []).map((t: any) => {
-            const startTime = new Date(t.start_time);
-            const endTime = new Date(t.end_time);
-            const isActive = t.status === 'active' && now >= startTime && now <= endTime;
-
-            return {
-                id: t.id,
-                name: t.title, // Map title -> name
-                type: 'tournament',
-                end_date: t.end_time,
-                start_date: t.start_time,
-                participant_count: 0,
-                prize_pool: t.prize_pool,
-                entry_fee: t.entry_fee,
-                description: t.description,
-                status: t.status,
-                is_active: isActive
-            };
-        });
+        const tournaments = (data || []).map((t: any) => ({
+            ...t,
+            name: t.title, // Standardized mapping
+            is_active: t.is_strictly_active
+        }));
 
         return jsonResponse({ tournaments });
     }
@@ -64,31 +50,30 @@ export async function handleTournamentRoutes(request: Request, env: Env): Promis
             return jsonResponse({ error: 'Already joined this tournament' }, 400);
         }
 
-        // Check tournament exists and is active
+        // Check tournament exists and is strictly active
         const { data: tournament } = await supabase
-            .from('tournaments')
+            .from('public_tournaments_view')
             .select('*')
             .eq('id', tournamentId)
-            .in('status', ['active', 'scheduled'])
             .single();
 
         if (!tournament) {
-            return jsonResponse({ error: 'Tournament not found or not active' }, 404);
+            return jsonResponse({ error: 'Tournament not found or not joinable' }, 404);
         }
 
-        // STRICT TIME CHECK
-        const now = new Date();
-        const startTime = new Date(tournament.start_time);
-        const endTime = new Date(tournament.end_time);
+        // STRICT TIME CHECK using server flag
+        if (tournament.is_strictly_active === false) {
+            return jsonResponse({ error: 'Tournament is not joinable at this time' }, 403);
+        }
 
-        if (now < startTime) {
-            return jsonResponse({ error: 'Tournament has not started yet' }, 403);
-        }
-        if (now > endTime) {
-            return jsonResponse({ error: 'Tournament has already ended' }, 403);
-        }
-        if (tournament.status !== 'active') {
-            return jsonResponse({ error: 'Tournament is not in active state' }, 403);
+        // BACKUP: Manual time check if flag is missing or null
+        if (tournament.is_strictly_active === undefined || tournament.is_strictly_active === null) {
+            const now = new Date();
+            const startsAt = new Date(tournament.start_time);
+            const endsAt = new Date(tournament.end_time);
+            if (tournament.status !== 'active' || now < startsAt || now > endsAt) {
+                return jsonResponse({ error: 'Tournament is not joinable (manual check)' }, 403);
+            }
         }
 
         // Join tournament
@@ -168,6 +153,39 @@ export async function handleTournamentRoutes(request: Request, env: Env): Promis
         }
 
         return jsonResponse({ tournaments: data || [] });
+    }
+
+    // PATCH /tournaments/:id
+    const tournamentMatch = url.pathname.match(/^\/tournaments\/([^\/]+)$/);
+    if (tournamentMatch && request.method === 'PATCH') {
+        const tournamentId = tournamentMatch[1];
+        const body = await request.json() as any;
+
+        const { data, error } = await supabase
+            .from('tournaments')
+            .update({
+                status: body.status,
+                end_time: body.end_time,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', tournamentId)
+            .select()
+            .single();
+
+        if (error) return jsonResponse({ error: error.message }, 500);
+        return jsonResponse({ success: true, tournament: data });
+    }
+
+    // DELETE /tournaments/:id
+    if (tournamentMatch && request.method === 'DELETE') {
+        const tournamentId = tournamentMatch[1];
+        const { error } = await supabase
+            .from('tournaments')
+            .delete()
+            .eq('id', tournamentId);
+
+        if (error) return jsonResponse({ error: error.message }, 500);
+        return jsonResponse({ success: true });
     }
 
     return jsonResponse({ error: 'Not found' }, 404);

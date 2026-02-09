@@ -55,14 +55,21 @@ export default function TournamentsPage() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-6">
             <div className="max-w-4xl mx-auto">
-                <h1 className="text-4xl font-bold text-white mb-8 text-center">
-                    🏆 Tournaments
+                <h1 className="text-4xl font-bold text-white mb-8 text-center uppercase tracking-tight">
+                    🏆 Active Tournaments
                 </h1>
 
                 {!tournaments || tournaments.length === 0 ? (
                     <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 text-center">
-                        <p className="text-white text-xl">No tournaments available right now</p>
-                        <p className="text-white/70 mt-2">Check back soon for upcoming competitions!</p>
+                        <p className="text-white text-xl font-bold">No active tournaments right now</p>
+                        <p className="text-white/70 mt-2">Check back soon!</p>
+
+                        <div className="mt-8 p-4 bg-zinc-900/50 rounded-xl border border-white/5 text-left max-w-sm mx-auto shadow-2xl">
+                            <h3 className="text-sm font-bold text-white/50 mb-2 uppercase tracking-widest">Debugging info:</h3>
+                            <p className="text-xs text-white/70 font-mono">Is Loading: No</p>
+                            <p className="text-xs text-white/70 font-mono">Data Count: {tournaments?.length || 0}</p>
+                            <p className="text-xs text-white/70 font-mono break-all">API URL: https://bingo-api.melonadawit71.workers.dev</p>
+                        </div>
                     </div>
                 ) : (
                     <div className="space-y-12">
@@ -80,9 +87,16 @@ export default function TournamentsPage() {
                                 </div>
                             </section>
                         ) : (
-                            <div className="text-center py-20 bg-white/5 rounded-3xl border border-dashed border-white/10">
-                                <h3 className="text-xl text-white/50">No Live Tournaments</h3>
-                                <p className="text-white/30 mt-2">Check back later for upcoming competitions!</p>
+                            <div className="bg-white/11 backdrop-blur-lg rounded-2xl p-8 text-center border mr-2 border-white/5">
+                                <p className="text-white text-xl font-bold">No active tournaments right now</p>
+                                <p className="text-white/70 mt-2">Check back soon!</p>
+
+                                <div className="mt-8 p-4 bg-zinc-900/50 rounded-xl border border-white/5 text-left max-w-sm mx-auto shadow-2xl">
+                                    <h3 className="text-sm font-bold text-white/50 mb-2 uppercase tracking-widest">Debugging info:</h3>
+                                    <p className="text-xs text-white/70 font-mono">Is Loading: No</p>
+                                    <p className="text-xs text-white/70 font-mono">Data Count: {tournaments?.length || 0}</p>
+                                    <p className="text-xs text-white/70 font-mono break-all">API URL: https://bingo-api.melonadawit71.workers.dev</p>
+                                </div>
                             </div>
                         )}
                     </div>
