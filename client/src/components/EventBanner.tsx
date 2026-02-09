@@ -10,6 +10,7 @@ interface Event {
     description: string;
     multiplier: number;
     end_time: string;
+    is_active: boolean;
 }
 
 export default function EventBanner() {
