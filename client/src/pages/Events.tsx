@@ -50,24 +50,19 @@ export default function EventsPage() {
                         <p className="text-white text-xl">No active events right now</p>
                         <p className="text-white/70 mt-2">Check back soon!</p>
 
-                        <div className="mt-8 p-4 bg-zinc-900/50 rounded-xl border border-white/5 text-left max-w-sm mx-auto">
-                            <h3 className="text-sm font-bold text-white/50 mb-2 uppercase tracking-widest">Debugging info:</h3>
-                            <p className="text-xs text-white/70 font-mono">Is Loading: No</p>
-                            <p className="text-xs text-white/70 font-mono">Data Count: {events?.length || 0}</p>
-                            <p className="text-xs text-white/70 font-mono break-all">API URL: https://bingo-api.melonadawit71.workers.dev</p>
-                        </div>
+
                     </div>
                 ) : (
                     <div className="space-y-12">
                         {/* ACTIVE EVENTS */}
-                        {events.filter(e => e.is_active).length > 0 ? (
+                        {events.filter(e => e.is_active && new Date(e.end_time) > new Date()).length > 0 ? (
                             <section>
                                 <h2 className="text-2xl font-bold text-orange-400 mb-6 flex items-center gap-2">
                                     <span className="w-2 h-2 bg-orange-500 rounded-full animate-ping"></span>
                                     Active Now
                                 </h2>
                                 <div className="space-y-6">
-                                    {events.filter(e => e.is_active).map((event: any) => (
+                                    {events.filter(e => e.is_active && new Date(e.end_time) > new Date()).map((event: any) => (
                                         <EventCard key={event.id} event={event} />
                                     ))}
                                 </div>
@@ -77,12 +72,7 @@ export default function EventsPage() {
                                 <p className="text-white text-xl">No active events right now</p>
                                 <p className="text-white/70 mt-2">Check back soon!</p>
 
-                                <div className="mt-8 p-4 bg-zinc-900/50 rounded-xl border border-white/5 text-left max-w-sm mx-auto">
-                                    <h3 className="text-sm font-bold text-white/50 mb-2 uppercase tracking-widest">Debugging info:</h3>
-                                    <p className="text-xs text-white/70 font-mono">Is Loading: No</p>
-                                    <p className="text-xs text-white/70 font-mono">Data Count: {events?.length || 0}</p>
-                                    <p className="text-xs text-white/70 font-mono break-all">API URL: https://bingo-api.melonadawit71.workers.dev</p>
-                                </div>
+
                             </div>
                         )}
                     </div>

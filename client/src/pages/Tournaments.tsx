@@ -64,24 +64,19 @@ export default function TournamentsPage() {
                         <p className="text-white text-xl font-bold">No active tournaments right now</p>
                         <p className="text-white/70 mt-2">Check back soon!</p>
 
-                        <div className="mt-8 p-4 bg-zinc-900/50 rounded-xl border border-white/5 text-left max-w-sm mx-auto shadow-2xl">
-                            <h3 className="text-sm font-bold text-white/50 mb-2 uppercase tracking-widest">Debugging info:</h3>
-                            <p className="text-xs text-white/70 font-mono">Is Loading: No</p>
-                            <p className="text-xs text-white/70 font-mono">Data Count: {tournaments?.length || 0}</p>
-                            <p className="text-xs text-white/70 font-mono break-all">API URL: https://bingo-api.melonadawit71.workers.dev</p>
-                        </div>
+
                     </div>
                 ) : (
                     <div className="space-y-12">
                         {/* ACTIVE TOURNAMENTS */}
-                        {tournaments.filter(t => t.is_active).length > 0 ? (
+                        {tournaments.filter(t => t.is_active && new Date(t.end_date) > new Date()).length > 0 ? (
                             <section>
                                 <h2 className="text-2xl font-bold text-green-400 mb-6 flex items-center gap-2">
                                     <span className="w-2 h-2 bg-green-500 rounded-full animate-ping"></span>
                                     Live Now
                                 </h2>
                                 <div className="space-y-6">
-                                    {tournaments.filter(t => t.is_active).map((tournament) => (
+                                    {tournaments.filter(t => t.is_active && new Date(t.end_date) > new Date()).map((tournament) => (
                                         <TournamentCard key={tournament.id} tournament={tournament} onJoin={joinTournament} onResult={() => navigate(`/leaderboard?period=weekly`)} />
                                     ))}
                                 </div>
@@ -91,12 +86,7 @@ export default function TournamentsPage() {
                                 <p className="text-white text-xl font-bold">No active tournaments right now</p>
                                 <p className="text-white/70 mt-2">Check back soon!</p>
 
-                                <div className="mt-8 p-4 bg-zinc-900/50 rounded-xl border border-white/5 text-left max-w-sm mx-auto shadow-2xl">
-                                    <h3 className="text-sm font-bold text-white/50 mb-2 uppercase tracking-widest">Debugging info:</h3>
-                                    <p className="text-xs text-white/70 font-mono">Is Loading: No</p>
-                                    <p className="text-xs text-white/70 font-mono">Data Count: {tournaments?.length || 0}</p>
-                                    <p className="text-xs text-white/70 font-mono break-all">API URL: https://bingo-api.melonadawit71.workers.dev</p>
-                                </div>
+
                             </div>
                         )}
                     </div>

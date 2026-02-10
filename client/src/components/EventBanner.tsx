@@ -29,7 +29,7 @@ export default function EventBanner() {
     // Only show on Lobby
     if (location.pathname !== '/lobby') return null;
 
-    const activeEvents = (events || []).filter(e => e.is_active);
+    const activeEvents = (events || []).filter(e => e.is_active && new Date(e.end_time) > new Date());
 
     if (!isVisible || activeEvents.length === 0) {
         return null;

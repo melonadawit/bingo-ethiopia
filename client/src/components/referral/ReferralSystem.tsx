@@ -18,11 +18,6 @@ export const ReferralSystem = () => {
                 // Here passing userId as query param as per controller.
                 const baseUrl = import.meta.env.VITE_API_URL || 'https://bingo-api.melonadawit71.workers.dev';
 
-                console.group('ReferralSystem Debug');
-                console.log('Fetching from:', `${baseUrl}/api/auth/referrals/stats`);
-                console.log('Window location:', window.location.href);
-                console.groupEnd();
-
                 const res = await fetch(`${baseUrl}/api/auth/referrals/stats?userId=${user.id}`);
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
@@ -61,7 +56,7 @@ export const ReferralSystem = () => {
                 <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg shadow-orange-500/30">
                     <Trophy className="w-8 h-8 text-white" />
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-2">Invite & Earn (Debug v2)</h2>
+                <h2 className="text-2xl font-bold text-white mb-2">Invite & Earn</h2>
                 <p className="text-slate-400 text-sm">
                     Invite friends and earn <span className="text-yellow-400 font-bold">50 Birr</span> for every friend who joins!
                 </p>
