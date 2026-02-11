@@ -164,7 +164,7 @@ export default function TournamentsPage() {
             // fetchAdmin wrapper might default to JSON, so let's verify or use raw fetch if needed.
             // Assuming fetchAdmin handles it or we manually do it. 
             // Let's manually do it to be safe as fetchAdmin headers might conflict.
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://bingo-api.melonadawit71.workers.dev';
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://bingo-api-worker.melonadawit71.workers.dev';
             const res = await fetch(`${API_URL}/admin/upload-image`, {
                 method: 'POST',
                 body: formData
