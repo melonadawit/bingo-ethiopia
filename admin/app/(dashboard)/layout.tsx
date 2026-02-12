@@ -165,7 +165,7 @@ export default function DashboardLayout({
                     <div className="border-t p-4 space-y-2">
                         {isSidebarOpen && (
                             <div className="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded text-xs text-center text-green-600 font-mono">
-                                v2.3
+                                v2.4 (2026-02-12)
                             </div>
                         )}
                         <Button

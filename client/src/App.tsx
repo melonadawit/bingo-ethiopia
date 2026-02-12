@@ -34,7 +34,7 @@ function AppContent() {
           </p>
         </div>
         <div className="text-xs text-gray-600 font-mono">
-          System v{config.version} • Status: Locked
+          System v{config.version || '3.8.1'} • Status: Locked
         </div>
       </div>
     );
