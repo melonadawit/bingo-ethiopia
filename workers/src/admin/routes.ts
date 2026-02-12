@@ -463,114 +463,29 @@ export async function handleAdminRequest(request: Request, env: Env): Promise<Re
                 });
                 return jsonResponse({ success: true });
             }
+        }
 
-            if (path === '/config/latest') {
-                const supabase = getSupabase(env);
-                const { data, error } = await supabase!
-                    .from('game_configs')
-                    .select('*')
-                    .eq('is_active', true)
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .single();
+        // --- CONFIG ROUTES ---
+        if (path === '/config/latest') {
+            const supabase = getSupabase(env);
+            const { data, error } = await supabase!
+                .from('game_configs')
+                .select('*')
+                .eq('is_active', true)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
 
-                // If no config exists, return default
-                if (error || !data) {
-                    return jsonResponse({
-                        version: 'v0.0.0',
-                        rules: {
-                            ande_zig: { timer: 30, entry_fee: 10 },
-                            hulet_zig: { timer: 45, entry_fee: 20 },
-                            mulu_zig: { timer: 60, entry_fee: 50 }
-                        },
-                        features: { chat_enabled: false }
-                    });
-                }
-                return jsonResponse(data);
-            }
-
-            if (path === '/config/update') {
-                if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
-                const body = await request.json() as any;
-                const supabase = getSupabase(env);
-
-                // 1. Deactivate old configs
-                await supabase!.from('game_configs').update({ is_active: false }).neq('id', '00000000-0000-0000-0000-000000000000'); // Deactivate all
-
-                // 2. Insert new config
-                const { data, error } = await supabase!.from('game_configs').insert({
-                    version: body.version,
-                    rules: body.rules,
-                    features: body.features,
-                    is_active: true,
-                    created_by: body.adminId // If we had it
-                }).select().single();
-
-                if (error) throw error;
-                return jsonResponse(data);
-            }
-
-            // --- MARKETING ---
-            if (path === '/marketing/campaigns') {
-                const supabase = getSupabase(env);
-                if (request.method === 'GET') {
-                    const { data, error } = await supabase!.from('marketing_campaigns').select('*').order('created_at', { ascending: false });
-                    if (error) throw error;
-                    return jsonResponse({ campaigns: data });
-                }
-                if (request.method === 'POST') {
-                    const body = await request.json();
-                    const { data, error } = await supabase!.from('marketing_campaigns').insert(body).select().single();
-                    if (error) throw error;
-                    return jsonResponse(data);
-                }
-            }
-
-            // --- CONTENT GENERATION (Satori) ---
-            if (path === '/content/winner-card') {
-                const url = new URL(request.url);
-                const name = url.searchParams.get('name') || 'Player';
-                const amount = url.searchParams.get('amount') || '0';
-                const currency = url.searchParams.get('currency') || 'ETB';
-
-
-                // Generate PNG
-                let pngBuffer: Uint8Array;
-                const { ContentService } = await import('../bot/contentService');
-
-                if (url.searchParams.has('jackpot')) {
-                    pngBuffer = await ContentService.generateJackpotCard(amount);
-                } else if (url.searchParams.has('milestone')) {
-                    const count = url.searchParams.get('count') || '1000';
-                    const label = url.searchParams.get('label') || 'Players';
-                    pngBuffer = await ContentService.generateMilestoneCard(count, label);
-                } else {
-                    pngBuffer = await ContentService.generateWinnerCard(name, amount, currency);
-                }
-
-                // Check if we should POST to Telegram
-                const action = url.searchParams.get('action');
-                if (action === 'post_telegram') {
-                    const { AutomationService } = await import('../bot/automationService');
-                    const channelId = env.TELEGRAM_CHANNEL_ID || '@BingoEthiopiaDemo'; // Default or Env
-
-                    let caption = '';
-                    if (url.searchParams.has('jackpot')) caption = `🚨 <b>BIG DERASH ALERT!</b>\n\nThe Jackpot has been hit! Amount: <b>${amount} ETB</b> 💰`;
-                    else caption = `🏆 <b>CONGRATULATIONS!</b>\n\n${name} just won <b>${amount} ${currency}</b>! 🔥`;
-
-                    try {
-                        await AutomationService.postPhotoToChannel(env, channelId, pngBuffer, caption);
-                        return jsonResponse({ success: true, message: `Posted to ${channelId}` });
-                    } catch (e: any) {
-                        return jsonResponse({ error: e.message }, 500);
-                    }
-                }
-
-                return new Response(pngBuffer, {
-                    headers: {
-                        'Content-Type': 'image/png',
-                        'Cache-Control': 'public, max-age=3600'
-                    }
+            // If no config exists, return default
+            if (error || !data) {
+                return jsonResponse({
+                    version: 'v0.0.0',
+                    rules: {
+                        ande_zig: { timer: 30, entry_fee: 10 },
+                        hulet_zig: { timer: 45, entry_fee: 20 },
+                        mulu_zig: { timer: 60, entry_fee: 50 }
+                    },
+                    features: { chat_enabled: false }
                 });
             }
             return jsonResponse(data);
@@ -599,6 +514,70 @@ export async function handleAdminRequest(request: Request, env: Env): Promise<Re
 
         // --- MARKETING ---
         if (path === '/marketing/campaigns') {
+            const supabase = getSupabase(env);
+            if (request.method === 'GET') {
+                const { data, error } = await supabase!.from('marketing_campaigns').select('*').order('created_at', { ascending: false });
+                if (error) throw error;
+                return jsonResponse({ campaigns: data });
+            }
+            if (request.method === 'POST') {
+                const body = await request.json();
+                const { data, error } = await supabase!.from('marketing_campaigns').insert(body).select().single();
+                if (error) throw error;
+                return jsonResponse(data);
+            }
+        }
+
+        // --- CONTENT GENERATION (Satori) ---
+        if (path === '/content/winner-card') {
+            const url = new URL(request.url);
+            const name = url.searchParams.get('name') || 'Player';
+            const amount = url.searchParams.get('amount') || '0';
+            const currency = url.searchParams.get('currency') || 'ETB';
+
+            // Generate PNG
+            let pngBuffer: Uint8Array;
+            const { ContentService } = await import('../bot/contentService');
+
+            if (url.searchParams.has('jackpot')) {
+                pngBuffer = await ContentService.generateJackpotCard(amount);
+            } else if (url.searchParams.has('milestone')) {
+                const count = url.searchParams.get('count') || '1000';
+                const label = url.searchParams.get('label') || 'Players';
+                pngBuffer = await ContentService.generateMilestoneCard(count, label);
+            } else {
+                pngBuffer = await ContentService.generateWinnerCard(name, amount, currency);
+            }
+
+            // Check if we should POST to Telegram
+            const action = url.searchParams.get('action');
+            if (action === 'post_telegram') {
+                const { AutomationService } = await import('../bot/automationService');
+                const channelId = env.TELEGRAM_CHANNEL_ID || '@BingoEthiopiaDemo'; // Default or Env
+
+                let caption = '';
+                if (url.searchParams.has('jackpot')) caption = `🚨 <b>BIG DERASH ALERT!</b>\n\nThe Jackpot has been hit! Amount: <b>${amount} ETB</b> 💰`;
+                else caption = `🏆 <b>CONGRATULATIONS!</b>\n\n${name} just won <b>${amount} ${currency}</b>! 🔥`;
+
+                try {
+                    await AutomationService.postPhotoToChannel(env, channelId, pngBuffer, caption);
+                    return jsonResponse({ success: true, message: `Posted to ${channelId}` });
+                } catch (e: any) {
+                    return jsonResponse({ error: e.message }, 500);
+                }
+            }
+
+            return new Response(pngBuffer, {
+                headers: {
+                    'Content-Type': 'image/png',
+                    'Cache-Control': 'public, max-age=3600'
+                }
+            });
+        }
+
+        // --- MARKETING ---
+        if (path === '/marketing/campaigns') {
+
             const supabase = getSupabase(env);
             if (request.method === 'GET') {
                 const { data, error } = await supabase!.from('marketing_campaigns').select('*').order('created_at', { ascending: false });
@@ -651,17 +630,94 @@ export async function handleAdminRequest(request: Request, env: Env): Promise<Re
             const amount = url.searchParams.get('amount') || '0';
             const currency = url.searchParams.get('currency') || 'ETB';
 
+            // Generate PNG
+            let pngBuffer: Uint8Array;
+            const { ContentService } = await import('../bot/contentService');
 
-            // --- AUTOMATION / TOURNAMENTS ---
-            if (path === '/tournaments') {
-                const supabase = getSupabase(env);
-                if (request.method === 'GET') {
-                    const { data, error } = await supabase!.from('tournaments').select('*').order('start_time', { ascending: false });
-                    if (error) throw error;
-                    return jsonResponse({ tournaments: data });
+            if (url.searchParams.has('jackpot')) {
+                pngBuffer = await ContentService.generateJackpotCard(amount);
+            } else if (url.searchParams.has('milestone')) {
+                const count = url.searchParams.get('count') || '1000';
+                const label = url.searchParams.get('label') || 'Players';
+                pngBuffer = await ContentService.generateMilestoneCard(count, label);
+            } else {
+                pngBuffer = await ContentService.generateWinnerCard(name, amount, currency);
+            }
+
+            // Check if we should POST to Telegram
+            const action = url.searchParams.get('action');
+            if (action === 'post_telegram') {
+                const { BotConfigService } = await import('../bot/configService');
+                const configService = new BotConfigService(env);
+                const config = await configService.getConfig();
+                const channelId = env.TELEGRAM_CHANNEL_ID || '@BingoEthiopiaDemo';
+
+                let caption = '';
+                if (url.searchParams.has('jackpot')) {
+                    caption = `🚨 <b>BIG DERASH ALERT!</b>\n\nThe Jackpot has been hit! Amount: <b>${amount} ETB</b> 💰`;
+                } else {
+                    // Use dynamic win message from bot configs if available
+                    const winTemplate = config.botFlows?.game?.winner_announcement || `🏆 <b>CONGRATULATIONS!</b>\n\n{winner} just won <b>{win_amount} {currency}</b>! 🔥`;
+                    caption = winTemplate
+                        .replace('{winner}', name)
+                        .replace('{win_amount}', amount)
+                        .replace('{amount}', amount) // fallback
+                        .replace('{currency}', currency);
                 }
-                if (request.method === 'POST') {
+
+                try {
+                    const { AutomationService } = await import('../bot/automationService');
+                    await AutomationService.postPhotoToChannel(env, channelId, pngBuffer, caption);
+                    return jsonResponse({ success: true, message: `Posted to ${channelId}` });
+                } catch (e: any) {
+                    console.error('Failed to post to Telegram:', e);
+                    return jsonResponse({ error: e.message }, 500);
+                }
+            }
+
+            return new Response(pngBuffer, {
+                headers: {
+                    'Content-Type': 'image/png',
+                    'Cache-Control': 'public, max-age=3600'
+                }
+            });
+        }
+
+        // --- AUTOMATION / TOURNAMENTS ---
+
+        if (path === '/tournaments') {
+            const supabase = getSupabase(env);
+            if (request.method === 'GET') {
+                try {
+                    const { data, error } = await supabase!
+                        .from('public_tournaments_view')
+                        .select('*')
+                        .order('start_date', { ascending: false });
+
+                    if (error) {
+                        console.error('Supabase GET tournaments error:', error);
+                        return jsonResponse({ error: error.message, details: error }, 500);
+                    }
+
+                    // Map view fields back to what admin expects
+                    const mappedData = (data || []).map((t: any) => ({
+                        ...t,
+                        start_time: t.start_date,
+                        end_time: t.end_date,
+                        title: t.title || t.name
+                    }));
+
+                    return jsonResponse({ tournaments: mappedData });
+                } catch (err: any) {
+                    console.error('Worker GET tournaments exception:', err);
+                    return jsonResponse({ error: err.message, stack: err.stack }, 500);
+                }
+            }
+            if (request.method === 'POST') {
+                try {
                     const body = await request.json() as any;
+                    console.log('Creating tournament with body:', body);
+
                     const { data, error } = await supabase!.from('tournaments').insert({
                         title: body.title,
                         description: body.description,
@@ -672,546 +728,425 @@ export async function handleAdminRequest(request: Request, env: Env): Promise<Re
                         status: 'scheduled'
                     }).select().single();
 
-                    if (url.searchParams.has('jackpot')) {
-                        pngBuffer = await ContentService.generateJackpotCard(amount);
-                    } else if (url.searchParams.has('milestone')) {
-                        const count = url.searchParams.get('count') || '1000';
-                        const label = url.searchParams.get('label') || 'Players';
-                        pngBuffer = await ContentService.generateMilestoneCard(count, label);
-                    } else {
-                        pngBuffer = await ContentService.generateWinnerCard(name, amount, currency);
+                    if (error) {
+                        console.error('Supabase POST tournament error:', error);
+                        return jsonResponse({ error: error.message, details: error }, 500);
                     }
 
-                    // Check if we should POST to Telegram
-                    const action = url.searchParams.get('action');
-                    if (action === 'post_telegram') {
-                        const { BotConfigService } = await import('../bot/configService');
-                        const configService = new BotConfigService(env);
-                        const config = await configService.getConfig();
-                        const channelId = env.TELEGRAM_CHANNEL_ID || '@BingoEthiopiaDemo';
-
-                        let caption = '';
-                        if (url.searchParams.has('jackpot')) {
-                            caption = `🚨 <b>BIG DERASH ALERT!</b>\n\nThe Jackpot has been hit! Amount: <b>${amount} ETB</b> 💰`;
-                        } else {
-                            // Use dynamic win message from bot configs if available
-                            const winTemplate = config.botFlows?.game?.winner_announcement || `🏆 <b>CONGRATULATIONS!</b>\n\n{winner} just won <b>{win_amount} {currency}</b>! 🔥`;
-                            caption = winTemplate
-                                .replace('{winner}', name)
-                                .replace('{win_amount}', amount)
-                                .replace('{amount}', amount) // fallback
-                                .replace('{currency}', currency);
-                        }
-
+                    // --- AUTO ANNOUNCEMENT LOGIC ---
+                    if (body.announce) {
                         try {
-                            const { AutomationService } = await import('../bot/automationService');
-                            await AutomationService.postPhotoToChannel(env, channelId, pngBuffer, caption);
-                            return jsonResponse({ success: true, message: `Posted to ${channelId}` });
-                        } catch (e: any) {
-                            console.error('Failed to post to Telegram:', e);
-                            return jsonResponse({ error: e.message }, 500);
-                        }
-                    }
-
-                    return new Response(pngBuffer, {
-                        headers: {
-                            'Content-Type': 'image/png',
-                            'Cache-Control': 'public, max-age=3600'
-                        }
-                    });
-                }
-
-
-                // --- AUTOMATION / TOURNAMENTS ---
-                if (path === '/tournaments') {
-                    const supabase = getSupabase(env);
-                    if (request.method === 'GET') {
-                        try {
-                            const { data, error } = await supabase!
-                                .from('public_tournaments_view')
+                            const { data: config } = await supabase!
+                                .from('game_configs')
                                 .select('*')
-                                .order('start_date', { ascending: false });
+                                .eq('is_active', true)
+                                .single();
 
-                            if (error) {
-                                console.error('Supabase GET tournaments error:', error);
-                                return jsonResponse({ error: error.message, details: error }, 500);
-                            }
+                            if (config) {
+                                const startTime = new Date(body.start_time).toLocaleString('en-US', {
+                                    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+                                });
 
-                            // Map view fields back to what admin expects
-                            const mappedData = (data || []).map((t: any) => ({
-                                ...t,
-                                start_time: t.start_date,
-                                end_time: t.end_date,
-                                title: t.title || t.name
-                            }));
-
-                            return jsonResponse({ tournaments: mappedData });
-                        } catch (err: any) {
-                            console.error('Worker GET tournaments exception:', err);
-                            return jsonResponse({ error: err.message, stack: err.stack }, 500);
-                        }
-                    }
-                    if (request.method === 'POST') {
-                        try {
-                            const body = await request.json() as any;
-                            console.log('Creating tournament with body:', body);
-
-                            const { data, error } = await supabase!.from('tournaments').insert({
-                                title: body.title,
-                                description: body.description,
-                                start_time: body.start_time,
-                                end_time: body.end_time,
-                                prize_pool: body.prize_pool,
-                                entry_fee: body.entry_fee,
-                                status: 'scheduled'
-                            }).select().single();
-
-                            if (error) {
-                                console.error('Supabase POST tournament error:', error);
-                                return jsonResponse({ error: error.message, details: error }, 500);
-                            }
-
-                            // --- AUTO ANNOUNCEMENT LOGIC ---
-                            if (body.announce) {
-                                try {
-                                    const { data: config } = await supabase!
-                                        .from('game_configs')
-                                        .select('*')
-                                        .eq('is_active', true)
-                                        .single();
-
-                                    if (config) {
-                                        const startTime = new Date(body.start_time).toLocaleString('en-US', {
-                                            month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
-                                        });
-
-                                        const newFeatures = {
-                                            ...config.features,
-                                            announcement: {
-                                                enabled: true,
-                                                id: crypto.randomUUID(),
-                                                title: `🏆 New Tournament: ${body.title}`,
-                                                message: `${body.description || 'Compete for glory!'} \n\n💰 Prize Pool: ${body.prize_pool} ETB\n⏰ Starts: ${startTime}`,
-                                                image_url: "https://hthvotvtkqggbdpfrryb.supabase.co/storage/v1/object/public/public-assets/tournament_default.png", // Fallback or generic image
-                                                action_text: "Join Now",
-                                                action_url: `/tournaments/${data.id}` // Deep link
-                                            }
-                                        };
-
-                                        await supabase!
-                                            .from('game_configs')
-                                            .update({ features: newFeatures })
-                                            .eq('id', config.id);
+                                const newFeatures = {
+                                    ...config.features,
+                                    announcement: {
+                                        enabled: true,
+                                        id: crypto.randomUUID(),
+                                        title: `🏆 New Tournament: ${body.title}`,
+                                        message: `${body.description || 'Compete for glory!'} \n\n💰 Prize Pool: ${body.prize_pool} ETB\n⏰ Starts: ${startTime}`,
+                                        image_url: "https://hthvotvtkqggbdpfrryb.supabase.co/storage/v1/object/public/public-assets/tournament_default.png", // Fallback or generic image
+                                        action_text: "Join Now",
+                                        action_url: `/tournaments/${data.id}` // Deep link
                                     }
-                                } catch (e) {
-                                    console.error("Failed to auto-announce tournament:", e);
-                                    // Do not fail the request, just log
-                                }
+                                };
+
+                                await supabase!
+                                    .from('game_configs')
+                                    .update({ features: newFeatures })
+                                    .eq('id', config.id);
                             }
-
-                            return jsonResponse(data);
-                        } catch (err: any) {
-                            console.error('Worker POST tournament exception:', err);
-                            return jsonResponse({ error: err.message, stack: err.stack }, 500);
+                        } catch (e) {
+                            console.error("Failed to auto-announce tournament:", e);
+                            // Do not fail the request, just log
                         }
                     }
 
-                    // --- TOURNAMENT ACTIONS ---
-                    const tournamentActionMatch = path.match(/^\/tournaments\/([^\/]+)$/);
-                    if (tournamentActionMatch) {
-                        const tournamentId = tournamentActionMatch[1];
-                        const supabase = getSupabase(env);
-
-                        if (request.method === 'PATCH') {
-                            const body = await request.json() as { status?: string, end_time?: string };
-                            const updates: any = {};
-                            if (body.status) updates.status = body.status;
-                            if (body.end_time) updates.end_time = body.end_time;
-
-                            const { data, error } = await supabase!
-                                .from('tournaments')
-                                .update(updates)
-                                .eq('id', tournamentId)
-                                .select()
-                                .single();
-
-                            if (error) return jsonResponse({ error: error.message }, 500);
-                            return jsonResponse({ success: true, data });
-                        }
-
-                        if (request.method === 'DELETE') {
-                            const { error } = await supabase!
-                                .from('tournaments')
-                                .delete()
-                                .eq('id', tournamentId);
-
-                            if (error) return jsonResponse({ error: error.message }, 500);
-                            return jsonResponse({ success: true });
-                        }
-                    }
-
-                    // --- NEW: TOURNAMENT PAYOUT ---
-                    const payoutMatch = path.match(/^\/tournaments\/([^\/]+)\/payout$/);
-                    if (payoutMatch && request.method === 'POST') {
-                        const tournamentId = payoutMatch[1];
-                        const supabase = getSupabase(env);
-
-                        // 1. Fetch tournament details
-                        const { data: tournament, error: tError } = await supabase!
-                            .from('tournaments')
-                            .select('*')
-                            .eq('id', tournamentId)
-                            .single();
-
-                        if (tError || !tournament) return jsonResponse({ error: 'Tournament not found' }, 404);
-                        if (tournament.status === 'completed') return jsonResponse({ error: 'Tournament already paid out' }, 400);
-
-                        // 2. Fetch top participants
-                        const { data: leaders, error: lError } = await supabase!
-                            .rpc('get_tournament_leaderboard', {
-                                tournament_uuid: tournamentId,
-                                limit_count: 3 // Pay top 3
-                            });
-
-                        if (lError) return jsonResponse({ error: lError.message }, 500);
-                        if (!leaders || leaders.length === 0) return jsonResponse({ error: 'No participants found' }, 400);
-
-                        // 3. Define prize distribution (e.g., 50%, 30%, 20%)
-                        const dist = tournament.prize_distribution || { "1": 0.5, "2": 0.3, "3": 0.2 };
-                        const prizePool = parseFloat(tournament.prize_pool);
-                        const summaries: any[] = [];
-
-                        // 4. Distribute prizes
-                        for (const leader of leaders) {
-                            const rank = leader.rank;
-                            const pct = dist[rank.toString()];
-                            if (!pct) continue;
-
-                            const prize = prizePool * (parseFloat(pct) > 1 ? (parseFloat(pct) / prizePool) : parseFloat(pct));
-                            if (prize <= 0) continue;
-
-                            // Update user balance
-                            // Leader has user_id (BIGINT telegram_id)
-                            const { data: user, error: uError } = await supabase!
-                                .from('users')
-                                .select('id, balance')
-                                .eq('telegram_id', leader.user_id)
-                                .single();
-
-                            if (uError || !user) continue;
-
-                            const balanceBefore = parseFloat(user.balance);
-                            const balanceAfter = balanceBefore + prize;
-
-                            // Atomic balance update
-                            await supabase!.from('users').update({ balance: balanceAfter }).eq('id', user.id);
-
-                            // Record transaction
-                            await supabase!.from('transactions').insert({
-                                user_id: user.id,
-                                type: 'game_win',
-                                amount: prize,
-                                balance_before: balanceBefore,
-                                balance_after: balanceAfter,
-                                reference_id: tournamentId,
-                                description: `Tournament Prize: ${tournament.title} (Rank ${rank})`
-                            });
-
-                            // Update participant record
-                            await supabase!
-                                .from('tournament_participants')
-                                .update({ prize_won: prize })
-                                .eq('tournament_id', tournamentId)
-                                .eq('user_id', leader.user_id);
-
-                            summaries.push({ user_id: leader.user_id, rank, prize });
-                        }
-
-                        // 5. Build Final result list for Telegram Notification
-                        // (Optional: send notification here or let admin do it)
-
-                        // 6. Close tournament
-                        await supabase!.from('tournaments').update({ status: 'completed' }).eq('id', tournamentId);
-
-                        return jsonResponse({ success: true, distributions: summaries });
-                    }
-
-                    if (path === '/tournaments/schedule') {
-                        const supabase = getSupabase(env);
-                        const { data, error } = await supabase!.from('scheduled_events').select('*').order('trigger_at', { ascending: true });
-                        if (error) throw error;
-                        return jsonResponse({ events: data });
-                    }
-
-                    // --- SPECIAL EVENTS ---
-                    if (path === '/events') {
-                        const supabase = getSupabase(env);
-                        if (request.method === 'GET') {
-                            const { data, error } = await supabase!.from('special_events').select('*').order('start_time', { ascending: false });
-                            if (error) throw error;
-                            return jsonResponse({ events: data || [] });
-                        }
-                        if (request.method === 'POST') {
-                            const body = await request.json() as any;
-
-                            // 1. Create Event
-                            const { data, error } = await supabase!.from('special_events').insert({
-                                title: body.title,
-                                description: body.description,
-                                type: body.type, // 'happy_hour', 'weekend_bonanza', 'flash_sale', 'holiday'
-                                multiplier: body.multiplier,
-                                start_time: body.start_time,
-                                end_time: body.end_time,
-                                status: 'active'
-                            }).select().single();
-
-                            if (error) throw error;
-
-                            // 2. Auto-Announce
-                            if (body.announce) {
-                                try {
-                                    const { data: config } = await supabase!
-                                        .from('game_configs')
-                                        .select('*')
-                                        .eq('is_active', true)
-                                        .single();
-
-                                    if (config) {
-                                        // Emoji mapping
-                                        const emojis: any = { happy_hour: '⏰', weekend_bonanza: '🎊', flash_sale: '⚡', holiday: '🎄' };
-                                        const icon = emojis[body.type] || '🎉';
-
-                                        const newFeatures = {
-                                            ...config.features,
-                                            announcement: {
-                                                enabled: true,
-                                                id: crypto.randomUUID(),
-                                                title: `${icon} Special Event: ${body.title}!`,
-                                                message: `${body.description || 'Limited time offer!'} \n\n🔥 Rewards: ${body.multiplier}x Multiplier\n⏳ Ends: ${new Date(body.end_time).toLocaleString()}`,
-                                                image_url: "https://hthvotvtkqggbdpfrryb.supabase.co/storage/v1/object/public/public-assets/event_default.png",
-                                                action_text: "Play Now",
-                                                action_url: "/lobby"
-                                            }
-                                        };
-
-                                        await supabase!
-                                            .from('game_configs')
-                                            .update({ features: newFeatures })
-                                            .eq('id', config.id);
-                                    }
-                                } catch (e) {
-                                    console.error("Failed to auto-announce event:", e);
-                                }
-                            }
-
-                            return jsonResponse(data);
-                        }
-                    }
-
-                    // --- EVENT ACTIONS ---
-                    const eventActionMatch = path.match(/^\/events\/([^\/]+)$/);
-                    if (eventActionMatch) {
-                        const eventId = eventActionMatch[1];
-                        const supabase = getSupabase(env);
-
-                        if (request.method === 'PATCH') {
-                            const body = await request.json() as { status?: string, end_time?: string };
-                            const updates: any = {};
-                            if (body.status) updates.status = body.status;
-                            if (body.end_time) updates.end_time = body.end_time;
-
-                            const { data, error } = await supabase!
-                                .from('special_events')
-                                .update(updates)
-                                .eq('id', eventId)
-                                .select()
-                                .single();
-
-                            if (error) return jsonResponse({ error: error.message }, 500);
-                            return jsonResponse({ success: true, data });
-                        }
-
-                        if (request.method === 'DELETE') {
-                            const { error } = await supabase!
-                                .from('special_events')
-                                .delete()
-                                .eq('id', eventId);
-
-                            if (error) return jsonResponse({ error: error.message }, 500);
-                            return jsonResponse({ success: true });
-                        }
-                    }
-
-                    // 1. Get Campaign
-                    const { data: campaign, error } = await supabase!
-                        .from('marketing_campaigns')
-                        .select('*')
-                        .eq('id', campaignId)
-                        .single();
-
-                    if (error || !campaign) return jsonResponse({ error: 'Campaign not found' }, 404);
-                    if (campaign.status === 'completed') return jsonResponse({ error: 'Already sent' }, 400);
-
-                    // 2. Trigger Bot Broadcast (Mocked for now or call Bot API)
-                    // In real world: Enqueue a background job
-                    // For now: Just mark as 'active' or 'completed' and log
-
-                    await supabase!
-                        .from('marketing_campaigns')
-                        .update({ status: 'completed', sent_count: 100 }) // Mock success
-                        .eq('id', campaignId);
-
-                    // Audit Log
-                    const { logAdminAction } = await import('./audit');
-                    await logAdminAction(env, request, 'SEND_CAMPAIGN', campaignId, { name: campaign.name });
-
-                    if (error) throw error;
                     return jsonResponse(data);
+                } catch (err: any) {
+                    console.error('Worker POST tournament exception:', err);
+                    return jsonResponse({ error: err.message, stack: err.stack }, 500);
                 }
             }
 
-            if (path.startsWith('/team/members/') && request.method === 'DELETE') {
-                const id = path.split('/')[3];
+            // --- TOURNAMENT ACTIONS ---
+            const tournamentActionMatch = path.match(/^\/tournaments\/([^\/]+)$/);
+            if (tournamentActionMatch) {
+                const tournamentId = tournamentActionMatch[1];
                 const supabase = getSupabase(env);
-                const { error } = await supabase!.from('admin_users').delete().eq('id', id);
-                if (error) throw error;
-                return jsonResponse({ success: true });
-            }
 
-            // --- FINANCE ---
-            if (path === '/finance/stats') {
-                try {
-                    const supabase = getSupabase(env);
-                    const url = new URL(request.url);
-                    const range = url.searchParams.get('range') || '30d';
-                    let days = 30;
-                    if (range === '7d') days = 7;
-                    if (range === '90d') days = 90;
-                    if (range === 'all') days = 3650;
-
-                    // Calculate start date
-                    const startDate = new Date();
-                    startDate.setDate(startDate.getDate() - days);
-                    const startDateStr = startDate.toISOString().split('T')[0];
+                if (request.method === 'PATCH') {
+                    const body = await request.json() as { status?: string, end_time?: string };
+                    const updates: any = {};
+                    if (body.status) updates.status = body.status;
+                    if (body.end_time) updates.end_time = body.end_time;
 
                     const { data, error } = await supabase!
-                        .from('daily_financials_view')
-                        .select('*')
-                        .gte('date', startDateStr)
-                        .order('date', { ascending: true });
+                        .from('tournaments')
+                        .update(updates)
+                        .eq('id', tournamentId)
+                        .select()
+                        .single();
 
-                    if (error) {
-                        // Return empty if view missing
-                        return jsonResponse({ stats: [] });
-                    }
-
-                    return jsonResponse({ stats: data });
-                } catch (e: any) {
-                    return jsonResponse({ error: e.message }, 500);
+                    if (error) return jsonResponse({ error: error.message }, 500);
+                    return jsonResponse({ success: true, data });
                 }
 
+                if (request.method === 'DELETE') {
+                    const { error } = await supabase!
+                        .from('tournaments')
+                        .delete()
+                        .eq('id', tournamentId);
+
+                    if (error) return jsonResponse({ error: error.message }, 500);
+                    return jsonResponse({ success: true });
+                }
             }
 
-            if (path === '/finance/withdrawals') {
-                // Still mock for now, as payment_requests logic is complex
-                return jsonResponse({ withdrawals: [] });
-            }
-
-            // --- RISK ANALYSIS ---
-            if (path === '/risk/scan') {
-                // In a real scenario, this would trigger a heavy background job
-                // For demo, we will return some "detected" high risk users
-
-                // 1. Fetch recent high rollers (Mocking logic here for speed)
-                const mockHighRiskUsers = [
-                    {
-                        userId: 'user-123-suspicious',
-                        name: 'Lucky Winner',
-                        riskScore: 85,
-                        flags: ['High Win Rate: 72%', 'Win Streak: 6 games']
-                    }
-                ];
-
-                return jsonResponse({ alerts: mockHighRiskUsers });
-            }
-
-
-            // --- USERS ACTIONS ---
-            if (path.startsWith('/users/') && path.includes('/status')) {
-                if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
-
-                // Extract ID from path: /users/123/status
-                const parts = path.split('/'); // ["", "users", "123", "status"]
-                const userId = parts[2];
-                const body = await request.json() as { is_blocked: boolean, reason?: string };
-
+            // --- NEW: TOURNAMENT PAYOUT ---
+            const payoutMatch = path.match(/^\/tournaments\/([^\/]+)\/payout$/);
+            if (payoutMatch && request.method === 'POST') {
+                const tournamentId = payoutMatch[1];
                 const supabase = getSupabase(env);
-                const { data, error } = await supabase!
-                    .from('users')
-                    .update({ is_blocked: body.is_blocked })
-                    .eq('id', userId)
-                    .select()
+
+                // 1. Fetch tournament details
+                const { data: tournament, error: tError } = await supabase!
+                    .from('tournaments')
+                    .select('*')
+                    .eq('id', tournamentId)
                     .single();
+
+                if (tError || !tournament) return jsonResponse({ error: 'Tournament not found' }, 404);
+                if (tournament.status === 'completed') return jsonResponse({ error: 'Tournament already paid out' }, 400);
+
+                // 2. Fetch top participants
+                const { data: leaders, error: lError } = await supabase!
+                    .rpc('get_tournament_leaderboard', {
+                        tournament_uuid: tournamentId,
+                        limit_count: 3 // Pay top 3
+                    });
+
+                if (lError) return jsonResponse({ error: lError.message }, 500);
+                if (!leaders || leaders.length === 0) return jsonResponse({ error: 'No participants found' }, 400);
+
+                // 3. Define prize distribution (e.g., 50%, 30%, 20%)
+                const dist = tournament.prize_distribution || { "1": 0.5, "2": 0.3, "3": 0.2 };
+                const prizePool = parseFloat(tournament.prize_pool);
+                const summaries: any[] = [];
+
+                // 4. Distribute prizes
+                for (const leader of leaders) {
+                    const rank = leader.rank;
+                    const pct = dist[rank.toString()];
+                    if (!pct) continue;
+
+                    const prize = prizePool * (parseFloat(pct) > 1 ? (parseFloat(pct) / prizePool) : parseFloat(pct));
+                    if (prize <= 0) continue;
+
+                    // Update user balance
+                    // Leader has user_id (BIGINT telegram_id)
+                    const { data: user, error: uError } = await supabase!
+                        .from('users')
+                        .select('id, balance')
+                        .eq('telegram_id', leader.user_id)
+                        .single();
+
+                    if (uError || !user) continue;
+
+                    const balanceBefore = parseFloat(user.balance);
+                    const balanceAfter = balanceBefore + prize;
+
+                    // Atomic balance update
+                    await supabase!.from('users').update({ balance: balanceAfter }).eq('id', user.id);
+
+                    // Record transaction
+                    await supabase!.from('transactions').insert({
+                        user_id: user.id,
+                        type: 'game_win',
+                        amount: prize,
+                        balance_before: balanceBefore,
+                        balance_after: balanceAfter,
+                        reference_id: tournamentId,
+                        description: `Tournament Prize: ${tournament.title} (Rank ${rank})`
+                    });
+
+                    // Update participant record
+                    await supabase!
+                        .from('tournament_participants')
+                        .update({ prize_won: prize })
+                        .eq('tournament_id', tournamentId)
+                        .eq('user_id', leader.user_id);
+
+                    summaries.push({ user_id: leader.user_id, rank, prize });
+                }
+
+                // 5. Build Final result list for Telegram Notification
+                // (Optional: send notification here or let admin do it)
+
+                // 6. Close tournament
+                await supabase!.from('tournaments').update({ status: 'completed' }).eq('id', tournamentId);
+
+                return jsonResponse({ success: true, distributions: summaries });
+            }
+        }
+
+        if (path === '/tournaments/schedule') {
+            const supabase = getSupabase(env);
+            const { data, error } = await supabase!.from('scheduled_events').select('*').order('trigger_at', { ascending: true });
+            if (error) throw error;
+            return jsonResponse({ events: data });
+        }
+
+        // --- SPECIAL EVENTS ---
+        if (path === '/events') {
+
+            const supabase = getSupabase(env);
+            if (request.method === 'GET') {
+                const { data, error } = await supabase!.from('special_events').select('*').order('start_time', { ascending: false });
+                if (error) throw error;
+                return jsonResponse({ events: data || [] });
+            }
+            if (request.method === 'POST') {
+                const body = await request.json() as any;
+
+                // 1. Create Event
+                const { data, error } = await supabase!.from('special_events').insert({
+                    title: body.title,
+                    description: body.description,
+                    type: body.type, // 'happy_hour', 'weekend_bonanza', 'flash_sale', 'holiday'
+                    multiplier: body.multiplier,
+                    start_time: body.start_time,
+                    end_time: body.end_time,
+                    status: 'active'
+                }).select().single();
 
                 if (error) throw error;
 
-                // Audit Log
-                const { logAdminAction } = await import('./audit');
-                await logAdminAction(env, request, body.is_blocked ? 'BAN_USER' : 'UNBAN_USER', userId, { reason: body.reason });
+                // 2. Auto-Announce
+                if (body.announce) {
+                    try {
+                        const { data: config } = await supabase!
+                            .from('game_configs')
+                            .select('*')
+                            .eq('is_active', true)
+                            .single();
+
+                        if (config) {
+                            // Emoji mapping
+                            const emojis: any = { happy_hour: '⏰', weekend_bonanza: '🎊', flash_sale: '⚡', holiday: '🎄' };
+                            const icon = emojis[body.type] || '🎉';
+
+                            const newFeatures = {
+                                ...config.features,
+                                announcement: {
+                                    enabled: true,
+                                    id: crypto.randomUUID(),
+                                    title: `${icon} Special Event: ${body.title}!`,
+                                    message: `${body.description || 'Limited time offer!'} \n\n🔥 Rewards: ${body.multiplier}x Multiplier\n⏳ Ends: ${new Date(body.end_time).toLocaleString()}`,
+                                    image_url: "https://hthvotvtkqggbdpfrryb.supabase.co/storage/v1/object/public/public-assets/event_default.png",
+                                    action_text: "Play Now",
+                                    action_url: "/lobby"
+                                }
+                            };
+
+                            await supabase!
+                                .from('game_configs')
+                                .update({ features: newFeatures })
+                                .eq('id', config.id);
+                        }
+                    } catch (e) {
+                        console.error("Failed to auto-announce event:", e);
+                    }
+                }
 
                 return jsonResponse(data);
             }
+        }
 
-            // --- MARKETING ACTIONS ---
-            if (path.startsWith('/marketing/campaigns/') && path.endsWith('/send')) {
-                if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
+        // --- EVENT ACTIONS ---
+        const eventActionMatch = path.match(/^\/events\/([^\/]+)$/);
+        if (eventActionMatch) {
+            const eventId = eventActionMatch[1];
+            const supabase = getSupabase(env);
 
-                // /marketing/campaigns/123/send
-                const parts = path.split('/');
-                const campaignId = parts[3];
+            if (request.method === 'PATCH') {
+                const body = await request.json() as { status?: string, end_time?: string };
+                const updates: any = {};
+                if (body.status) updates.status = body.status;
+                if (body.end_time) updates.end_time = body.end_time;
 
-                const supabase = getSupabase(env);
-
-                // 1. Get Campaign
-                const { data: campaign, error } = await supabase!
-                    .from('marketing_campaigns')
-                    .select('*')
-                    .eq('id', campaignId)
+                const { data, error } = await supabase!
+                    .from('special_events')
+                    .update(updates)
+                    .eq('id', eventId)
+                    .select()
                     .single();
 
-                if (error || !campaign) return jsonResponse({ error: 'Campaign not found' }, 404);
-                if (campaign.status === 'completed') return jsonResponse({ error: 'Already sent' }, 400);
-
-                // 2. Trigger Bot Broadcast
-                // Mark as 'active' so the Cron/Scheduler can pick it up (or we process immediate batch)
-                await supabase!
-                    .from('marketing_campaigns')
-                    .update({ status: 'active', sent_count: 0 })
-                    .eq('id', campaignId);
-
-                // Attempt immediate processing (best effort)
-                // We import dynamically to avoid circular deps if any
-                const { processActiveCampaigns } = await import('../marketing/dripScheduler');
-
-                // We don't await this if we want to return fast, but normally we should await to catch errors.
-                // Given it's a "Launch" button, waiting 5-10s is fine.
-                try {
-                    await processActiveCampaigns(env);
-                } catch (e) {
-                    console.error('Immediate campaign processing failed (will rely on Cron):', e);
-                }
-
-                // Audit Log
-                const { logAdminAction } = await import('./audit');
-                await logAdminAction(env, request, 'SEND_CAMPAIGN', campaignId, { name: campaign.name });
-
-                return jsonResponse({ success: true });
+                if (error) return jsonResponse({ error: error.message }, 500);
+                return jsonResponse({ success: true, data });
             }
 
+            if (request.method === 'DELETE') {
+                const { error } = await supabase!
+                    .from('special_events')
+                    .delete()
+                    .eq('id', eventId);
 
-            return jsonResponse({ error: 'Not Found' }, 404);
-        } catch (e: any) {
-            console.error('Admin Error:', e);
-            return jsonResponse({ error: e.message || 'Internal Admin Error' }, 500);
+                if (error) return jsonResponse({ error: error.message }, 500);
+                return jsonResponse({ success: true });
+            }
         }
+
+        if (path.startsWith('/team/members/') && request.method === 'DELETE') {
+            const id = path.split('/')[3];
+            const supabase = getSupabase(env);
+            const { error } = await supabase!.from('admin_users').delete().eq('id', id);
+            if (error) throw error;
+            return jsonResponse({ success: true });
+        }
+
+        // --- FINANCE ---
+        if (path === '/finance/stats') {
+            try {
+                const supabase = getSupabase(env);
+                const url = new URL(request.url);
+                const range = url.searchParams.get('range') || '30d';
+                let days = 30;
+                if (range === '7d') days = 7;
+                if (range === '90d') days = 90;
+                if (range === 'all') days = 3650;
+
+                // Calculate start date
+                const startDate = new Date();
+                startDate.setDate(startDate.getDate() - days);
+                const startDateStr = startDate.toISOString().split('T')[0];
+
+                const { data, error } = await supabase!
+                    .from('daily_financials_view')
+                    .select('*')
+                    .gte('date', startDateStr)
+                    .order('date', { ascending: true });
+
+                if (error) {
+                    // Return empty if view missing
+                    return jsonResponse({ stats: [] });
+                }
+
+                return jsonResponse({ stats: data });
+            } catch (e: any) {
+                return jsonResponse({ error: e.message }, 500);
+            }
+        }
+
+        if (path === '/finance/withdrawals') {
+            // Still mock for now, as payment_requests logic is complex
+            return jsonResponse({ withdrawals: [] });
+        }
+
+        // --- RISK ANALYSIS ---
+        if (path === '/risk/scan') {
+            // In a real scenario, this would trigger a heavy background job
+            // For demo, we will return some "detected" high risk users
+
+            // 1. Fetch recent high rollers (Mocking logic here for speed)
+            const mockHighRiskUsers = [
+                {
+                    userId: 'user-123-suspicious',
+                    name: 'Lucky Winner',
+                    riskScore: 85,
+                    flags: ['High Win Rate: 72%', 'Win Streak: 6 games']
+                }
+            ];
+
+            return jsonResponse({ alerts: mockHighRiskUsers });
+        }
+
+        // --- USERS ACTIONS ---
+        if (path.startsWith('/users/') && path.includes('/status')) {
+
+            if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
+
+            // Extract ID from path: /users/123/status
+            const parts = path.split('/'); // ["", "users", "123", "status"]
+            const userId = parts[2];
+            const body = await request.json() as { is_blocked: boolean, reason?: string };
+
+            const supabase = getSupabase(env);
+            const { data, error } = await supabase!
+                .from('users')
+                .update({ is_blocked: body.is_blocked })
+                .eq('id', userId)
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            // Audit Log
+            const { logAdminAction } = await import('./audit');
+            await logAdminAction(env, request, body.is_blocked ? 'BAN_USER' : 'UNBAN_USER', userId, { reason: body.reason });
+
+            return jsonResponse(data);
+        }
+
+        // --- MARKETING ACTIONS ---
+        if (path.startsWith('/marketing/campaigns/') && path.endsWith('/send')) {
+            if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
+
+            // /marketing/campaigns/123/send
+            const parts = path.split('/');
+            const campaignId = parts[3];
+
+            const supabase = getSupabase(env);
+
+            // 1. Get Campaign
+            const { data: campaign, error } = await supabase!
+                .from('marketing_campaigns')
+                .select('*')
+                .eq('id', campaignId)
+                .single();
+
+            if (error || !campaign) return jsonResponse({ error: 'Campaign not found' }, 404);
+            if (campaign.status === 'completed') return jsonResponse({ error: 'Already sent' }, 400);
+
+            // 2. Trigger Bot Broadcast
+            // Mark as 'active' so the Cron/Scheduler can pick it up (or we process immediate batch)
+            await supabase!
+                .from('marketing_campaigns')
+                .update({ status: 'active', sent_count: 0 })
+                .eq('id', campaignId);
+
+            // Attempt immediate processing (best effort)
+            // We import dynamically to avoid circular deps if any
+            const { processActiveCampaigns } = await import('../marketing/dripScheduler');
+
+            // We don't await this if we want to return fast, but normally we should await to catch errors.
+            // Given it's a "Launch" button, waiting 5-10s is fine.
+            try {
+                await processActiveCampaigns(env);
+            } catch (e) {
+                console.error('Immediate campaign processing failed (will rely on Cron):', e);
+            }
+
+            // Audit Log
+            const { logAdminAction } = await import('./audit');
+            await logAdminAction(env, request, 'SEND_CAMPAIGN', campaignId, { name: campaign.name });
+
+            return jsonResponse({ success: true });
+        }
+
+        // Fallback for unmatched routes
+        return jsonResponse({ error: 'Not Found' }, 404);
+    } catch (e: any) {
+        console.error('Admin Error:', e);
+        return jsonResponse({ error: e.message || 'Internal Admin Error' }, 500);
     }
+}
