@@ -61,16 +61,6 @@ export async function handleTournamentRoutes(request: Request, env: Env): Promis
             return jsonResponse({ error: 'Already joined this tournament' }, 400);
         }
 
-        // Check tournament exists and is strictly active
-        const { data: tournament } = await supabase
-            .from('public_tournaments_view')
-            .select('*')
-            .eq('id', tournamentId)
-            .single();
-
-        if (!tournament) {
-            return jsonResponse({ error: 'Tournament not found or not joinable' }, 404);
-        }
 
         // STRICT TIME CHECK using server flag
         if (tournament.is_strictly_active === false) {

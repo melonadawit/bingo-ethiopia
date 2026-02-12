@@ -52,8 +52,8 @@ export async function handleEventRoutes(request: Request, env: Env): Promise<Res
         }
 
         // Check event exists and is strictly active
-        const { data: event } = await supabase.rpc('get_public_events');
-        const targetEvent = (event || []).find((e: any) => e.id === eventId);
+        const { data: eventsList } = await supabase.rpc('get_public_events');
+        const targetEvent = (eventsList || []).find((e: any) => e.id === eventId);
 
         if (!targetEvent) {
             return jsonResponse({ error: 'Event not found or not joinable' }, 404);
