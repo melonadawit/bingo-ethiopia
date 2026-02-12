@@ -1,0 +1,54 @@
+name = "bingo-api-worker"
+main = "workers/src/index.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = [ "nodejs_compat" ]
+
+[vars]
+UPSTASH_REDIS_REST_URL = "https://smiling-whippet-27638.upstash.io"
+UPSTASH_REDIS_REST_TOKEN = "AWv2AAIncDFmODU2NWE4YzRlYWE0MDQ1YjAxMGZlMTgzM2E5MTUyZXAxMjc2Mzg"
+BOT_TOKEN = "8214698066:AAFVjf2wjI1KcxXq0jKYXcjNyIYEMmiXvYE"
+SUPABASE_URL = "https://hthvotvtkqggbdpfrryb.supabase.co"
+SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh0aHZvdHZ0a3FnZ2JkcGZycnliIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTgwMTY5OCwiZXhwIjoyMDgxMzc3Njk4fQ.xfwiBDtCiOyWyiAna9DgiM7mjrbQxcr0loDVwAnATAc"
+
+[[durable_objects.bindings]]
+name = "GAME_ROOM"
+class_name = "GameRoom"
+script_name = "bingo-api-worker"
+
+[[durable_objects.bindings]]
+name = "PLAYER_TRACKER"
+class_name = "PlayerTracker"
+script_name = "bingo-api-worker"
+
+[ai]
+binding = "AI"
+
+[env.production]
+name = "bingo-api-worker"
+
+[env.production.vars]
+UPSTASH_REDIS_REST_URL = "https://smiling-whippet-27638.upstash.io"
+UPSTASH_REDIS_REST_TOKEN = "AWv2AAIncDFmODU2NWE4YzRlYWE0MDQ1YjAxMGZlMTgzM2E5MTUyZXAxMjc2Mzg"
+BOT_TOKEN = "8214698066:AAFVjf2wjI1KcxXq0jKYXcjNyIYEMmiXvYE"
+SUPABASE_URL = "https://hthvotvtkqggbdpfrryb.supabase.co"
+SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh0aHZvdHZ0a3FnZ2JkcGZycnliIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTgwMTY5OCwiZXhwIjoyMDgxMzc3Njk4fQ.xfwiBDtCiOyWyiAna9DgiM7mjrbQxcr0loDVwAnATAc"
+
+[[env.production.durable_objects.bindings]]
+name = "GAME_ROOM"
+class_name = "GameRoom"
+script_name = "bingo-api-worker"
+
+[[env.production.durable_objects.bindings]]
+name = "PLAYER_TRACKER"
+class_name = "PlayerTracker"
+script_name = "bingo-api-worker"
+
+[env.production.ai]
+binding = "AI"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GameRoom", "PlayerTracker"]
+
+[triggers]
+crons = ["0 * * * *"]

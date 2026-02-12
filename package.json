@@ -1,5 +1,13 @@
 {
+  "name": "bingo-ethiopia-monorepo",
+  "version": "1.0.0",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.95.3"
+  },
+  "devDependencies": {
+    "wrangler": "^3.114.15"
   }
 }
