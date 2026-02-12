@@ -88,6 +88,20 @@ export async function handleBotWebhook(request: Request, env: Env): Promise<Resp
     const configService = new BotConfigService(env);
     const config = await configService.getConfig();
 
+    // Check for maintenance mode
+    if (config.botSettings?.maintenance_mode && update.message) {
+        const userId = update.message.from.id;
+        if (!config.adminIds.includes(userId)) {
+            await sendMessage(
+                update.message.chat.id,
+                `🛠 <b>Bot Maintenance</b>\n\n` +
+                `The bot is currently undergoing maintenance to improve our services. We'll be back shortly! 🚀`,
+                env
+            );
+            return jsonResponse({ ok: true });
+        }
+    }
+
     // DIAGNOSTIC LOGGING
     console.log('Update received:', JSON.stringify(update, null, 2));
 
@@ -259,12 +273,12 @@ async function handleCommand(chatId: number, userId: number, text: string, usern
         case '/instruction':
         case '/help':
         case '📘 Instructions':
-            await sendMessage(chatId, config.botFlows?.support?.instructions || config.instructions, env);
+            await sendMessage(chatId, config.botFlows?.support?.instructions || config.instructions || 'Instructions not available.', env);
             break;
 
         case '/support':
         case '📞 Support':
-            await sendMessage(chatId, config.botFlows?.support?.contact_message || config.support, env);
+            await sendMessage(chatId, config.botFlows?.support?.contact_message || config.support || 'Support contact not available.', env);
             break;
 
         case '/referral':
@@ -873,6 +887,16 @@ async function handleReferralCode(chatId: number, userId: number, code: string, 
 
 // Daily bonus system
 async function handleDailyBonus(chatId: number, userId: number, env: Env, supabase: any, config: any) {
+    if (config.dailyCheckinEnabled === false) {
+        await sendMessage(
+            chatId,
+            `🎁 <b>Daily Bonus</b>\n\n` +
+            `This feature is currently disabled and will be back soon! Stay tuned. 🚀`,
+            env
+        );
+        return;
+    }
+
     const { data: user } = await supabase
         .from('users')
         .select('last_daily_claim, daily_streak')
@@ -903,10 +927,12 @@ async function handleDailyBonus(chatId: number, userId: number, env: Env, supaba
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().split('T')[0];
 
+    const maxDays = Object.keys(config.dailyRewards || {}).length || 7;
+
     let newStreak = 1;
     if (lastClaim === yesterdayStr) {
         newStreak = (user.daily_streak || 0) + 1;
-        if (newStreak > 7) newStreak = 1; // Reset after 7 days
+        if (newStreak > maxDays) newStreak = 1; // Reset after cycle complete
     }
 
     // Access dailyRewards string keys safely
@@ -938,7 +964,7 @@ async function handleDailyBonus(chatId: number, userId: number, env: Env, supaba
             created_at: new Date().toISOString()
         });
 
-    const nextReward = config.dailyRewards[((newStreak % 7) + 1).toString()] || 10;
+    const nextReward = config.dailyRewards[((newStreak % maxDays) + 1).toString()] || 10;
 
     await sendMessage(
         chatId,
@@ -1079,13 +1105,12 @@ async function handleApprovePayment(chatId: number, paymentId: string, env: Env,
         }
     }
 
-    const message = payment.type === 'deposit'
+    const message = (payment.type === 'deposit'
         ? (config.prompts.depositApproved)
-            .replace('{amount}', payment.amount.toString())
-            .replace('{ref}', payment.reference_code)
-        : (config.prompts.withdrawApproved)
-            .replace('{amount}', payment.amount.toString())
-            .replace('{ref}', payment.reference_code);
+        : (config.prompts.withdrawApproved))
+        .replace('{amount}', payment.amount.toString())
+        .replace('{ref}', payment.reference_code)
+        .replace('{ref_code}', payment.reference_code);
 
     await sendMessage(payment.user_id, message, env);
 
@@ -1150,11 +1175,13 @@ async function handleRejectPayment(chatId: number, paymentId: string, env: Env, 
         .eq('telegram_id', payment.user_id)
         .single();
 
-    const message = payment.type === 'deposit'
-        ? (config.prompts.depositDeclined).replace('{amount}', payment.amount.toString())
-        : (config.prompts.withdrawDeclined)
-            .replace('{amount}', payment.amount.toString())
-            .replace('{balance}', (user?.balance || 0).toFixed(2));
+    const message = (payment.type === 'deposit'
+        ? (config.prompts.depositDeclined)
+        : (config.prompts.withdrawDeclined))
+        .replace('{amount}', payment.amount.toString())
+        .replace('{balance}', (user?.balance || 0).toFixed(2))
+        .replace('{ref}', payment.reference_code)
+        .replace('{ref_code}', payment.reference_code);
 
     await sendMessage(payment.user_id, message, env);
 }
@@ -1265,16 +1292,16 @@ async function handleStart(chatId: number, userId: number, username: string, env
         `Click the button below to start playing!`;
 
     // Set personalized Menu Button for this user (so bottom-left button works with auth)
-    await setPersonalizedMenuButton(existingUser.telegram_id, env);
+    await setPersonalizedMenuButton(existingUser.telegram_id, env, config);
 
     await sendMessage(chatId, message, env, {
         inline_keyboard: [[
-            { text: '🎮 Play Now', web_app: { url: getWebAppUrl(existingUser.telegram_id) } }
+            { text: config?.botSettings?.open_now_text || '🎮 Play Now', web_app: { url: getWebAppUrl(existingUser.telegram_id, config?.botSettings?.web_app_url) } }
         ]]
     });
 
     // Send keyboard menu separately with personalized URL
-    await sendMessage(chatId, 'Choose an option:', env, getMainKeyboard(existingUser.telegram_id));
+    await sendMessage(chatId, 'Choose an option:', env, getMainKeyboard(existingUser.telegram_id, config));
 }
 
 async function handleBalance(chatId: number, userId: number, env: Env, supabase: any) {
@@ -1391,7 +1418,7 @@ async function handleContactShare(message: any, env: Env, supabase: any, config:
             username: message.from.username || contact.first_name,
             phone_number: contact.phone_number,
             first_name: contact.first_name,
-            balance: existingUser?.balance || 100,
+            balance: existingUser?.balance || config.referral.referredReward,
             referral_code: refCode,
             is_registered: true,
             updated_at: new Date().toISOString(),
@@ -1417,14 +1444,15 @@ async function handleContactShare(message: any, env: Env, supabase: any, config:
         }
     }
 
+    const successMsg = config.botFlows?.onboarding?.registration_success || '✅ <b>Registration Complete!</b>';
     await sendMessage(
         chatId,
-        `✅ <b>Registration Complete!</b>\n\n` +
-        `Welcome bonus: ${existingUser ? '0' : '100'} Birr\n` +
-        `Your referral code: <code>${refCode}</code>\n\n` +
+        `${successMsg}\n\n` +
+        `💰 Welcome bonus: ${config.referral.referredReward} Birr\n` +
+        `🎁 Your referral code: <code>${refCode}</code>\n\n` +
         `Use the menu below to get started!`,
         env,
-        getMainKeyboard(contact.user_id)
+        getMainKeyboard(contact.user_id, config)
     );
 }
 

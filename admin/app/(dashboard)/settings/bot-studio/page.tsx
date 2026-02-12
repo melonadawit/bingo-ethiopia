@@ -99,12 +99,12 @@ export default function BotStudioPage() {
             <Tabs defaultValue="ui" className="w-full">
                 <TabsList className="bg-black/20 border border-white/10 flex-wrap gap-1 h-auto">
                     <TabsTrigger value="identity" className="data-[state=active]:bg-purple-500 data-[state=active]:text-white">Bot Identity</TabsTrigger>
-                    <TabsTrigger value="ui">Interface & Menus</TabsTrigger>
-                    <TabsTrigger value="financials">Financials & Banks</TabsTrigger>
-                    <TabsTrigger value="commands">Custom Commands</TabsTrigger>
-                    <TabsTrigger value="messages">System Messages</TabsTrigger>
-                    <TabsTrigger value="admins">Admins & Access</TabsTrigger>
-                    <TabsTrigger value="flows">Flows & Messages</TabsTrigger>
+                    <TabsTrigger value="ui">Interface</TabsTrigger>
+                    <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
+                    <TabsTrigger value="financials">Financials</TabsTrigger>
+                    <TabsTrigger value="commands">Commands</TabsTrigger>
+                    <TabsTrigger value="admins">Admins</TabsTrigger>
+                    <TabsTrigger value="flows">Flows</TabsTrigger>
                 </TabsList>
 
                 {/* IDENTITY TAB */}
@@ -125,6 +125,26 @@ export default function BotStudioPage() {
                                 updateConfig.mutate({ key: 'bot_identity_call', value: data }); // Trick to trigger simple mutate, but we need custom API call...
                                 // Actually, let's create a specialized mutation for this
                             }} />
+                        </CardContent>
+                    </Card>
+
+                    <Card className="bg-black/40 border-white/10 backdrop-blur-xl">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-sm">Global Status</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex items-center justify-between">
+                            <div className="space-y-1">
+                                <Label className="text-base font-medium text-white">Bot Maintenance</Label>
+                                <p className="text-xs text-muted-foreground">Locks bot for regular users</p>
+                            </div>
+                            <Switch
+                                checked={bot_settings?.maintenance_mode || false}
+                                onCheckedChange={(checked) => updateConfig.mutate({
+                                    key: 'bot_settings',
+                                    value: { ...bot_settings, maintenance_mode: checked }
+                                })}
+                                className="data-[state=checked]:bg-red-500"
+                            />
                         </CardContent>
                     </Card>
 
@@ -175,6 +195,23 @@ export default function BotStudioPage() {
                                         })}
                                     />
                                 </div>
+                            </div>
+                            <div className="pt-2">
+                                <label className="text-xs font-bold uppercase text-muted-foreground">Mini App / Web App URL</label>
+                                <div className="flex gap-2">
+                                    <Input
+                                        defaultValue={bot_settings?.web_app_url || 'https://main.bingo-ethiopia.pages.dev'}
+                                        className="bg-white/5 border-white/10 font-mono text-xs flex-1"
+                                        onBlur={(e) => updateConfig.mutate({
+                                            key: 'bot_settings',
+                                            value: { ...bot_settings, web_app_url: e.target.value }
+                                        })}
+                                    />
+                                    <Button variant="ghost" size="icon" onClick={() => window.open(bot_settings?.web_app_url, '_blank')} className="text-blue-400">
+                                        <Database className="w-4 h-4" />
+                                    </Button>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-1 italic">Used for all 'Play Now' and 🎮 buttons in the bot.</p>
                             </div>
                         </CardContent>
                     </Card>
@@ -366,25 +403,75 @@ export default function BotStudioPage() {
                     </Card>
                 </TabsContent>
 
-                {/* MESSAGES TAB */}
-                <TabsContent value="messages" className="mt-6">
+                {/* ONBOARDING TAB */}
+                <TabsContent value="onboarding" className="mt-6 space-y-6">
                     <Card className="bg-black/40 border-white/10 backdrop-blur-xl">
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><MessageSquare className="w-5 h-5 text-pink-400" /> System Messages</CardTitle>
-                            <CardDescription>Edit automated responses.</CardDescription>
+                            <CardTitle className="flex items-center gap-2 text-blue-400">
+                                <Plus className="w-5 h-5" />
+                                New User Welcome
+                            </CardTitle>
+                            <CardDescription>Configure the first interaction for new players.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <div className="space-y-2">
-                                <label className="text-sm font-bold">Welcome Message (New User)</label>
+                                <Label className="text-sm font-bold">Welcome Message (Amharic/English)</Label>
                                 <Textarea
                                     defaultValue={bot_settings?.welcome_message || ''}
                                     className="bg-white/5 border-white/10 h-32 font-mono text-sm"
+                                    placeholder="👋 ሰላም! እንኳን ወደ ቢንጎ ኢትዮጵያ በሰላም መጡ..."
                                     onBlur={(e) => updateConfig.mutate({
                                         key: 'bot_settings',
                                         value: { ...bot_settings, welcome_message: e.target.value }
                                     })}
                                 />
+                                <p className="text-[10px] text-muted-foreground italic">Sent when a user clicks /start for the first time.</p>
                             </div>
+
+                            <div className="pt-4 border-t border-white/5">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <Label className="text-sm font-bold text-green-400">Initial Welcome Bonus (ETB)</Label>
+                                        <div className="relative">
+                                            <Input
+                                                type="number"
+                                                defaultValue={bot_financials?.referredReward || 10}
+                                                className="bg-white/5 border-white/10 pl-8 font-mono text-lg font-bold text-green-400"
+                                                onBlur={(e) => updateConfig.mutate({
+                                                    key: 'bot_financials',
+                                                    value: { ...bot_financials, referredReward: parseInt(e.target.value) || 0 }
+                                                })}
+                                            />
+                                            <DollarSign className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                        </div>
+                                        <p className="text-[10px] text-muted-foreground italic">Free balance given to every new user upon registration.</p>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label className="text-sm font-bold text-blue-400">Registration Success Message</Label>
+                                        <Textarea
+                                            defaultValue={cmsData?.bot_flows?.onboarding?.registration_success || ''}
+                                            className="bg-white/5 border-white/10 h-20 text-xs"
+                                            onBlur={(e) => updateConfig.mutate({
+                                                key: 'bot_flows',
+                                                value: {
+                                                    ...cmsData?.bot_flows,
+                                                    onboarding: { ...cmsData?.bot_flows?.onboarding, registration_success: e.target.value }
+                                                }
+                                            })}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="bg-black/40 border-white/10 backdrop-blur-xl">
+                        <CardHeader>
+                            <CardTitle className="text-sm">Preview</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex justify-center p-6 bg-black/60 rounded-xl border border-white/5">
+                            <BotPreview text={bot_settings?.welcome_message || ''} hasButton buttonText="Register Now" />
                         </CardContent>
                     </Card>
                 </TabsContent>

@@ -6,6 +6,7 @@ export interface BotFlows {
         welcome: string;
         welcome_back?: string;
         registration_success: string;
+        referral_message?: string;
     };
     financials: {
         // Kept for backward compatibility if needed, but preferably move to specific sections
@@ -17,6 +18,7 @@ export interface BotFlows {
         success_message: string; // For admin approval
         declined_message: string;
         invalid_amount: string;
+        instructions: string;
     };
     withdrawal: {
         prompt_amount: string;
@@ -29,6 +31,11 @@ export interface BotFlows {
         min_error: string;
         max_error: string;
         balance_error: string;
+    };
+    game: {
+        lobby_waiting: string;
+        game_started: string;
+        winner_announcement: string;
     };
     errors: {
         unknown_command: string;
@@ -77,6 +84,8 @@ export interface BotConfig {
         welcome_message?: string;
         menu_button_text?: string;
         open_now_text?: string;
+        web_app_url?: string;
+        maintenance_mode?: boolean;
     };
     botFinancials?: any;
     botFlows?: BotFlows;
@@ -90,6 +99,7 @@ export interface BotConfig {
         deposit: string[];
         withdrawal: string[];
     };
+    dailyCheckinEnabled?: boolean;
 }
 
 export const PAYMENT_CONFIG_Values = {
