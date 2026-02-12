@@ -1,13 +1,12 @@
 // Payment configuration with exact Amharic content
 
-export const PAYMENT_CONFIG = {
-    // ... (rest of file)
-};
 
 export interface BotFlows {
     onboarding: {
         welcome: string;
+        welcome_back?: string;
         registration_success: string;
+        referral_message?: string;
     };
     financials: {
         // Kept for backward compatibility if needed, but preferably move to specific sections
@@ -19,6 +18,7 @@ export interface BotFlows {
         success_message: string; // For admin approval
         declined_message: string;
         invalid_amount: string;
+        instructions: string;
     };
     withdrawal: {
         prompt_amount: string;
@@ -31,6 +31,11 @@ export interface BotFlows {
         min_error: string;
         max_error: string;
         balance_error: string;
+    };
+    game: {
+        lobby_waiting: string;
+        game_started: string;
+        winner_announcement: string;
     };
     errors: {
         unknown_command: string;
@@ -47,15 +52,7 @@ export interface BotFlows {
         instructions: string;
     };
 }
-share_message: string;
-referrer_bonus: string;
-referred_bonus: string;
-    };
-support: {
-    contact_message: string;
-    instructions: string;
-};
-}
+
 
 export interface BotConfig {
     methods: Record<string, any>;
@@ -69,6 +66,12 @@ export interface BotConfig {
         withdrawalFee: number;
     };
     adminIds: number[];
+    // Dynamic Payment Methods
+    botPaymentMethods?: {
+        key: string;
+        label: string;
+        enabled: boolean;
+    }[];
     referral: {
         referrerReward: number;
         referredReward: number;
@@ -81,9 +84,10 @@ export interface BotConfig {
         welcome_message?: string;
         menu_button_text?: string;
         open_now_text?: string;
+        web_app_url?: string;
+        maintenance_mode?: boolean;
     };
     botFinancials?: any;
-    botPaymentMethods?: any;
     botFlows?: BotFlows;
 
     // Phase 34: Dynamic Features
@@ -95,6 +99,7 @@ export interface BotConfig {
         deposit: string[];
         withdrawal: string[];
     };
+    dailyCheckinEnabled?: boolean;
 }
 
 export const PAYMENT_CONFIG_Values = {
@@ -106,9 +111,10 @@ export const PAYMENT_CONFIG_Values = {
             account: '0931503559',
             accountName: 'Tadese',
             instructions: {
-                en: 'Send money to Telebirr account',
-                am: '1. ከታች ባለው የቴሌብር አካውንት {amount} ብር ያስገቡ\n     Phone: 0931503559\n     Name: Tadese\n\n2. የከፈሉበትን አጭር የጹሁፍ መልዕክት(message) copy በማድረግ እዚ ላይ Past አድረገው ያስገቡና ይላኩት👇👇👇'
-            }
+                en: 'Transfer to Telebirr account',
+                am: '1. ከታች ባለው የቴሌብር አካውንት {amount} ብር ያስገቡ\n     Phone: 0931503559\n     Name: Tadese\n\n'
+            },
+            enabled: true
         },
         cbe: {
             name: 'CBE',
@@ -116,8 +122,9 @@ export const PAYMENT_CONFIG_Values = {
             accountName: 'Tadese',
             instructions: {
                 en: 'Transfer to CBE account',
-                am: '1. ከታች ባለው የCBE አካውንት {amount} ብር ያስገቡ\n     Account: 1000123456789\n     Name: Tadese\n\n2. የከፈሉበትን አጭር የጹሁፍ መልዕክት(message) copy በማድረግ እዚ ላይ Past አድረገው ያስገቡና ይላኩት👇👇👇'
-            }
+                am: '1. ከታች ባለው የCBE አካውንት {amount} ብር ያስገቡ\n     Account: 1000123456789\n     Name: Tadese\n\n'
+            },
+            enabled: true
         },
         abyssinia: {
             name: 'Abyssinia',
@@ -125,8 +132,9 @@ export const PAYMENT_CONFIG_Values = {
             accountName: 'Tadese',
             instructions: {
                 en: 'Transfer to Abyssinia Bank account',
-                am: '1. ከታች ባለው የAbyssinia Bank አካውንት {amount} ብር ያስገቡ\n     Account: 123456789\n     Name: Tadese\n\n2. የከፈሉበትን አጭር የጹሁፍ መልዕክት(message) copy በማድረግ እዚ ላይ Past አድረገው ያስገቡና ይላኩት👇👇👇'
-            }
+                am: '1. ከታች ባለው የAbyssinia Bank አካውንት {amount} ብር ያስገቡ\n     Account: 123456789\n     Name: Tadese\n\n'
+            },
+            enabled: true
         },
         awash: {
             name: 'Awash',
@@ -134,11 +142,13 @@ export const PAYMENT_CONFIG_Values = {
             accountName: 'Tadese',
             instructions: {
                 en: 'Transfer to Awash Bank account',
-                am: '1. ከታች ባለው የAwash Bank አካውንት {amount} ብር ያስገቡ\n     Account: 123456789\n     Name: Tadese\n\n2. የከፈሉበትን አጭር የጹሁፍ መልዕክት(message) copy በማድረግ እዚ ላይ Past አድረገው ያስገቡና ይላኩት👇👇👇'
-            }
+                am: '1. ከታች ባለው የAwash Bank አካውንት {amount} ብር ያስገቡ\n     Account: 123456789\n     Name: Tadese\n\n'
+            },
+            enabled: true
         }
     },
 
+    // Prompts in Amharic
     // Prompts in Amharic
     prompts: {
         depositAmount: '💰 ማስገባት የሚፈልጉትን መጠን ከ10 ብር ጀምሮ ያስገቡ።',
@@ -158,7 +168,7 @@ export const PAYMENT_CONFIG_Values = {
         withdrawApproved: '✅ Your withdrawal of {amount} ETB is confirmed.\n🧾 Ref: {ref}',
         withdrawDeclined: '❌ Withdrawal Declined\n\nYour withdrawal of {amount} Birr was declined and refunded.\n\n💳 Current Balance: {balance} Birr\n\nPlease contact support if you believe this was an error.',
 
-        paymentIssue: 'የሚያጋጥማቹ የክፍያ ችግር:\n@onlineetbingosupport\n@onlineetbingosupport1 ላይ ፃፉልን።\n\n'
+        depositInstructionFooter: 'የሚያጋጥማቹ የክፍያ ችግር:\n@onlineetbingosupport\n@onlineetbingosupport1 ላይ ፃፉልን።\n\n2. የከፈሉበትን አጭር የጹሁፍ መልዕክት(message) copy በማድረግ እዚ ላይ Past አድረገው ያስገቡና ይላኩት👇👇👇'
     },
 
     // Instructions content
@@ -233,6 +243,9 @@ We're here to help!`,
     }
 };
 
+// Export alias at the end to ensure initialization
+export const PAYMENT_CONFIG = PAYMENT_CONFIG_Values;
+
 // Helper function to get payment method details
 export function getPaymentMethod(method: string) {
     return PAYMENT_CONFIG.methods[method as keyof typeof PAYMENT_CONFIG.methods];
@@ -244,5 +257,5 @@ export function formatInstructions(method: string, amount: number, lang: 'en' | 
     if (!paymentMethod) return '';
 
     const instruction = paymentMethod.instructions[lang].replace('{amount}', amount.toString());
-    return PAYMENT_CONFIG.prompts.paymentIssue + instruction;
+    return instruction;
 }

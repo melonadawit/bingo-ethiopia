@@ -8,9 +8,10 @@ interface PhonePreviewProps {
     message?: string;
     buttonText?: string;
     title?: string;
+    image?: string | null;
 }
 
-export function PhonePreview({ message, buttonText, title = "BingoBot" }: PhonePreviewProps) {
+export function PhonePreview({ message, buttonText, title = "BingoBot", image }: PhonePreviewProps) {
     // Basic HTML parser for preview (bold, italic, code)
     const renderMessage = (text: string) => {
         if (!text) return <span className="text-gray-400 italic">Type a message...</span>;
@@ -80,12 +81,19 @@ export function PhonePreview({ message, buttonText, title = "BingoBot" }: PhoneP
                                 layout
                                 initial={{ scale: 0.9, opacity: 0 }}
                                 animate={{ scale: 1, opacity: 1 }}
-                                className="bg-[#182533] p-3 rounded-2xl rounded-tl-none shadow-sm text-sm"
+                                className="bg-[#182533] p-1 rounded-2xl rounded-tl-none shadow-sm text-sm"
                             >
-                                <div className="text-[#aeb5bc] text-xs mb-1 font-medium">{title}</div>
-                                {renderMessage(message || "")}
-                                <div className="text-[10px] text-gray-500 text-right mt-1">
-                                    {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {image && (
+                                    <div className="mb-1 rounded-xl overflow-hidden">
+                                        <img src={image} alt="Attached" className="w-full h-auto object-cover" />
+                                    </div>
+                                )}
+                                <div className="px-2 pb-1">
+                                    <div className="text-[#aeb5bc] text-xs mb-1 font-medium">{title}</div>
+                                    {renderMessage(message || "")}
+                                    <div className="text-[10px] text-gray-500 text-right mt-1">
+                                        {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </div>
                                 </div>
                             </motion.div>
                         </div>

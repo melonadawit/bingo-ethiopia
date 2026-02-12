@@ -15,9 +15,12 @@ interface TelegramEditorProps {
     description?: string;
     minHeight?: string;
     variables?: string[];
+    placeholder?: string;
+    id?: string;
+    name?: string;
 }
 
-export function TelegramEditor({ value, onChange, label, description, minHeight = "150px", variables }: TelegramEditorProps) {
+export function TelegramEditor({ value, onChange, label, description, minHeight = "150px", variables, placeholder, id, name }: TelegramEditorProps) {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [showPreview, setShowPreview] = useState(false);
 
@@ -91,7 +94,7 @@ export function TelegramEditor({ value, onChange, label, description, minHeight 
     return (
         <div className="space-y-2 border rounded-md p-3 bg-card">
             <div className="flex justify-between items-center mb-2">
-                <label className="text-sm font-medium">{label}</label>
+                {label && <label htmlFor={id} className="text-sm font-medium">{label}</label>}
                 <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => insertTag('b')} title="Bold">
                         <Bold className="h-4 w-4" />
@@ -138,13 +141,22 @@ export function TelegramEditor({ value, onChange, label, description, minHeight 
                 </div>
             ) : (
                 <Textarea
+                    id={id}
+                    name={name || id}
                     ref={textareaRef}
                     value={value}
                     onChange={e => onChange(e.target.value)}
                     className="font-mono text-sm leading-relaxed"
                     style={{ minHeight }}
+                    placeholder={placeholder}
                 />
             )}
+
+
+            {/* Limit Warning */}
+            <div className={`text-[10px] text-right mt-1 ${value.length > 4096 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>
+                {value.length} / 4096
+            </div>
 
             {description && <p className="text-xs text-muted-foreground">{description}</p>}
 
@@ -165,3 +177,4 @@ export function TelegramEditor({ value, onChange, label, description, minHeight 
         </div>
     );
 }
+

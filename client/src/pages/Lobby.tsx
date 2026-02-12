@@ -1,10 +1,10 @@
 import { useNavigate } from 'react-router-dom';
-import { Card } from '../components/ui/Card';
-import { Users, Clock, Trophy, PlayCircle, Zap } from 'lucide-react';
+import { Users, Trophy, PlayCircle, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import { useQuery } from '@tanstack/react-query';
 
 const iconMap: Record<string, any> = {
     'Zap': Zap,
@@ -45,64 +45,48 @@ const defaultModes = [
 
 export default function Lobby() {
     const navigate = useNavigate();
-    // User context available but not used in Lobby - balance check moved to Game.tsx
-    const [gameModes, setGameModes] = useState<any[]>(defaultModes); // Start with default modes
-    const [stats, setStats] = useState<any>({ activePlayers: 0, totalPrizePool: 0, isSystemLive: true });
-
-    // Check if user has an active game (SERVER-SIDE) - TEMPORARILY DISABLED
-    // useEffect(() => {
-    //     const checkActiveGame = async () => {
-    //         if (!user) return;
-
-    //         // Wait 500ms before checking active game to avoid race conditions with cleanup
-    //         await new Promise(resolve => setTimeout(resolve, 500));
-
-    //         try {
-    //             const response = await api.get('/api/user/active-game');
-    //             const { activeGameId, mode } = response.data;
-
-    //             if (activeGameId && mode) {
-    //                 console.log('⚠️ Server says user has active game - redirecting:', activeGameId);
-    //                 navigate(`/game/${activeGameId}?mode=${mode}`);
-    //             }
-    //         } catch (error) {
-    //             console.error('Error checking active game:', error);
-    //         }
-    //     };
-
-    //     checkActiveGame();
-    // }, [user, navigate]);
+    const [gameModes, setGameModes] = useState<any[]>(defaultModes);
 
     // Fetch real data from API
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // Fetch game modes with real player counts
                 const modesResponse = await api.get('/api/game/modes');
-                // If API returns data, use it; otherwise keep default modes
                 if (modesResponse.data && modesResponse.data.length > 0) {
                     setGameModes(modesResponse.data);
                 }
-
-                // Fetch global stats
-                const statsResponse = await api.get('/api/game/stats');
-                setStats(statsResponse.data);
             } catch (error) {
                 console.error('Error fetching game data:', error);
-                // Keep default modes on error - don't change gameModes
             }
         };
 
         fetchData();
-
-        // Refresh data every 10 seconds for live updates
         const interval = setInterval(fetchData, 10000);
         return () => clearInterval(interval);
     }, []);
 
+    const { data: activeTournaments } = useQuery({
+        queryKey: ['tournaments', 'featured'],
+        queryFn: async () => {
+            const res = await api.get('/tournaments/active');
+            return (res.data.tournaments || []).filter((t: any) => t.is_active);
+        },
+        refetchInterval: 30000
+    });
+
+    const { data: activeEvents } = useQuery({
+        queryKey: ['events', 'featured'],
+        queryFn: async () => {
+            const res = await api.get('/events/active');
+            return (res.data.events || []).filter((e: any) => e.is_active);
+        },
+        refetchInterval: 30000
+    });
+
+    const hasFeatured = (activeTournaments && activeTournaments.length > 0) || (activeEvents && activeEvents.length > 0);
+
     return (
         <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-[#0B1120] to-black text-white overflow-x-hidden relative">
-
             {/* Ambient Background Elements */}
             <div className="fixed inset-0 pointer-events-none">
                 <div className="absolute top-[-10%] left-[20%] w-[500px] h-[500px] bg-purple-500/20 rounded-full blur-[120px] mix-blend-screen animate-pulse" />
@@ -125,85 +109,64 @@ export default function Lobby() {
                         <p className="text-slate-400 text-lg max-w-2xl mx-auto font-light mb-6">
                             Experience the thrill of real-time bingo. Choose your game mode below.
                         </p>
-
-
                     </motion.div>
                 </div>
 
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
+                {/* Featured Highlights */}
+                {hasFeatured && (
                     <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.2 }}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="mb-12"
                     >
-                        <Card variant="glass" className="relative overflow-hidden group border-white/5 bg-white/5 backdrop-blur-xl hover:bg-white/10 transition-all duration-300">
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
-                            <div className="flex items-center justify-between p-4">
-                                <div>
-                                    <p className="text-indigo-300 text-sm font-semibold tracking-wider uppercase">Active Players</p>
-                                    <h3 className="text-3xl font-black text-white mt-1 drop-shadow-lg">
-                                        {stats.activePlayers}
-                                    </h3>
-                                </div>
-                                <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-[0_0_20px_rgba(99,102,241,0.2)]">
-                                    <Users size={24} />
-                                </div>
-                            </div>
-                        </Card>
-                    </motion.div>
+                        <div className="flex items-center gap-2 mb-4 px-2">
+                            <Zap className="text-yellow-400 fill-yellow-400" size={20} />
+                            <h2 className="text-lg font-bold text-white uppercase tracking-wider">Live Highlights</h2>
+                        </div>
 
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3 }}
-                    >
-                        <Card variant="glass" className="relative overflow-hidden group border-white/5 bg-white/5 backdrop-blur-xl hover:bg-white/10 transition-all duration-300">
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
-                            <div className="flex items-center justify-between p-4">
-                                <div>
-                                    <p className="text-emerald-300 text-sm font-semibold tracking-wider uppercase">Total Prize Pool</p>
-                                    <h3 className="text-3xl font-black text-white mt-1 drop-shadow-lg">
-                                        {(stats.totalPrizePool || 0)} Br
-                                    </h3>
-                                </div>
-                                <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.2)]">
-                                    <Trophy size={24} />
-                                </div>
-                            </div>
-                        </Card>
-                    </motion.div>
-
-                    <motion.div
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.4 }}
-                    >
-                        <Card variant="glass" className="relative overflow-hidden group border-white/5 bg-white/5 backdrop-blur-xl hover:bg-white/10 transition-all duration-300">
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
-                            <div className="flex items-center justify-between p-4">
-                                <div>
-                                    <p className="text-green-300 text-sm font-semibold tracking-wider uppercase">System Status</p>
-                                    <div className="flex items-center gap-2 mt-2">
-                                        <span className="relative flex h-3 w-3">
-                                            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${stats.isSystemLive ? 'bg-green-400' : 'bg-red-400'} opacity-75`}></span>
-                                            <span className={`relative inline-flex rounded-full h-3 w-3 ${stats.isSystemLive ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                                        </span>
-                                        <span className={`text-lg font-bold ${stats.isSystemLive ? 'text-green-400' : 'text-red-400'}`}>
-                                            {stats.isSystemLive ? 'Live' : 'Offline'}
-                                        </span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Tournaments Banner */}
+                            {(activeTournaments || []).slice(0, 1).map((t: any) => (
+                                <div
+                                    key={t.id}
+                                    onClick={() => navigate('/tournaments')}
+                                    className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-purple-700 rounded-2xl p-6 cursor-pointer hover:shadow-[0_0_30px_rgba(99,102,241,0.4)] transition-all group"
+                                >
+                                    <div className="relative z-10">
+                                        <div className="text-xs font-bold text-indigo-200 mb-1 uppercase tracking-tighter">Active Tournament</div>
+                                        <h3 className="text-2xl font-black text-white mb-2">{t.name}</h3>
+                                        <div className="flex items-center gap-4">
+                                            <div className="text-yellow-300 font-bold">{t.prize_pool} Birr Pool</div>
+                                            <div className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold font-mono tracking-tighter">JOIN NOW</div>
+                                        </div>
                                     </div>
+                                    <Trophy className="absolute right-[-10px] bottom-[-10px] w-32 h-32 text-white/10 rotate-12 group-hover:rotate-6 transition-transform" />
                                 </div>
-                                <div className="w-12 h-12 rounded-2xl bg-green-500/20 border border-green-500/30 flex items-center justify-center text-green-400 shadow-[0_0_20px_rgba(34,197,94,0.2)]">
-                                    <Clock size={24} />
+                            ))}
+
+                            {/* Events Banner */}
+                            {(activeEvents || []).slice(0, 1).map((e: any) => (
+                                <div
+                                    key={e.id}
+                                    onClick={() => navigate('/events')}
+                                    className="relative overflow-hidden bg-gradient-to-r from-orange-500 to-red-600 rounded-2xl p-6 cursor-pointer hover:shadow-[0_0_30px_rgba(249,115,22,0.4)] transition-all group text-right"
+                                >
+                                    <div className="relative z-10">
+                                        <div className="text-xs font-bold text-orange-200 mb-1 uppercase tracking-tighter">Special Event Live</div>
+                                        <h3 className="text-2xl font-black text-white mb-2">{e.name}</h3>
+                                        <div className="flex items-center gap-4 justify-end">
+                                            <div className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold font-mono tracking-tighter">PLAY & WIN</div>
+                                            <div className="text-yellow-300 font-bold">{e.multiplier}x Multiplier</div>
+                                        </div>
+                                    </div>
+                                    <Zap className="absolute left-[-10px] bottom-[-10px] w-32 h-32 text-white/10 -rotate-12 group-hover:-rotate-6 transition-transform" />
                                 </div>
-                            </div>
-                        </Card>
+                            ))}
+                        </div>
                     </motion.div>
+                )}
 
-                </div>
-
-                {/* Game Modes */}
+                {/* Game Modes titles */}
                 <motion.h2
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -227,19 +190,11 @@ export default function Lobby() {
                                 transition={{ delay: 0.6 + (idx * 0.1), duration: 0.6 }}
                             >
                                 <div
-                                    className="group h-full flex flex-col relative overflow-hidden bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-3xl p-5 cursor-pointer hover:bg-white/[0.07] hover:border-indigo-500/50 hover:shadow-[0_0_40px_-10px_rgba(99,102,241,0.3)] transition-all duration-500 hover:-translate-y-2"
+                                    className="group h-full flex flex-col relative overflow-hidden bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-2xl p-3.5 cursor-pointer hover:bg-white/[0.07] hover:border-indigo-500/50 hover:shadow-[0_0_40px_-10px_rgba(99,102,241,0.3)] transition-all duration-500 hover:-translate-y-1"
                                     onClick={(e) => {
                                         e.preventDefault();
-
                                         try {
-                                            console.log('Join Room clicked!', mode.id);
-
-                                            // Use a shared gameId per mode so all players join the same game
                                             const gameId = `${mode.id}-global-v55`;
-                                            console.log('Joining shared game:', gameId);
-
-                                            // Navigate to game with shared gameId
-                                            // NOTE: Balance check happens in Game component during card selection
                                             navigate(`/game/${gameId}?mode=${mode.id}`);
                                         } catch (error) {
                                             console.error('Error joining game:', error);
@@ -252,9 +207,9 @@ export default function Lobby() {
                                     <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20 pointer-events-none" />
 
                                     <div className="relative z-10 flex flex-col h-full">
-                                        <div className="flex items-start justify-between mb-4">
-                                            <div className={`p-3 rounded-2xl bg-gradient-to-br ${mode.color} text-white shadow-lg ring-1 ring-white/20 group-hover:scale-110 transition-transform duration-500`}>
-                                                <IconComponent size={24} />
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div className={`p-2 rounded-xl bg-gradient-to-br ${mode.color} text-white shadow-lg ring-1 ring-white/20 group-hover:scale-110 transition-transform duration-500`}>
+                                                <IconComponent size={20} />
                                             </div>
                                             <div className="flex items-center gap-2 text-xs font-bold text-indigo-200 bg-indigo-500/10 px-3 py-1.5 rounded-full border border-indigo-500/20 backdrop-blur-sm">
                                                 <Users size={12} className="animate-pulse" />
@@ -271,14 +226,14 @@ export default function Lobby() {
                                                     {mode.minBet} Br
                                                 </span>
                                             </div>
-                                            <div className="h-0.5 w-full bg-gradient-to-r from-white/10 to-transparent my-3 group-hover:from-indigo-500/50 transition-colors duration-500" />
+                                            <div className="h-0.5 w-full bg-gradient-to-r from-white/10 to-transparent my-2 group-hover:from-indigo-500/50 transition-colors duration-500" />
                                         </div>
 
                                         <p className="text-slate-400 text-sm leading-relaxed font-medium">{mode.description}</p>
 
-                                        <div className="mt-4 flex items-center text-xs font-semibold text-slate-500 group-hover:text-indigo-400 transition-colors">
+                                        <div className="mt-2 flex items-center text-[10px] font-semibold text-slate-500 group-hover:text-indigo-400 transition-colors">
                                             <span>Click to join room</span>
-                                            <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0 duration-300">→</span>
+                                            <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity -translate-x-1 group-hover:translate-x-0 duration-300">→</span>
                                         </div>
                                     </div>
                                 </div>
@@ -286,8 +241,6 @@ export default function Lobby() {
                         );
                     })}
                 </div>
-
-                {/* Balance check moved to Game.tsx - users can join freely but card selection requires balance */}
             </div>
         </div>
     );

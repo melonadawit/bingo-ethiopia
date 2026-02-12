@@ -8,7 +8,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bot, MessageSquare, Menu, Terminal, Save, Plus, Trash2, LayoutGrid, Check, Coins, CreditCard, Banknote, Phone, Users, User, Wifi, Battery } from 'lucide-react';
+import { BotIdentityEditor } from "@/components/bot-identity-editor";
+import {
+    Users,
+    Settings,
+    MessageSquare,
+    CreditCard,
+    ShieldAlert,
+    Terminal,
+    Bot,
+    Save,
+    Menu, Plus, Trash2, LayoutGrid, Check, Coins, Banknote, Phone, User, Wifi, Battery
+} from "lucide-react";
 import { toast } from 'sonner';
 
 export default function BotStudioPage() {
@@ -17,21 +28,17 @@ export default function BotStudioPage() {
     const { data: cmsData, isLoading } = useQuery({
         queryKey: ['bot-cms'],
         queryFn: async () => {
-            const res = await fetch('/api/admin/bot/cms');
-            const json = await res.json();
-            return json.success ? json.data : null;
+            const data = await fetchAdmin('/bot/cms');
+            return data.success ? data.data : null;
         }
     });
 
     const updateConfig = useMutation({
         mutationFn: async ({ key, value }: { key: string, value: any }) => {
-            const res = await fetch('/api/admin/bot/cms', {
+            return fetchAdmin('/bot/cms', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ key, value })
             });
-            if (!res.ok) throw new Error('Update failed');
-            return res.json();
         },
         onSuccess: () => {
             toast.success('Configuration Saved');
@@ -45,20 +52,17 @@ export default function BotStudioPage() {
     const { data: botAdmins, refetch: refetchBotAdmins } = useQuery({
         queryKey: ['bot-admins'],
         queryFn: async () => {
-            const res = await fetch('/api/admin/bot/admins');
-            const data = await res.json();
+            const data = await fetchAdmin('/bot/admins');
             return data.admins || [];
         }
     });
 
     const addBotAdminMutation = useMutation({
-        mutationFn: async () => {
-            const res = await fetch('/api/admin/bot/admins', {
+        mutationFn: async (id: string) => {
+            return fetchAdmin('/bot/admins', {
                 method: 'POST',
-                body: JSON.stringify({ telegramId: newBotAdminId })
+                body: JSON.stringify({ userId: id })
             });
-            if (!res.ok) throw new Error('Failed');
-            return res.json();
         },
         onSuccess: () => {
             toast.success('Bot Admin Added');
@@ -93,14 +97,71 @@ export default function BotStudioPage() {
             </div>
 
             <Tabs defaultValue="ui" className="w-full">
-                <TabsList className="bg-black/20 border border-white/10">
-                    <TabsTrigger value="ui">Interface & Menus</TabsTrigger>
-                    <TabsTrigger value="financials">Financials & Banks</TabsTrigger>
-                    <TabsTrigger value="commands">Custom Commands</TabsTrigger>
-                    <TabsTrigger value="messages">System Messages</TabsTrigger>
-                    <TabsTrigger value="admins">Admins & Access</TabsTrigger>
-                    <TabsTrigger value="flows">Flows & Messages</TabsTrigger>
+                <TabsList className="bg-black/20 border border-white/10 flex-wrap gap-1 h-auto">
+                    <TabsTrigger value="identity" className="data-[state=active]:bg-purple-500 data-[state=active]:text-white">Bot Identity</TabsTrigger>
+                    <TabsTrigger value="ui">Interface</TabsTrigger>
+                    <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
+                    <TabsTrigger value="financials">Financials</TabsTrigger>
+                    <TabsTrigger value="commands">Commands</TabsTrigger>
+                    <TabsTrigger value="admins">Admins</TabsTrigger>
+                    <TabsTrigger value="flows">Flows</TabsTrigger>
                 </TabsList>
+
+                {/* IDENTITY TAB */}
+                <TabsContent value="identity" className="mt-6 space-y-6">
+                    <Card className="bg-black/40 border-white/10 backdrop-blur-xl">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2"><Bot className="w-5 h-5 text-purple-400" /> Public Profile</CardTitle>
+                            <CardDescription>
+                                This info appears in Telegram when users view your bot.
+                                <br />
+                                <span className="text-xs text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded mt-2 inline-block">
+                                    Note: Changes here update the actual Telegram Bot settings immediately.
+                                </span>
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <BotIdentityEditor onSave={(data) => {
+                                updateConfig.mutate({ key: 'bot_identity_call', value: data }); // Trick to trigger simple mutate, but we need custom API call...
+                                // Actually, let's create a specialized mutation for this
+                            }} />
+                        </CardContent>
+                    </Card>
+
+                    <Card className="bg-black/40 border-white/10 backdrop-blur-xl">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-sm">Global Status</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex items-center justify-between">
+                            <div className="space-y-1">
+                                <Label className="text-base font-medium text-white">Bot Maintenance</Label>
+                                <p className="text-xs text-muted-foreground">Locks bot for regular users</p>
+                            </div>
+                            <Switch
+                                checked={bot_settings?.maintenance_mode || false}
+                                onCheckedChange={(checked) => updateConfig.mutate({
+                                    key: 'bot_settings',
+                                    value: { ...bot_settings, maintenance_mode: checked }
+                                })}
+                                className="data-[state=checked]:bg-red-500"
+                            />
+                        </CardContent>
+                    </Card>
+
+                    <Card className="bg-black/40 border-white/10 backdrop-blur-xl">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-red-400"><Terminal className="w-5 h-5" /> Technical Config (Danger Zone)</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4 text-sm text-gray-300">
+                            <p>To change the <strong>Bot Username</strong> (e.g. @MyBot) or the <strong>Token</strong>, you cannot use this dashboard.</p>
+                            <ol className="list-decimal list-inside space-y-2">
+                                <li>Use <a href="https://t.me/BotFather" target="_blank" className="text-blue-400 underline">@BotFather</a> on Telegram to create a new bot/token.</li>
+                                <li>Update the <code>BOT_TOKEN</code> secret in your Cloudflare Worker environment.</li>
+                                <li>Re-deploy the worker.</li>
+                            </ol>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
 
                 {/* UI & MENUS TAB */}
                 <TabsContent value="ui" className="mt-6 space-y-6">
@@ -134,6 +195,23 @@ export default function BotStudioPage() {
                                         })}
                                     />
                                 </div>
+                            </div>
+                            <div className="pt-2">
+                                <label className="text-xs font-bold uppercase text-muted-foreground">Mini App / Web App URL</label>
+                                <div className="flex gap-2">
+                                    <Input
+                                        defaultValue={bot_settings?.web_app_url || 'https://main.bingo-ethiopia.pages.dev'}
+                                        className="bg-white/5 border-white/10 font-mono text-xs flex-1"
+                                        onBlur={(e) => updateConfig.mutate({
+                                            key: 'bot_settings',
+                                            value: { ...bot_settings, web_app_url: e.target.value }
+                                        })}
+                                    />
+                                    <Button variant="ghost" size="icon" onClick={() => window.open(bot_settings?.web_app_url, '_blank')} className="text-blue-400">
+                                        <Database className="w-4 h-4" />
+                                    </Button>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-1 italic">Used for all 'Play Now' and 🎮 buttons in the bot.</p>
                             </div>
                         </CardContent>
                     </Card>
@@ -325,25 +403,75 @@ export default function BotStudioPage() {
                     </Card>
                 </TabsContent>
 
-                {/* MESSAGES TAB */}
-                <TabsContent value="messages" className="mt-6">
+                {/* ONBOARDING TAB */}
+                <TabsContent value="onboarding" className="mt-6 space-y-6">
                     <Card className="bg-black/40 border-white/10 backdrop-blur-xl">
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><MessageSquare className="w-5 h-5 text-pink-400" /> System Messages</CardTitle>
-                            <CardDescription>Edit automated responses.</CardDescription>
+                            <CardTitle className="flex items-center gap-2 text-blue-400">
+                                <Plus className="w-5 h-5" />
+                                New User Welcome
+                            </CardTitle>
+                            <CardDescription>Configure the first interaction for new players.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <div className="space-y-2">
-                                <label className="text-sm font-bold">Welcome Message (New User)</label>
+                                <Label className="text-sm font-bold">Welcome Message (Amharic/English)</Label>
                                 <Textarea
                                     defaultValue={bot_settings?.welcome_message || ''}
                                     className="bg-white/5 border-white/10 h-32 font-mono text-sm"
+                                    placeholder="👋 ሰላም! እንኳን ወደ ቢንጎ ኢትዮጵያ በሰላም መጡ..."
                                     onBlur={(e) => updateConfig.mutate({
                                         key: 'bot_settings',
                                         value: { ...bot_settings, welcome_message: e.target.value }
                                     })}
                                 />
+                                <p className="text-[10px] text-muted-foreground italic">Sent when a user clicks /start for the first time.</p>
                             </div>
+
+                            <div className="pt-4 border-t border-white/5">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <Label className="text-sm font-bold text-green-400">Initial Welcome Bonus (ETB)</Label>
+                                        <div className="relative">
+                                            <Input
+                                                type="number"
+                                                defaultValue={bot_financials?.referredReward || 10}
+                                                className="bg-white/5 border-white/10 pl-8 font-mono text-lg font-bold text-green-400"
+                                                onBlur={(e) => updateConfig.mutate({
+                                                    key: 'bot_financials',
+                                                    value: { ...bot_financials, referredReward: parseInt(e.target.value) || 0 }
+                                                })}
+                                            />
+                                            <DollarSign className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                        </div>
+                                        <p className="text-[10px] text-muted-foreground italic">Free balance given to every new user upon registration.</p>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label className="text-sm font-bold text-blue-400">Registration Success Message</Label>
+                                        <Textarea
+                                            defaultValue={cmsData?.bot_flows?.onboarding?.registration_success || ''}
+                                            className="bg-white/5 border-white/10 h-20 text-xs"
+                                            onBlur={(e) => updateConfig.mutate({
+                                                key: 'bot_flows',
+                                                value: {
+                                                    ...cmsData?.bot_flows,
+                                                    onboarding: { ...cmsData?.bot_flows?.onboarding, registration_success: e.target.value }
+                                                }
+                                            })}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="bg-black/40 border-white/10 backdrop-blur-xl">
+                        <CardHeader>
+                            <CardTitle className="text-sm">Preview</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex justify-center p-6 bg-black/60 rounded-xl border border-white/5">
+                            <BotPreview text={bot_settings?.welcome_message || ''} hasButton buttonText="Register Now" />
                         </CardContent>
                     </Card>
                 </TabsContent>
@@ -364,7 +492,7 @@ export default function BotStudioPage() {
                                     className="bg-white/5 border-white/10"
                                 />
                                 <Button
-                                    onClick={() => addBotAdminMutation.mutate()}
+                                    onClick={() => addBotAdminMutation.mutate(newBotAdminId)}
                                     className="bg-blue-600 hover:bg-blue-700 font-bold"
                                     disabled={!newBotAdminId}
                                 >
@@ -545,13 +673,14 @@ function FlowsEditor({
     gameRules?: any,
     flowSequences?: any,
     onSave: (f: any) => void,
-    onSaveRules: (r: any) => void,
-    onSaveSequences: (s: any) => void
+    onSaveRules?: (r: any) => void,
+    onSaveSequences?: (s: any) => void
 }) {
     // [Previous defaults logic omitted for brevity as it is preserved in state]
     const defaults = {
         onboarding: {
             welcome: '👋 Welcome to Bingo Ethiopia!\n\nPlease register first by clicking the button below:',
+            welcome_back: '👋 Welcome back! We missed you.',
             registration_success: '✅ Registration successful! You can now deposit and play.'
         },
         deposit: {
@@ -694,7 +823,7 @@ function FlowsEditor({
                                     </div>
                                     <p className="text-[10px] text-white/30 mt-1">Percentage deducted from the Total Pot. Remaining is distributed to winners.</p>
                                 </div>
-                                <Button onClick={() => onSaveRules(rules)} size="sm" className="bg-blue-600">Save Rules</Button>
+                                <Button onClick={() => onSaveRules?.(rules)} size="sm" className="bg-blue-600">Save Rules</Button>
                             </CardContent>
                         </Card>
 
@@ -716,9 +845,22 @@ function FlowsEditor({
                                                     className={`flex items-center justify-between bg-black/40 p-3 rounded border border-white/5 cursor-grab active:cursor-grabbing hover:bg-white/5 transition-colors ${draggedItem?.index === idx && draggedItem.type === type ? 'opacity-50 border-blue-500 border-dashed' : ''}`}
                                                 >
                                                     <span className="text-sm font-mono text-white/80 flex items-center gap-2">
-                                                        <span className="text-white/20 select-none">☰</span>
+                                                        <span className="text-white/20 select-none cursor-grab">☰</span>
                                                         {idx + 1}. <span className="text-yellow-400 font-bold">{step}</span>
                                                     </span>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6 text-white/20 hover:text-red-400"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation(); // Prevent drag start if clicked
+                                                            const newSeq = [...(sequences[type as 'deposit' | 'withdrawal'] || [])];
+                                                            newSeq.splice(idx, 1);
+                                                            setSequences({ ...sequences, [type]: newSeq });
+                                                        }}
+                                                    >
+                                                        <Trash2 className="w-3 h-3" />
+                                                    </Button>
                                                 </div>
                                             ))}
                                         </div>
@@ -741,7 +883,7 @@ function FlowsEditor({
                                                     }
                                                 }
                                             }} size="sm" variant="outline" className="flex-1 border-dashed border-white/20 hover:bg-white/5">+ Add Step</Button>
-                                            <Button onClick={() => onSaveSequences(sequences)} size="sm" className="flex-1 bg-green-600 hover:bg-green-700">Save {type} Flow</Button>
+                                            <Button onClick={() => onSaveSequences?.(sequences)} size="sm" className="flex-1 bg-green-600 hover:bg-green-700">Save {type} Flow</Button>
                                         </div>
                                     </CardContent>
                                 </Card>

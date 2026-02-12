@@ -7,7 +7,10 @@ export async function handleStatsRoutes(request: Request, env: Env): Promise<Res
     const url = new URL(request.url);
     const supabase = getSupabase(env);
 
-    const path = url.pathname.replace('/api/stats', '').replace('/stats', '');
+    const path = url.pathname
+        .replace('/api/stats', '')
+        .replace('/stats', '')
+        .replace('/api/leaderboard', '/leaderboard'); // Normnalize to /leaderboard
 
     // GET /user - Get user game statistics for wallet (mapped from /stats/user)
     if (path === '/user' && request.method === 'GET') {
@@ -145,12 +148,10 @@ export async function handleStatsRoutes(request: Request, env: Env): Promise<Res
         const period = url.searchParams.get('period') || 'weekly';
         const limit = parseInt(url.searchParams.get('limit') || '10');
 
-        const { data, error } = await supabase
+        // Fetch pre-calculated leaderboard entries
+        const { data: entries, error } = await supabase
             .from('leaderboard_entries')
-            .select(`
-                *,
-                user:users(telegram_id, username, first_name)
-            `)
+            .select('*') // No join here as it fails in DB schema
             .eq('period', period)
             .order('rank', { ascending: true })
             .limit(limit);
@@ -159,7 +160,74 @@ export async function handleStatsRoutes(request: Request, env: Env): Promise<Res
             return jsonResponse({ error: error.message }, 500);
         }
 
-        return jsonResponse({ leaderboard: data || [] });
+        if (!entries || entries.length === 0) {
+            return jsonResponse({ leaderboard: [] });
+        }
+
+        // Fetch additional user details to enrich the list
+        const telegramIds = entries.map(e => parseInt(e.userId)).filter(id => !isNaN(id));
+        const { data: userDetails } = await supabase
+            .from('users')
+            .select('telegram_id, first_name, username')
+            .in('telegram_id', telegramIds);
+
+        const userMap = new Map(userDetails?.map(u => [u.telegram_id.toString(), u]) || []);
+
+        const leaderboard = entries.map(entry => {
+            const userDetail = userMap.get(entry.userId);
+            return {
+                rank: entry.rank,
+                wins: entry.wins || 0,
+                total_winnings: parseFloat(entry.earnings || 0),
+                games_played: entry.gamesPlayed || 0,
+                user: {
+                    telegram_id: parseInt(entry.userId),
+                    username: userDetail?.username || entry.username || 'Anonymous',
+                    first_name: userDetail?.first_name || entry.username || 'User'
+                }
+            };
+        });
+
+        return jsonResponse({ leaderboard });
+    }
+
+    // GET /referrals
+    if (path === '/referrals' && request.method === 'GET') {
+        const userId = url.searchParams.get('userId');
+        if (!userId) return jsonResponse({ error: 'Missing userId' }, 400);
+
+        const telegramId = parseInt(userId);
+
+        // Fetch referred users details
+        // Note: The 'referrals' table has referrer_id and referred_id (both BIGINT telegram_ids)
+        const { data, error } = await supabase
+            .from('referrals')
+            .select(`
+                referred_id,
+                reward_amount,
+                created_at
+            `)
+            .eq('referrer_id', telegramId)
+            .order('created_at', { ascending: false });
+
+        if (error) return jsonResponse({ error: error.message }, 500);
+
+        // Fetch usernames for the referred IDs
+        const referredIds = data.map(r => r.referred_id);
+        const { data: usersData } = await supabase
+            .from('users')
+            .select('telegram_id, username, first_name')
+            .in('telegram_id', referredIds);
+
+        const userMap = new Map(usersData?.map(u => [u.telegram_id, u]) || []);
+
+        const referrals = data.map(r => ({
+            ...r,
+            username: userMap.get(r.referred_id)?.username || `User ${r.referred_id}`,
+            firstName: userMap.get(r.referred_id)?.first_name || 'Anonymous'
+        }));
+
+        return jsonResponse({ referrals });
     }
 
     return jsonResponse({ error: 'Not found' }, 404);

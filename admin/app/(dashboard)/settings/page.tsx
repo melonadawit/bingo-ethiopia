@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Save, AlertCircle, Power, Lock, MessageSquare, Timer, DollarSign, Database, RefreshCw } from 'lucide-react';
+import { Save, AlertCircle, Power, Lock, MessageSquare, Timer, DollarSign, Database, RefreshCw, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
@@ -24,7 +24,22 @@ export default function SettingsPage() {
     const [maintenanceMode, setMaintenanceMode] = useState(false);
     const [chatEnabled, setChatEnabled] = useState(false);
     const [signupEnabled, setSignupEnabled] = useState(true);
+    const [dailyCheckinEnabled, setDailyCheckinEnabled] = useState(true);
     const [gameTimer, setGameTimer] = useState(30);
+    const [dailyRewards, setDailyRewards] = useState<number[]>([50, 75, 100, 150, 200, 300, 500]);
+    const [announcement, setAnnouncement] = useState<any>({
+        enabled: false,
+        id: '',
+        title: '',
+        message: '',
+        image_url: '',
+        action_text: '',
+        action_url: ''
+    });
+
+    const updateAnnouncement = (key: string, value: any) => {
+        setAnnouncement((prev: any) => ({ ...prev, [key]: value }));
+    };
 
     const { data: currentConfig, isLoading } = useQuery({
         queryKey: ['admin-config'],
@@ -41,7 +56,14 @@ export default function SettingsPage() {
             setMaintenanceMode(features?.maintenance_mode || false);
             setChatEnabled(features?.chat_enabled || false);
             setSignupEnabled(features?.signup_enabled !== false);
+            setDailyCheckinEnabled(features?.daily_checkin_enabled !== false);
             setGameTimer(rules?.ande_zig?.timer || 30);
+            if (features?.daily_rewards) {
+                setDailyRewards(features.daily_rewards);
+            }
+            if (features?.announcement) {
+                setAnnouncement(features.announcement);
+            }
         }
     }, [currentConfig]);
 
@@ -58,7 +80,15 @@ export default function SettingsPage() {
                 } else {
                     // Update from Visuals
                     const current = JSON.parse(configJson);
-                    features = { ...current.features, maintenance_mode: maintenanceMode, chat_enabled: chatEnabled, signup_enabled: signupEnabled };
+                    features = {
+                        ...current.features,
+                        maintenance_mode: maintenanceMode,
+                        chat_enabled: chatEnabled,
+                        signup_enabled: signupEnabled,
+                        daily_checkin_enabled: dailyCheckinEnabled,
+                        announcement: announcement,
+                        daily_rewards: dailyRewards
+                    };
                     rules = { ...current.rules, ande_zig: { ...current.rules?.ande_zig, timer: gameTimer } };
                 }
 
@@ -93,6 +123,24 @@ export default function SettingsPage() {
         return 'v' + parts.join('.');
     };
 
+    const updateDailyReward = (index: number, val: string) => {
+        const num = parseInt(val) || 0;
+        const newRewards = [...dailyRewards];
+        newRewards[index] = num;
+        setDailyRewards(newRewards);
+    };
+
+    const addDay = () => {
+        const lastVal = dailyRewards[dailyRewards.length - 1] || 0;
+        setDailyRewards([...dailyRewards, lastVal + 50]);
+    };
+
+    const removeDay = (index: number) => {
+        if (dailyRewards.length <= 1) return;
+        const newRewards = dailyRewards.filter((_, i) => i !== index);
+        setDailyRewards(newRewards);
+    };
+
     if (isLoading) return <div className="p-8">Loading control panel...</div>;
 
     return (
@@ -109,7 +157,7 @@ export default function SettingsPage() {
                     <Badge variant="outline" className="font-mono bg-blue-500/10 text-blue-400 border-blue-500/20 px-3 py-1">
                         ver: {version || 'v1.0.0'}
                     </Badge>
-                    <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20">
+                    <Button onClick={() => saveMutation.mutate(undefined)} disabled={saveMutation.isPending} className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20">
                         <Save className="h-4 w-4 mr-2" />
                         Deploy Changes
                     </Button>
@@ -157,37 +205,108 @@ export default function SettingsPage() {
                         </Card>
                     </div>
 
+                    {/* Daily Rewards Management */}
+                    <Card className="bg-black/40 border-white/10 backdrop-blur-xl">
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <div className="space-y-1">
+                                <CardTitle className="flex items-center gap-2">
+                                    <Plus className="w-5 h-5 text-green-500" />
+                                    Daily Check-in Rewards
+                                </CardTitle>
+                                <CardDescription>Configure reward amounts and number of days.</CardDescription>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
+                                    <Label className="text-xs font-bold text-white cursor-pointer" htmlFor="checkin-toggle">Active</Label>
+                                    <Switch id="checkin-toggle" checked={dailyCheckinEnabled} onCheckedChange={setDailyCheckinEnabled} className="data-[state=checked]:bg-green-500" />
+                                </div>
+                                <Button variant="outline" size="sm" onClick={addDay} className="bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/20">
+                                    <Plus className="w-4 h-4 mr-1" />
+                                    Add Day
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 lg:grid-cols-8 gap-4">
+                                {dailyRewards.map((amount, idx) => (
+                                    <div key={idx} className="space-y-2 group relative p-3 rounded-lg bg-white/5 border border-white/5 hover:border-white/10 transition-all">
+                                        <div className="flex justify-between items-center">
+                                            <Label className="text-[10px] uppercase text-slate-500 font-bold">Day {idx + 1}</Label>
+                                            {dailyRewards.length > 1 && (
+                                                <button
+                                                    onClick={() => removeDay(idx)}
+                                                    className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity"
+                                                >
+                                                    <Trash2 className="w-3 h-3" />
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="relative">
+                                            <Input
+                                                type="number"
+                                                value={amount}
+                                                onChange={(e) => updateDailyReward(idx, e.target.value)}
+                                                className="bg-transparent border-white/10 pl-7 text-sm font-bold text-green-400 focus:bg-white/5"
+                                            />
+                                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">Br</span>
+                                        </div>
+                                    </div>
+                                ))}
+                                <button
+                                    onClick={addDay}
+                                    className="flex flex-col items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-white/10 hover:border-green-500/50 hover:bg-green-500/5 transition-all text-slate-500 hover:text-green-400"
+                                >
+                                    <Plus className="w-5 h-5" />
+                                    <span className="text-[10px] uppercase font-bold">Add Day</span>
+                                </button>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-4 italic">* Changes will take effect immediately for all subsequent claims.</p>
+                        </CardContent>
+                    </Card>
+
                     {/* Game Rules */}
                     <Card className="bg-black/40 border-white/10 backdrop-blur-xl">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <Timer className="w-5 h-5 text-yellow-500" />
-                                Game Parameters (Ande Zig)
+                                Game Parameters
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                            <div className="grid gap-6 md:grid-cols-2">
-                                <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5">
-                                    <div className="flex justify-between">
-                                        <Label>Turn Timer</Label>
-                                        <span className="font-mono font-bold text-yellow-400">{gameTimer}s</span>
-                                    </div>
-                                    <Input
-                                        type="range" min="15" max="90" step="5"
-                                        value={gameTimer}
-                                        onChange={(e) => setGameTimer(parseInt(e.target.value))}
-                                        className="h-2 bg-white/10 accent-yellow-500"
-                                    />
-                                    <p className="text-xs text-muted-foreground">Seconds allowed per number call.</p>
-                                </div>
-                                <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5 opacity-50 pointer-events-none">
-                                    <div className="flex justify-between">
-                                        <Label>Entry Fee (Coming Soon)</Label>
-                                        <span className="font-mono font-bold text-green-400">10 ETB</span>
-                                    </div>
-                                    <Input type="range" disabled className="h-2 bg-white/10" />
-                                </div>
-                            </div>
+                            <Tabs defaultValue="ande" className="w-full">
+                                <TabsList className="bg-white/5 border border-white/5 w-full justify-start">
+                                    <TabsTrigger value="ande">Ande Zig</TabsTrigger>
+                                    <TabsTrigger value="hulet">Hulet Zig</TabsTrigger>
+                                    <TabsTrigger value="mulu">Mulu Zig</TabsTrigger>
+                                </TabsList>
+
+                                {['ande', 'hulet', 'mulu'].map((mode) => (
+                                    <TabsContent key={mode} value={mode} className="space-y-4 mt-4">
+                                        <div className="grid gap-6 md:grid-cols-2">
+                                            <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5">
+                                                <div className="flex justify-between">
+                                                    <Label>Turn Timer</Label>
+                                                    <span className="font-mono font-bold text-yellow-400">{gameTimer}s</span>
+                                                </div>
+                                                <Input
+                                                    type="range" min="15" max="90" step="5"
+                                                    value={gameTimer}
+                                                    onChange={(e) => setGameTimer(parseInt(e.target.value))}
+                                                    className="h-2 bg-white/10 accent-yellow-500"
+                                                />
+                                                <p className="text-xs text-muted-foreground">Seconds allowed per number call.</p>
+                                            </div>
+                                            <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/5 opacity-50 pointer-events-none">
+                                                <div className="flex justify-between">
+                                                    <Label>Entry Fee (Coming Soon)</Label>
+                                                    <span className="font-mono font-bold text-green-400">10 ETB</span>
+                                                </div>
+                                                <Input type="range" disabled className="h-2 bg-white/10" />
+                                            </div>
+                                        </div>
+                                    </TabsContent>
+                                ))}
+                            </Tabs>
                         </CardContent>
                     </Card>
 

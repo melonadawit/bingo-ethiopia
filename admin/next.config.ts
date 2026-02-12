@@ -5,15 +5,17 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  async redirects() {
-    return [
-      {
-        source: '/dashboard',
-        destination: '/overview',
-        permanent: true,
-      },
-    ];
-  },
+  trailingSlash: true,
+  // redirects are not supported in static export
+  // async redirects() {
+  //   return [
+  //     {
+  //       source: '/dashboard',
+  //       destination: '/overview',
+  //       permanent: true,
+  //     },
+  //   ];
+  // },
 };
 
 export default nextConfig;

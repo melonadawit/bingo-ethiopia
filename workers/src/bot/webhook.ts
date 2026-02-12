@@ -3,19 +3,78 @@ import { getSupabase, jsonResponse } from '../utils';
 import { BotConfigService } from './configService'; // [NEW]
 import {
     sendMessage,
+    sendPhoto,
     answerCallback,
     updateBotMenuButton,
     setPersonalizedMenuButton,
     getMainKeyboard,
     generateRefCode,
     generateUniqueReferralCode,
-    getWebAppUrl
+    getWebAppUrl,
+    deleteMessage
 } from './utils';
 import { FlowManager } from './flowManager';
 import { handleTournaments, handleEvents, handleTournamentCallbacks } from './tournamentHandlers';
 
-// User state tracking
-const userStates = new Map<number, { action: string; data?: any; flow?: string; stepIndex?: number }>();
+// [FIX] Simple Redis wrapper using raw fetch to avoid SDK's Cloudflare Worker compatibility issues
+class SimpleRedis {
+    constructor(private url: string, private token: string) { }
+
+    private async runCommand(command: string[]): Promise<any> {
+        const baseUrl = this.url.endsWith('/') ? this.url : `${this.url}/`;
+        try {
+            const res = await fetch(baseUrl, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${this.token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(command)
+            });
+
+            if (!res.ok) {
+                const errText = await res.text();
+                console.error(`Redis Error [${command[0]}]:`, errText);
+                return null;
+            }
+
+            const data: any = await res.json();
+            return data.result;
+        } catch (e) {
+            console.error(`Redis Exception [${command[0]}]:`, e);
+            return null;
+        }
+    }
+
+    async get(key: string): Promise<any> {
+        const result = await this.runCommand(["GET", key]);
+        if (result) {
+            try {
+                return JSON.parse(result);
+            } catch {
+                return result;
+            }
+        }
+        return null;
+    }
+
+    async set(key: string, value: any, options?: { ex: number }): Promise<void> {
+        const cmd = ["SET", key, JSON.stringify(value)];
+        if (options?.ex) {
+            cmd.push("EX", options.ex.toString());
+        }
+        await this.runCommand(cmd);
+    }
+
+    async del(key: string): Promise<void> {
+        await this.runCommand(["DEL", key]);
+    }
+}
+
+// function getRedis(env: Env) {
+//     return new SimpleRedis(env.UPSTASH_REDIS_REST_URL, env.UPSTASH_REDIS_REST_TOKEN);
+// }
+
 
 export async function handleBotWebhook(request: Request, env: Env): Promise<Response> {
     if (request.method !== 'POST') {
@@ -28,6 +87,20 @@ export async function handleBotWebhook(request: Request, env: Env): Promise<Resp
     // [NEW] Load Dynamic Config
     const configService = new BotConfigService(env);
     const config = await configService.getConfig();
+
+    // Check for maintenance mode
+    if (config.botSettings?.maintenance_mode && update.message) {
+        const userId = update.message.from.id;
+        if (!config.adminIds.includes(userId)) {
+            await sendMessage(
+                update.message.chat.id,
+                `🛠 <b>Bot Maintenance</b>\n\n` +
+                `The bot is currently undergoing maintenance to improve our services. We'll be back shortly! 🚀`,
+                env
+            );
+            return jsonResponse({ ok: true });
+        }
+    }
 
     // DIAGNOSTIC LOGGING
     console.log('Update received:', JSON.stringify(update, null, 2));
@@ -44,7 +117,7 @@ export async function handleBotWebhook(request: Request, env: Env): Promise<Resp
 
             // Handle contact sharing (registration)
             if (update.message.contact) {
-                await handleContactShare(update.message, env, supabase);
+                await handleContactShare(update.message, env, supabase, config);
                 return jsonResponse({ ok: true });
             }
 
@@ -89,7 +162,7 @@ async function handleCommand(chatId: number, userId: number, text: string, usern
     if (!user || user.is_registered === false) {
         if (text.startsWith('/start')) {
             const param = text.split(' ')[1]; // Extract payload
-            await handleStart(chatId, userId, username, env, supabase, param);
+            await handleStart(chatId, userId, username, env, supabase, config, param);
         } else {
             await sendMessage(
                 chatId,
@@ -105,18 +178,42 @@ async function handleCommand(chatId: number, userId: number, text: string, usern
         return;
     }
 
-    const userState = userStates.get(userId);
+    // [FIX] Use Supabase 'last_name' column as a hack for state persistance since Redis is failing
+    // and 'bot_state' column is missing.
+    // 'user' variable is already fetched above.
+    let userState: any = null;
+    try {
+        if (user?.last_name && user.last_name.startsWith('{')) {
+            userState = JSON.parse(user.last_name);
+        }
+    } catch (e) {
+        console.error('State parse error:', e);
+    }
+
+    console.log(`[DEBUG_STATE] Raw last_name for ${userId}:`, user?.last_name);
+    console.log(`[DEBUG_STATE] Parsed userState:`, JSON.stringify(userState));
+
+    // [FIX] Allow breaking out of flows with commands or menu buttons
+    const isGlobalCommand = text.startsWith('/') ||
+        ['💰 Balance', '💳 Deposit', '💸 Withdraw', '📜 Transactions', '📊 My Stats', '📘 Instructions', '📞 Support', '🎁 Referral', '🎁 Daily Bonus', '🏆 Tournaments', '🎉 Events'].includes(text);
 
     // Check if user is in a conversation flow
     if (userState) {
-        await handleUserInput(chatId, userId, text, userState, env, supabase, config);
-        return;
+        if (isGlobalCommand) {
+            console.log(`User ${userId} broke out of flow via command`);
+            // Clear state in DB (Hack: last_name)
+            await supabase.from('users').update({ last_name: null }).eq('telegram_id', userId);
+            // Fall through to switch statement below
+        } else {
+            await handleUserInput(chatId, userId, text, userState, env, supabase, config);
+            return;
+        }
     }
 
     // Handle commands
     // Handle /start explicitly first to capture params even for registered users (logging them in again)
     if (text.startsWith('/start')) {
-        await handleStart(chatId, userId, username, env, supabase);
+        await handleStart(chatId, userId, username, env, supabase, config);
         return;
     }
 
@@ -141,7 +238,10 @@ async function handleCommand(chatId: number, userId: number, text: string, usern
                 const state = await flowManager.startFlow({
                     chatId, userId, text, userState: null, env, config, supabase
                 }, 'deposit');
-                if (state) userStates.set(userId, state);
+                if (state) {
+                    const { error: updateError } = await supabase.from('users').update({ last_name: JSON.stringify(state) }).eq('telegram_id', userId);
+                    console.log('[DEBUG_STATE] Set Deposit State result:', updateError || 'Success');
+                }
             }
             break;
 
@@ -152,7 +252,10 @@ async function handleCommand(chatId: number, userId: number, text: string, usern
                 const state = await flowManager.startFlow({
                     chatId, userId, text, userState: null, env, config, supabase
                 }, 'withdrawal');
-                if (state) userStates.set(userId, state);
+                if (state) {
+                    const { error: updateError } = await supabase.from('users').update({ last_name: JSON.stringify(state) }).eq('telegram_id', userId);
+                    console.log('[DEBUG_STATE] Set Withdraw State result:', updateError || 'Success');
+                }
             }
             break;
 
@@ -170,12 +273,12 @@ async function handleCommand(chatId: number, userId: number, text: string, usern
         case '/instruction':
         case '/help':
         case '📘 Instructions':
-            await sendMessage(chatId, config.botFlows?.support?.instructions || config.instructions, env);
+            await sendMessage(chatId, config.botFlows?.support?.instructions || config.instructions || 'Instructions not available.', env);
             break;
 
         case '/support':
         case '📞 Support':
-            await sendMessage(chatId, config.botFlows?.support?.contact_message || config.support, env);
+            await sendMessage(chatId, config.botFlows?.support?.contact_message || config.support || 'Support contact not available.', env);
             break;
 
         case '/referral':
@@ -238,9 +341,10 @@ async function handleUserInput(chatId: number, userId: number, text: string, use
         });
 
         if (newState) {
-            userStates.set(userId, newState);
+            await supabase.from('users').update({ last_name: JSON.stringify(newState) }).eq('telegram_id', userId);
         } else {
-            userStates.delete(userId); // Flow complete or cancelled
+            // Flow complete or cancelled
+            await supabase.from('users').update({ last_name: null }).eq('telegram_id', userId);
         }
         return;
     }
@@ -254,7 +358,7 @@ async function handleUserInput(chatId: number, userId: number, text: string, use
             return;
         }
 
-        userStates.set(userId, { action: 'deposit_bank', data: { amount } });
+        await supabase.from('users').update({ last_name: JSON.stringify({ action: 'deposit_bank', data: { amount } }) }).eq('telegram_id', userId);
         await showBankSelection(chatId, 'deposit', env, config);
     }
     else if (userState.action === 'deposit_message') {
@@ -284,7 +388,7 @@ async function handleUserInput(chatId: number, userId: number, text: string, use
         if (insertError || !insertedPayment) {
             console.error('Failed to insert payment:', insertError);
             await sendMessage(chatId, '❌ Failed to create payment request. Please try again.', env);
-            userStates.delete(userId);
+            await supabase.from('users').update({ last_name: null }).eq('telegram_id', userId);
             return;
         }
 
@@ -292,7 +396,7 @@ async function handleUserInput(chatId: number, userId: number, text: string, use
             console.error('[CRITICAL] Payment inserted but ID is missing:', insertedPayment);
         }
 
-        userStates.delete(userId);
+        await supabase.from('users').update({ last_name: null }).eq('telegram_id', userId);
 
         await sendMessage(chatId, config.botFlows?.deposit?.pending_message || '✅ Deposit Request Created!', env, getMainKeyboard(userId, config));
 
@@ -304,8 +408,11 @@ async function handleUserInput(chatId: number, userId: number, text: string, use
             .single();
 
         // Notify all admins
+        const adminMessages: Record<string, number> = {};
+        console.log('Target Admin IDs:', config.adminIds);
         for (const adminId of config.adminIds) {
-            await sendMessage(
+            console.log(`Sending Deposit Notification to: ${adminId}`);
+            const res = await sendMessage(
                 adminId,
                 `💵 <b>New Deposit Request (Text Receipt)</b>\n\n` +
                 `👤 User: ${user?.username || 'Unknown'}\n` +
@@ -323,6 +430,13 @@ async function handleUserInput(chatId: number, userId: number, text: string, use
                     ]]
                 }
             );
+            if (res && (res as any).result && (res as any).result.message_id) {
+                adminMessages[adminId] = (res as any).result.message_id;
+            }
+        }
+        // Save captured message IDs for sync
+        if (insertedPayment.id && Object.keys(adminMessages).length > 0) {
+            await supabase.from('payment_requests').update({ admin_messages: adminMessages }).eq('id', insertedPayment.id);
         }
     }
     // WITHDRAWAL FLOW
@@ -340,7 +454,7 @@ async function handleUserInput(chatId: number, userId: number, text: string, use
                 (config.botFlows?.withdrawal?.min_error || 'Min withdrawal is {min}').replace('{min}', config.limits.minWithdrawal.toString()),
                 env
             );
-            userStates.delete(userId);
+            await supabase.from('users').update({ last_name: null }).eq('telegram_id', userId);
             return;
         }
 
@@ -350,7 +464,7 @@ async function handleUserInput(chatId: number, userId: number, text: string, use
                 (config.botFlows?.withdrawal?.max_error || 'Max withdrawal is {max}').replace('{max}', config.limits.maxWithdrawal.toString()),
                 env
             );
-            userStates.delete(userId);
+            await supabase.from('users').update({ last_name: null }).eq('telegram_id', userId);
             return;
         }
 
@@ -367,11 +481,11 @@ async function handleUserInput(chatId: number, userId: number, text: string, use
                     .replace('{amount}', amount.toString()),
                 env
             );
-            userStates.delete(userId);
+            await supabase.from('users').update({ last_name: null }).eq('telegram_id', userId);
             return;
         }
 
-        userStates.set(userId, { action: 'withdraw_bank', data: { amount } });
+        await supabase.from('users').update({ last_name: JSON.stringify({ action: 'withdraw_bank', data: { amount } }) }).eq('telegram_id', userId);
         await showBankSelection(chatId, 'withdraw', env, config);
     }
     else if (userState.action === 'withdraw_account') {
@@ -503,11 +617,11 @@ async function handleUserInput(chatId: number, userId: number, text: string, use
                 if (insertError || !insertedPayment || !insertedPayment.id) {
                     console.error('[CRITICAL] Withdrawal insert failed or ID is missing:', { error: insertError, payment: insertedPayment });
                     await sendMessage(chatId, '❌ Failed to create withdrawal request. Please try again.', env);
-                    userStates.delete(userId);
+                    await supabase.from('users').update({ last_name: null }).eq('telegram_id', userId);
                     return;
                 }
 
-                userStates.delete(userId);
+                await supabase.from('users').update({ last_name: null }).eq('telegram_id', userId);
 
                 await sendMessage(chatId, config.botFlows?.withdrawal?.pending_message || '✅ Withdrawal Request Created!', env, getMainKeyboard(userId, config));
 
@@ -519,9 +633,13 @@ async function handleUserInput(chatId: number, userId: number, text: string, use
                     .single();
 
                 // Notify all admins
+                // Notify all admins
                 const methodName = config.methods[method as string]?.name || method;
+                const adminMessages: Record<string, number> = {};
+                console.log('Target Admin IDs (Withdrawal):', config.adminIds);
                 for (const adminId of config.adminIds) {
-                    await sendMessage(
+                    console.log(`Sending Withdrawal Notification to: ${adminId}`);
+                    const res = await sendMessage(
                         adminId,
                         `💸 <b>New Withdrawal Request </b>\n\n` +
                         `👤 User: ${user?.username || 'Unknown'}\n` +
@@ -539,6 +657,13 @@ async function handleUserInput(chatId: number, userId: number, text: string, use
                             ]]
                         }
                     );
+                    if (res && (res as any).result && (res as any).result.message_id) {
+                        adminMessages[adminId] = (res as any).result.message_id;
+                    }
+                }
+                // Save captured message IDs for sync
+                if (insertedPayment.id && Object.keys(adminMessages).length > 0) {
+                    await supabase.from('payment_requests').update({ admin_messages: adminMessages }).eq('id', insertedPayment.id);
                 }
             }
         }
@@ -557,11 +682,20 @@ async function handleCallbackQuery(callbackQuery: any, env: Env, supabase: any, 
     const [action, ...params] = data.split(':');
     console.log('Parsed callback:', { action, params, paramsLength: params.length });
 
+    // Fetch state from DB (Hack: last_name)
+    const { data: user } = await supabase.from('users').select('last_name').eq('telegram_id', userId).maybeSingle();
+    let state: any = null;
+    try {
+        if (user?.last_name && user.last_name.startsWith('{')) {
+            state = JSON.parse(user.last_name);
+        }
+    } catch (e) { }
+
     switch (action) {
         case 'deposit_bank':
         case 'withdraw_bank':
             const method = params[0];
-            const state = userStates.get(userId);
+            // Uses 'state' fetched above
 
             if (state && (state.action === 'deposit_bank' || state.action === 'withdraw_bank')) {
                 const amount = state.data.amount;
@@ -569,14 +703,13 @@ async function handleCallbackQuery(callbackQuery: any, env: Env, supabase: any, 
                 // If deposit, show instructions
                 if (action === 'deposit_bank') {
                     // Need config-aware helper
-                    // Helper: const instruction = config.methods[method]?.instructions['am'].replace('{amount}', amount);
                     const methodConfig = config.methods[method];
                     if (methodConfig) {
                         const instruction = methodConfig.instructions['am'].replace('{amount}', amount.toString());
-                        // Use default or maybe add a generic 'Bank Instruction Header' later if needed
-                        const msg = instruction;
+                        const footer = config.prompts?.depositInstructionFooter || '';
+                        const msg = instruction + footer;
                         await sendMessage(chatId, msg, env);
-                        userStates.set(userId, { action: 'deposit_message', data: { amount, method } });
+                        await supabase.from('users').update({ last_name: JSON.stringify({ action: 'deposit_message', data: { amount, method } }) }).eq('telegram_id', userId);
                     } else {
                         await sendMessage(chatId, 'Error: Bank config not found', env);
                     }
@@ -587,24 +720,39 @@ async function handleCallbackQuery(callbackQuery: any, env: Env, supabase: any, 
                         ? config.botFlows?.withdrawal?.prompt_phone || '📱 Enter phone number:'
                         : config.botFlows?.withdrawal?.prompt_account || '🔢 Enter account number:';
                     await sendMessage(chatId, prompt, env);
-                    userStates.set(userId, { action: 'withdraw_account', data: { amount, method } });
+                    await supabase.from('users').update({ last_name: JSON.stringify({ action: 'withdraw_account', data: { amount, method } }) }).eq('telegram_id', userId);
                 }
             }
             break;
 
+        case 'admin':
+            const subAction = params[0]; // 'approve' or 'decline'
+            const refCode = params[1];
+
+            console.log('Admin Action:', { subAction, refCode });
+
+            if (config.adminIds.includes(userId)) {
+                if (subAction === 'approve') {
+                    await handleApprovePayment(chatId, refCode, env, supabase, config);
+                } else if (subAction === 'decline' || subAction === 'reject') {
+                    await handleRejectPayment(chatId, refCode, env, supabase, config);
+                }
+            } else {
+                await sendMessage(chatId, '❌ You are not authorized.', env);
+            }
+            break;
+
         case 'approve':
-            console.log('Approve callback:', { userId, adminIds: config.adminIds, paymentId: params[0] });
+            console.log('Legacy Approve callback:', { userId, adminIds: config.adminIds, paymentId: params[0] });
             if (config.adminIds.includes(userId)) {
                 const paymentId = params[0];
                 await handleApprovePayment(chatId, paymentId, env, supabase, config);
-            } else {
-                console.log('User is not admin, ignoring approve');
             }
             break;
 
         case 'bank_select': // NEW FlowManager callback
             const bankKey = params[0];
-            const currentState = userStates.get(userId);
+            const currentState = state; // alias
             if (currentState && currentState.flow) {
                 // Update state with bank selection
                 currentState.data.bank = bankKey;
@@ -612,23 +760,6 @@ async function handleCallbackQuery(callbackQuery: any, env: Env, supabase: any, 
 
                 // Trigger next step via FlowManager
                 const flowManager = new FlowManager();
-                // We need to re-trigger the "next step" logic. 
-                // Since handleInput expects text, let's just use internal helper or simulate input?
-                // Better: Just manually call sendPrompt for next step.
-
-                // Hack: Reuse sendPrompt logic by accessing private method? No.
-                // Solution: Create a public 'next' method or simulation.
-                // For now, let's assume FlowManager.handleInput handles validation. 
-                // We'll just pass dummy text? No.
-
-                // Let's rely on FlowManager to handle the flow progression.
-                // We can't easily call 'handleInput' because it runs 'bank' handler which fails on text.
-                // WE NEED TO UPDATE FlowManager.ts to have 'handleCallback'.
-                // FOR NOW: Let's assume we update FlowManager to allow skipping validation if data is present.
-
-                // Let's try calling handleInput with the bank key as text?
-                // If I updated FlowManager 'bank' handler to accept text matching keys, it would work.
-
                 // Temporary Fix: Manually advance.
                 const sequence = flowManager.getSequence(config, currentState.flow!);
                 if (currentState.stepIndex < sequence.length) {
@@ -638,17 +769,25 @@ async function handleCallbackQuery(callbackQuery: any, env: Env, supabase: any, 
                         chatId, userId, text: '', userState: currentState, env, config, supabase: null
                     }, nextStep, currentState.flow!);
 
-                    userStates.set(userId, currentState);
+                    await supabase.from('users').update({ last_name: JSON.stringify(currentState) }).eq('telegram_id', userId);
                 } else {
                     await flowManager.finalize({
                         chatId, userId, text: '', userState: currentState, env, config, supabase: null
                     }, currentState.flow!, currentState.data);
-                    userStates.delete(userId);
+                    await supabase.from('users').update({ last_name: null }).eq('telegram_id', userId);
                 }
             }
             break;
 
-
+        default:
+            // Fallback to specialized handlers for tournament/event callbacks
+            console.log('Delegating for action:', action);
+            if (data.startsWith('join_tournament:') || data.startsWith('tournament_leaderboard:')) {
+                await handleTournamentCallbacks(data, chatId, userId, callbackQuery.id, env, supabase);
+            } else if (data === 'refresh_events') {
+                await handleEvents(chatId, userId, env, supabase);
+            }
+            break;
     }
 }
 
@@ -657,11 +796,18 @@ async function showBankSelection(chatId: number, type: 'deposit' | 'withdraw', e
         ? config.botFlows?.deposit?.prompt_bank || '🏦 Select Bank:'
         : config.botFlows?.withdrawal?.prompt_bank || '🏦 Select Bank:';
 
-    // Dynamically build keyboard from config.methods
-    const banks = Object.keys(config.methods).map(key => ({
-        text: `🏦 ${config.methods[key].name}`,
-        callback_data: `${type}_bank:${key}`
-    }));
+    // Source of truth is now config.methods (merged by configService)
+    const banks = Object.keys(config.methods)
+        .filter(key => config.methods[key].enabled) // CRITICAL: Filter enabled only
+        .map(key => ({
+            text: `🏦 ${config.methods[key].name}`,
+            callback_data: `${type}_bank:${key}`
+        }));
+
+    if (banks.length === 0) {
+        await sendMessage(chatId, '❌ No payment methods currently available.', env);
+        return;
+    }
 
     // Chunk into pairs
     const keyboard = {
@@ -685,20 +831,13 @@ async function handleReferral(chatId: number, userId: number, env: Env, supabase
 
     if (!user) return;
 
-    const message = (config.botFlows?.referral?.share_message || '🎁 Use my code!') + `\n\n` +
-        `📋 Your Code: <code>${user.referral_code}</code>\n` +
-        `👥 Referrals: ${user.referral_count || 0} friends\n` +
-        `💰 Earned: ${user.referral_earnings || 0} Birr\n\n` +
-        `<b>How it works:</b>\n` +
-        `• Share your code with friends\n` +
-        `• They register using your code\n` +
-        `• You get ${config.referral.referrerReward} Birr\n` +
-        `• They get ${config.referral.referredReward} Birr bonus!\n\n` +
-        `Share your code: <code>${user.referral_code}</code>`;
+    const inviteLink = `https://t.me/bingoo_online_bot?start=${userId}`;
+    const baseMessage = config.botFlows?.referral?.share_message || '🔗 Invite your friends to Online Bingo and earn rewards!\n\n🎁 {link}';
+    const message = baseMessage.replace('{link}', inviteLink).replace('{userId}', userId.toString());
 
     await sendMessage(chatId, message, env, {
         inline_keyboard: [[
-            { text: '📤 Share Code', switch_inline_query: `Join Bingo Ethiopia with my code: ${user.referral_code}` }
+            { text: '📤 Share Link', url: `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent('Join me on Online Bingo and earn rewards! 🎁')}` }
         ]]
     });
 }
@@ -734,15 +873,7 @@ async function handleReferralCode(chatId: number, userId: number, code: string, 
     }
 
     // Apply referral rewards
-    await supabase.rpc('increment_balance', {
-        user_telegram_id: userId,
-        amount: config.referral.referredReward
-    });
-
-    await supabase.rpc('increment_balance', {
-        user_telegram_id: referrer.telegram_id,
-        amount: config.referral.referrerReward
-    });
+    await applyReferralRewards(userId, referrer.telegram_id, env, supabase, config);
 
     // Update referral tracking
     await supabase
@@ -751,46 +882,21 @@ async function handleReferralCode(chatId: number, userId: number, code: string, 
             referred_by: referrer.telegram_id,
         })
         .eq('telegram_id', userId);
-
-    await supabase
-        .from('users')
-        .update({
-            referral_count: (referrer.referral_count || 0) + 1,
-            referral_earnings: (referrer.referral_earnings || 0) + config.referral.referrerReward
-        })
-        .eq('telegram_id', referrer.telegram_id);
-
-    // Record referral
-    await supabase
-        .from('referrals')
-        .insert({
-            referrer_id: referrer.telegram_id,
-            referred_id: userId,
-            reward_amount: config.referral.referrerReward,
-            created_at: new Date().toISOString()
-        });
-
-    await sendMessage(
-        chatId,
-        `✅ <b>Referral Applied!</b>\n\n` +
-        `You received ${config.referral.referredReward} Birr bonus!\n` +
-        `Your referrer received ${config.referral.referrerReward} Birr!`,
-        env
-    );
-
-    // Notify referrer
-    await sendMessage(
-        referrer.telegram_id,
-        `🎉 <b>New Referral!</b>\n\n` +
-        `Someone used your code!\n` +
-        `You earned ${config.referral.referrerReward} Birr! 💰`,
-        env
-    );
 }
 
 
 // Daily bonus system
 async function handleDailyBonus(chatId: number, userId: number, env: Env, supabase: any, config: any) {
+    if (config.dailyCheckinEnabled === false) {
+        await sendMessage(
+            chatId,
+            `🎁 <b>Daily Bonus</b>\n\n` +
+            `This feature is currently disabled and will be back soon! Stay tuned. 🚀`,
+            env
+        );
+        return;
+    }
+
     const { data: user } = await supabase
         .from('users')
         .select('last_daily_claim, daily_streak')
@@ -821,10 +927,12 @@ async function handleDailyBonus(chatId: number, userId: number, env: Env, supaba
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().split('T')[0];
 
+    const maxDays = Object.keys(config.dailyRewards || {}).length || 7;
+
     let newStreak = 1;
     if (lastClaim === yesterdayStr) {
         newStreak = (user.daily_streak || 0) + 1;
-        if (newStreak > 7) newStreak = 1; // Reset after 7 days
+        if (newStreak > maxDays) newStreak = 1; // Reset after cycle complete
     }
 
     // Access dailyRewards string keys safely
@@ -856,7 +964,7 @@ async function handleDailyBonus(chatId: number, userId: number, env: Env, supaba
             created_at: new Date().toISOString()
         });
 
-    const nextReward = config.dailyRewards[((newStreak % 7) + 1).toString()] || 10;
+    const nextReward = config.dailyRewards[((newStreak % maxDays) + 1).toString()] || 10;
 
     await sendMessage(
         chatId,
@@ -925,21 +1033,43 @@ async function handlePendingPayments(chatId: number, env: Env, supabase: any, co
 }
 
 async function handleApprovePayment(chatId: number, paymentId: string, env: Env, supabase: any, config: any) {
-    const { data: payment } = await supabase
+    // Try by ID first (legacy), then Reference Code
+    let { data: payment } = await supabase
         .from('payment_requests')
         .select('*')
         .eq('id', paymentId)
-        .single();
+        .maybeSingle();
+
+    if (!payment) {
+        // Try as Reference Code
+        const { data: payRef } = await supabase
+            .from('payment_requests')
+            .select('*')
+            .eq('reference_code', paymentId)
+            .maybeSingle();
+        payment = payRef;
+    }
 
     if (!payment) {
         await sendMessage(chatId, '❌ Payment not found', env);
         return;
     }
 
+    // Check if already processed
+    if (payment.status !== 'pending') {
+        const statusIcon = payment.status === 'approved' ? '✅' : '❌';
+        await sendMessage(chatId, `${statusIcon} Request already ${payment.status}!`, env);
+        // Clean up this admin's message if it exists
+        if (payment.admin_messages && payment.admin_messages[chatId]) {
+            await deleteMessage(chatId, payment.admin_messages[chatId], env);
+        }
+        return;
+    }
+
     await supabase
         .from('payment_requests')
         .update({ status: 'approved', processed_at: new Date().toISOString() })
-        .eq('id', paymentId);
+        .eq('id', payment.id);
 
     if (payment.type === 'deposit') {
         await supabase.rpc('increment_balance', {
@@ -962,13 +1092,25 @@ async function handleApprovePayment(chatId: number, paymentId: string, env: Env,
 
     await sendMessage(chatId, `✅ Payment approved: ${paymentId}`, env);
 
-    const message = payment.type === 'deposit'
-        ? (config.botFlows?.deposit?.success_message || '✅ Deposit confirmed.')
-            .replace('{amount}', payment.amount.toString())
-            .replace('{ref}', payment.reference_code)
-        : (config.botFlows?.withdrawal?.success_message || '✅ Withdrawal confirmed.')
-            .replace('{amount}', payment.amount.toString())
-            .replace('{ref}', payment.reference_code);
+    // Sync: Clear messages for OTHER admins to prevent double-auth
+    if (payment.admin_messages) {
+        const adminMessages = payment.admin_messages as Record<string, number>;
+        for (const [adminIdStr, msgId] of Object.entries(adminMessages)) {
+            const adminId = parseInt(adminIdStr);
+            // Delete for everyone EXCEPT the one who approved (keep context for them, or delete if desired)
+            // User requested: "cleared from others chat imideatlly"
+            if (adminId !== chatId) {
+                await deleteMessage(adminId, msgId as number, env);
+            }
+        }
+    }
+
+    const message = (payment.type === 'deposit'
+        ? (config.prompts.depositApproved)
+        : (config.prompts.withdrawApproved))
+        .replace('{amount}', payment.amount.toString())
+        .replace('{ref}', payment.reference_code)
+        .replace('{ref_code}', payment.reference_code);
 
     await sendMessage(payment.user_id, message, env);
 
@@ -977,23 +1119,55 @@ async function handleApprovePayment(chatId: number, paymentId: string, env: Env,
 }
 
 async function handleRejectPayment(chatId: number, paymentId: string, env: Env, supabase: any, config: any) {
-    const { data: payment } = await supabase
+    let { data: payment } = await supabase
         .from('payment_requests')
         .select('*')
         .eq('id', paymentId)
-        .single();
+        .maybeSingle();
+
+    if (!payment) {
+        const { data: payRef } = await supabase
+            .from('payment_requests')
+            .select('*')
+            .eq('reference_code', paymentId)
+            .maybeSingle();
+        payment = payRef;
+    }
 
     if (!payment) {
         await sendMessage(chatId, '❌ Payment not found', env);
         return;
     }
 
+    // Check if already processed
+    if (payment.status !== 'pending') {
+        const statusIcon = payment.status === 'approved' ? '✅' : '❌';
+        await sendMessage(chatId, `${statusIcon} Request already ${payment.status}!`, env);
+        // Clean up this admin's message if it exists
+        if (payment.admin_messages && payment.admin_messages[chatId]) {
+            await deleteMessage(chatId, payment.admin_messages[chatId], env);
+        }
+        return;
+    }
+
     await supabase
         .from('payment_requests')
         .update({ status: 'rejected', processed_at: new Date().toISOString() })
-        .eq('id', paymentId);
+        .eq('id', payment.id);
 
     await sendMessage(chatId, `❌ Payment rejected: ${paymentId}`, env);
+
+    // Sync: Clear messages for OTHER admins to prevent double-auth
+    if (payment.admin_messages) {
+        const adminMessages = payment.admin_messages as Record<string, number>;
+        for (const [adminIdStr, msgId] of Object.entries(adminMessages)) {
+            const adminId = parseInt(adminIdStr);
+            // Delete for everyone EXCEPT the one who rejected (keep context or delete logic)
+            if (adminId !== chatId) {
+                await deleteMessage(adminId, msgId as number, env);
+            }
+        }
+    }
 
     const { data: user } = await supabase
         .from('users')
@@ -1001,11 +1175,13 @@ async function handleRejectPayment(chatId: number, paymentId: string, env: Env, 
         .eq('telegram_id', payment.user_id)
         .single();
 
-    const message = payment.type === 'deposit'
-        ? (config.botFlows?.deposit?.declined_message || '❌ Deposit declined.').replace('{amount}', payment.amount.toString())
-        : (config.botFlows?.withdrawal?.declined_message || '❌ Withdrawal declined.')
-            .replace('{amount}', payment.amount.toString())
-            .replace('{balance}', (user?.balance || 0).toFixed(2));
+    const message = (payment.type === 'deposit'
+        ? (config.prompts.depositDeclined)
+        : (config.prompts.withdrawDeclined))
+        .replace('{amount}', payment.amount.toString())
+        .replace('{balance}', (user?.balance || 0).toFixed(2))
+        .replace('{ref}', payment.reference_code)
+        .replace('{ref_code}', payment.reference_code);
 
     await sendMessage(payment.user_id, message, env);
 }
@@ -1025,7 +1201,34 @@ async function resolveReferrer(param: string, supabase: any) {
     return null;
 }
 
-async function handleStart(chatId: number, userId: number, username: string, env: Env, supabase: any, referrerParam?: string) {
+async function handleStart(chatId: number, userId: number, username: string, env: Env, supabase: any, config: any, referrerParam?: string) {
+    // [NEW] Check for Global Announcements
+    const { data: activeConfig } = await supabase
+        .from('game_configs')
+        .select('features')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (activeConfig?.features?.announcement?.enabled) {
+        const ann = activeConfig.features.announcement;
+        const caption = `<b>${ann.title}</b>\n\n${ann.message}`;
+        const markup = ann.action_url ? {
+            inline_keyboard: [[{ text: ann.action_text || 'See More', url: ann.action_url }]]
+        } : undefined;
+
+        try {
+            if (ann.image_url) {
+                await sendPhoto(chatId, ann.image_url, caption, env, markup);
+            } else {
+                await sendMessage(chatId, caption, env, markup);
+            }
+        } catch (e) {
+            console.error('Failed to send announcement:', e);
+        }
+    }
+
     // Check if user exists
     const { data: existingUser } = await supabase
         .from('users')
@@ -1081,23 +1284,24 @@ async function handleStart(chatId: number, userId: number, username: string, env
     }
 
     // Existing user - show welcome with WebApp button
+    const welcomeMsg = config.botFlows?.onboarding?.welcome_back || '🎮 <b>Welcome back to Ethiopian Bingo!</b>';
     const message =
-        `🎮 <b>Welcome back to Ethiopian Bingo!</b>\n\n` +
+        `${welcomeMsg}\n\n` +
         `💰 Balance: ${existingUser.balance} Birr\n` +
         `🎁 Referral Code: <code>${existingUser.referral_code}</code>\n\n` +
         `Click the button below to start playing!`;
 
     // Set personalized Menu Button for this user (so bottom-left button works with auth)
-    await setPersonalizedMenuButton(existingUser.telegram_id, env);
+    await setPersonalizedMenuButton(existingUser.telegram_id, env, config);
 
     await sendMessage(chatId, message, env, {
         inline_keyboard: [[
-            { text: '🎮 Play Now', web_app: { url: getWebAppUrl(existingUser.telegram_id) } }
+            { text: config?.botSettings?.open_now_text || '🎮 Play Now', web_app: { url: getWebAppUrl(existingUser.telegram_id, config?.botSettings?.web_app_url) } }
         ]]
     });
 
     // Send keyboard menu separately with personalized URL
-    await sendMessage(chatId, 'Choose an option:', env, getMainKeyboard(existingUser.telegram_id));
+    await sendMessage(chatId, 'Choose an option:', env, getMainKeyboard(existingUser.telegram_id, config));
 }
 
 async function handleBalance(chatId: number, userId: number, env: Env, supabase: any) {
@@ -1183,7 +1387,7 @@ async function handleAdminPanel(chatId: number, env: Env, supabase: any) {
     );
 }
 
-async function handleContactShare(message: any, env: Env, supabase: any) {
+async function handleContactShare(message: any, env: Env, supabase: any, config: any) {
     const chatId = message.chat.id;
     const contact = message.contact;
 
@@ -1214,7 +1418,7 @@ async function handleContactShare(message: any, env: Env, supabase: any) {
             username: message.from.username || contact.first_name,
             phone_number: contact.phone_number,
             first_name: contact.first_name,
-            balance: existingUser?.balance || 100,
+            balance: existingUser?.balance || config.referral.referredReward,
             referral_code: refCode,
             is_registered: true,
             updated_at: new Date().toISOString(),
@@ -1230,15 +1434,78 @@ async function handleContactShare(message: any, env: Env, supabase: any) {
 
     console.log('User registered successfully:', contact.user_id);
 
+    // [NEW] Apply referral rewards if this is a new registration from a referral link
+    if (existingUser && !existingUser.is_registered && existingUser.referred_by) {
+        console.log(`Applying referral reward for ${contact.user_id} (referred by ${existingUser.referred_by})`);
+        try {
+            await applyReferralRewards(contact.user_id, existingUser.referred_by, env, supabase, config);
+        } catch (e) {
+            console.error('Failed to apply referral rewards:', e);
+        }
+    }
+
+    const successMsg = config.botFlows?.onboarding?.registration_success || '✅ <b>Registration Complete!</b>';
     await sendMessage(
         chatId,
-        `✅ <b>Registration Complete!</b>\n\n` +
-        `Welcome bonus: ${existingUser ? '0' : '100'} Birr\n` +
-        `Your referral code: <code>${refCode}</code>\n\n` +
+        `${successMsg}\n\n` +
+        `💰 Welcome bonus: ${config.referral.referredReward} Birr\n` +
+        `🎁 Your referral code: <code>${refCode}</code>\n\n` +
         `Use the menu below to get started!`,
         env,
-        getMainKeyboard(contact.user_id)
+        getMainKeyboard(contact.user_id, config)
     );
 }
 
 // Helper functions moved to utils.ts
+
+async function applyReferralRewards(userId: number, referrerId: number, env: Env, supabase: any, config: any) {
+    // Apply referral rewards
+    await supabase.rpc('increment_balance', {
+        user_telegram_id: userId,
+        amount: config.referral.referredReward
+    });
+
+    await supabase.rpc('increment_balance', {
+        user_telegram_id: referrerId,
+        amount: config.referral.referrerReward
+    });
+
+    // Update referral tracking
+    const { data: referrer } = await supabase.from('users').select('referral_count, referral_earnings').eq('telegram_id', referrerId).maybeSingle();
+
+    if (referrer) {
+        await supabase
+            .from('users')
+            .update({
+                referral_count: (referrer.referral_count || 0) + 1,
+                referral_earnings: (referrer.referral_earnings || 0) + config.referral.referrerReward
+            })
+            .eq('telegram_id', referrerId);
+    }
+
+    // Record referral
+    await supabase
+        .from('referrals')
+        .insert({
+            referrer_id: referrerId,
+            referred_id: userId,
+            reward_amount: config.referral.referrerReward,
+            created_at: new Date().toISOString()
+        });
+
+    await sendMessage(
+        userId,
+        `✅ <b>Referral Applied!</b>\n\n` +
+        `You received ${config.referral.referredReward} Birr bonus!\n` +
+        `Your referrer received ${config.referral.referrerReward} Birr!`,
+        env
+    );
+
+    await sendMessage(
+        referrerId,
+        `🎉 <b>New Referral!</b>\n\n` +
+        `Someone used your code/link!\n` +
+        `You earned ${config.referral.referrerReward} Birr! 💰`,
+        env
+    );
+}

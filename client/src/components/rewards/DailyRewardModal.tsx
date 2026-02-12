@@ -12,6 +12,7 @@ interface RewardStatus {
     streak?: number;
     nextReward?: number;
     alreadyClaimed?: boolean;
+    allRewards?: number[];
 }
 
 interface DailyRewardModalProps {
@@ -63,6 +64,9 @@ export const DailyRewardModal: React.FC<DailyRewardModalProps> = ({ onClose, onC
 
     if (!reward?.available) return null;
 
+    const totalDays = reward.allRewards?.length || 7;
+    const currentDay = reward.day || 1;
+
     return (
         <AnimatePresence>
             <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
@@ -93,7 +97,7 @@ export const DailyRewardModal: React.FC<DailyRewardModalProps> = ({ onClose, onC
                         <h2 className="text-4xl font-black text-white mb-2">
                             {claimed ? '🎉 Claimed!' : '🎁 Daily Reward!'}
                         </h2>
-                        <p className="text-gray-300 mb-6">Day {reward.day} of 7</p>
+                        <p className="text-gray-300 mb-6">Day {currentDay} of {totalDays}</p>
 
                         {/* Reward amount */}
                         <div className="bg-white/10 backdrop-blur rounded-xl p-6 mb-6 border border-white/20">
@@ -104,21 +108,24 @@ export const DailyRewardModal: React.FC<DailyRewardModalProps> = ({ onClose, onC
                         </div>
 
                         {/* Streak indicators */}
-                        <div className="flex justify-center gap-2 mb-6">
-                            {[1, 2, 3, 4, 5, 6, 7].map(day => (
-                                <motion.div
-                                    key={day}
-                                    initial={{ scale: 0 }}
-                                    animate={{ scale: 1 }}
-                                    transition={{ delay: day * 0.05 }}
-                                    className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${day <= (reward.day || 0)
+                        <div className="flex flex-wrap justify-center gap-2 mb-6 max-w-xs mx-auto">
+                            {(reward.allRewards || [1, 2, 3, 4, 5, 6, 7]).map((_, idx) => {
+                                const dayNum = idx + 1;
+                                return (
+                                    <motion.div
+                                        key={dayNum}
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: 1 }}
+                                        transition={{ delay: idx * 0.05 }}
+                                        className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all text-sm ${dayNum <= currentDay
                                             ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-black shadow-lg'
                                             : 'bg-gray-700 text-gray-400'
-                                        }`}
-                                >
-                                    {day}
-                                </motion.div>
-                            ))}
+                                            }`}
+                                    >
+                                        {dayNum}
+                                    </motion.div>
+                                );
+                            })}
                         </div>
 
                         {/* Streak info */}
@@ -147,7 +154,7 @@ export const DailyRewardModal: React.FC<DailyRewardModalProps> = ({ onClose, onC
                         )}
 
                         {/* Next reward hint */}
-                        {!claimed && reward.nextReward && reward.day !== 7 && (
+                        {!claimed && reward.nextReward && currentDay < totalDays && (
                             <p className="text-gray-400 text-sm mt-4">
                                 Tomorrow: {reward.nextReward} Birr
                             </p>

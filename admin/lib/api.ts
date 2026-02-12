@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://bingo-api.melonadawit71.workers.dev';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://bingo-api-worker.melonadawit71.workers.dev';
 
 export async function fetchAdmin(path: string, options: RequestInit = {}) {
     const { data: { session } } = await supabase.auth.getSession();

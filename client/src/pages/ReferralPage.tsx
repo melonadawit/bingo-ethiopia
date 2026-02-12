@@ -1,11 +1,33 @@
-import { useState } from 'react';
-import { Copy, Users, Gift } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Copy, Users, Gift, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
+import { motion } from 'framer-motion';
 
 export default function ReferralPage() {
     const { user, isLoading } = useAuth();
     const [copied, setCopied] = useState(false);
+    const [referrals, setReferrals] = useState<any[]>([]);
+    const [loadingReferrals, setLoadingReferrals] = useState(false);
+
+    useEffect(() => {
+        if (user?.telegram_id) {
+            fetchReferrals();
+        }
+    }, [user?.telegram_id]);
+
+    const fetchReferrals = async () => {
+        setLoadingReferrals(true);
+        try {
+            const res = await api.get(`/api/stats/referrals?userId=${user?.telegram_id}`);
+            setReferrals(res.data.referrals || []);
+        } catch (error) {
+            console.error('Failed to fetch referrals:', error);
+        } finally {
+            setLoadingReferrals(false);
+        }
+    };
 
     const copyReferralCode = () => {
         if (user?.referral_code) {
@@ -44,7 +66,7 @@ Share this link with friends and earn rewards!`;
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-6">
+        <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-6 pb-24">
             <div className="max-w-2xl mx-auto">
                 <h1 className="text-4xl font-bold text-white mb-8 text-center">
                     🎁 Referral Program
@@ -95,6 +117,46 @@ Share this link with friends and earn rewards!`;
                         </div>
                         <p className="text-white/70 text-sm mt-1">Total earned</p>
                     </div>
+                </div>
+
+                {/* Referred Users List */}
+                <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 mb-6 border border-white/20">
+                    <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                        <Users size={20} /> My Referrals
+                    </h2>
+
+                    {loadingReferrals ? (
+                        <div className="text-center py-8">
+                            <div className="animate-spin w-8 h-8 border-2 border-white/20 border-t-white rounded-full mx-auto" />
+                        </div>
+                    ) : referrals.length > 0 ? (
+                        <div className="space-y-3">
+                            {referrals.map((ref, idx) => (
+                                <motion.div
+                                    key={idx}
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: idx * 0.05 }}
+                                    className="bg-white/5 rounded-xl p-4 flex items-center justify-between border border-white/5"
+                                >
+                                    <div>
+                                        <div className="text-white font-bold">@{ref.username}</div>
+                                        <div className="text-xs text-white/50 flex items-center gap-1">
+                                            <Calendar size={12} />
+                                            {new Date(ref.created_at).toLocaleDateString()}
+                                        </div>
+                                    </div>
+                                    <div className="text-green-400 font-bold">
+                                        +{ref.reward_amount} Br
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-8 text-white/40 italic">
+                            No referrals yet. Start sharing to earn!
+                        </div>
+                    )}
                 </div>
 
                 {/* How it Works */}

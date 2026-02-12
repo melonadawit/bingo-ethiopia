@@ -1,0 +1,14 @@
+name = "bingo-admin-api"
+main = "src/admin.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+UPSTASH_REDIS_REST_URL = "https://smiling-whippet-27638.upstash.io"
+UPSTASH_REDIS_REST_TOKEN = "AWv2AAIncDFmODU2NWE4YzRlYWE0MDQ1YjAxMGZlMTgzM2E5MTUyZXAxMjc2Mzg"
+BOT_TOKEN = "8214698066:AAFVjf2wjI1KcxXq0jKYXcjNyIYEMmiXvYE"
+SUPABASE_URL = "https://hthvotvtkqggbdpfrryb.supabase.co"
+SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh0aHZvdHZ0a3FnZ2JkcGZycnliIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTgwMTY5OCwiZXhwIjoyMDgxMzc3Njk4fQ.xfwiBDtCiOyWyiAna9DgiM7mjrbQxcr0loDVwAnATAc"
+
+[[kv_namespaces]]
+binding = "BINGO_CONFIG"
+id = "3c8038d23e1745ec91deb995741d46e7"

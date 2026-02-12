@@ -419,15 +419,15 @@ const GamePage: React.FC = () => {
         });
 
         // SERVER-CONTROLLED NUMBER CALLING
-        // SERVER-CONTROLLED NUMBER CALLING
         gameSocket.on('number_called', ({ number, history }: { number: number; history: number[] }) => {
             try {
-                console.log('Server called number:', number);
+                console.log('📢 [LIVE] Server called number:', number, 'History size:', history.length);
                 setCurrentNumber(number);
                 setCalledNumbers(new Set(history));
 
                 // CALL NUMBER WITH VOICE!
-                if (!isMuted) {
+                // Use ref to avoid stale closure in useEffect listener
+                if (!latestIsMuted.current) {
                     voiceCaller.callNumber(number).catch(err => {
                         console.error('Voice caller error (non-fatal):', err);
                     });
@@ -526,11 +526,8 @@ const GamePage: React.FC = () => {
             }
 
             setWatchOnly(false);
-            toast.success(data.message || 'Welcome back!', {
-                id: 'rejoin-toast',
-                duration: 3000,
-                position: 'top-center',
-            });
+            setWatchOnly(false);
+            console.log('✅ Active state restored');
         });
 
         // Mode conflict - player already in another mode

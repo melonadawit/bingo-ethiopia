@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Remove /api suffix if present in env variable
 // FALLBACK to production worker if env not set (critical for CF Pages)
-let API_URL = import.meta.env.VITE_API_URL || 'https://bingo-api.melonadawit71.workers.dev';
+let API_URL = import.meta.env.VITE_API_URL || 'https://bingo-api-worker.melonadawit71.workers.dev';
 if (API_URL.endsWith('/api')) {
     API_URL = API_URL.slice(0, -4);
 }

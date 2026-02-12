@@ -3,12 +3,12 @@ import { jsonResponse } from '../utils';
 
 // Helper functions for Telegram Bot
 
-export const APP_VERSION = 'v3.3_history_fix'; // Bumped version to v3.3 to force update
+export const APP_VERSION = 'v3.9-STABLE'; // Force another refresh
 
-export function getWebAppUrl(userId?: number): string {
+export function getWebAppUrl(userId?: number, customUrl?: string): string {
     // Standardize: No trailing slash before query params to match user's working "keyboard" link
-    // Pattern: https://bingo-ethiopia.pages.dev?v=...
-    const baseUrl = 'https://bingo-ethiopia.pages.dev';
+    // Pattern: https://main.bingo-ethiopia.pages.dev?v=...
+    const baseUrl = customUrl || 'https://main.bingo-ethiopia.pages.dev';
     const params = new URLSearchParams();
 
     if (userId) params.append('tgid', userId.toString());
@@ -16,16 +16,31 @@ export function getWebAppUrl(userId?: number): string {
     // Add random timestamp to force fresh load inside Telegram WebApp (bypasses strong caching)
     params.append('t', Date.now().toString());
 
-    return `${baseUrl}?${params.toString()}`;
+    return `${baseUrl.includes('?') ? baseUrl + '&' : baseUrl + '?'}${params.toString()}`;
 }
 
 export async function sendMessage(chatId: number, text: string, env: Env, replyMarkup?: any) {
-    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             chat_id: chatId,
             text,
+            parse_mode: 'HTML',
+            reply_markup: replyMarkup,
+        }),
+    });
+    return await res.json();
+}
+
+export async function sendPhoto(chatId: number, photoUrl: string, caption: string, env: Env, replyMarkup?: any) {
+    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendPhoto`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            chat_id: chatId,
+            photo: photoUrl,
+            caption: caption,
             parse_mode: 'HTML',
             reply_markup: replyMarkup,
         }),
@@ -39,6 +54,17 @@ export async function answerCallback(callbackQueryId: string, env: Env, text?: s
         body: JSON.stringify({
             callback_query_id: callbackQueryId,
             text: text || '',
+        }),
+    });
+}
+
+export async function deleteMessage(chatId: number, messageId: number, env: Env) {
+    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/deleteMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            chat_id: chatId,
+            message_id: messageId,
         }),
     });
 }
@@ -65,8 +91,8 @@ export async function updateMenuButton(env: Env, webAppUrl: string, menuText: st
 }
 
 // Function to set personalized Menu Button for a specific user
-export async function setPersonalizedMenuButton(userId: number, env: Env) {
-    const webAppUrl = getWebAppUrl(userId);
+export async function setPersonalizedMenuButton(userId: number, env: Env, config?: any) {
+    const webAppUrl = getWebAppUrl(userId, config?.botSettings?.web_app_url);
 
     try {
         const response = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/setChatMenuButton`, {
@@ -76,7 +102,7 @@ export async function setPersonalizedMenuButton(userId: number, env: Env) {
                 chat_id: userId, // Set for this specific user
                 menu_button: {
                     type: 'web_app',
-                    text: '🎮', // Game Controller Emoji
+                    text: config?.botSettings?.menu_button_text || '🎮', // Game Controller Emoji
                     web_app: {
                         url: webAppUrl
                     }
@@ -100,11 +126,11 @@ export async function updateBotMenuButton(env: Env): Promise<Response> {
 
 // [UPDATED] Dynamic Keyboard
 export function getMainKeyboard(userId?: number, config?: any) {
-    const webAppUrl = getWebAppUrl(userId);
+    const webAppUrl = getWebAppUrl(userId, config?.botSettings?.web_app_url);
 
     // Default if no config provided
     const defaultButtons = [
-        [{ text: '🎮', web_app: { url: webAppUrl } }],
+        [{ text: config?.botSettings?.open_now_text || '🎮', web_app: { url: webAppUrl } }],
         [{ text: '💰 Balance' }, { text: '💳 Deposit' }],
         [{ text: '💸 Withdraw' }, { text: '🎁 Referral' }],
         [{ text: '🎁 Daily Bonus' }, { text: '📞 Support' }]
@@ -157,4 +183,38 @@ export async function generateUniqueReferralCode(supabase: any): Promise<string>
     }
 
     return code;
+}
+
+// Bot Identity Updates
+export async function setBotInfo(env: Env, name?: string, shortDescription?: string, description?: string) {
+    const results = [];
+
+    if (name) {
+        const res = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/setMyName`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        results.push({ field: 'name', result: await res.json() });
+    }
+
+    if (shortDescription) {
+        const res = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/setMyShortDescription`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ short_description: shortDescription })
+        });
+        results.push({ field: 'short_description', result: await res.json() });
+    }
+
+    if (description) {
+        const res = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/setMyDescription`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ description })
+        });
+        results.push({ field: 'description', result: await res.json() });
+    }
+
+    return results;
 }
