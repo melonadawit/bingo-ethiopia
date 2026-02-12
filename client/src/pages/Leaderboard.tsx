@@ -1,164 +1,160 @@
-import { useState, useEffect } from 'react';
-import { Trophy, Medal, TrendingUp, Clock, Gift } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { useState } from 'react';
+import { Medal, Crown, Flame } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
 
-type Period = 'daily' | 'weekly' | 'monthly' | 'alltime';
 
-interface Player {
+type Period = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+
+interface LeaderboardEntry {
     rank: number;
-    userId: string;
-    username: string;
-    avatar?: string;
+    total_winnings: number;
+    total_spent: number;
     wins: number;
-    earnings: number;
-    gamesPlayed: number;
-    winRate: number;
-    badge?: string;
-}
-
-interface LeaderboardData {
-    period: Period;
-    players: Player[];
-    prizePool: number;
-    resetsIn?: string;
-    totalPlayers: number;
+    games_played: number;
+    user: {
+        username: string;
+        first_name: string;
+        telegram_id: number;
+    };
 }
 
 export default function Leaderboard() {
-    const [period, setPeriod] = useState<Period>('daily');
-    const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [period, setPeriod] = useState<Period>('weekly');
 
-    useEffect(() => {
-        fetchLeaderboard();
-    }, [period]);
 
-    const fetchLeaderboard = async () => {
-        setLoading(true);
-        try {
-            const res = await api.get(`/api/leaderboard?period=${period}`);
-            setLeaderboard(res.data);
-        } catch (error) {
-            console.error('Failed to fetch leaderboard:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const { data: leaderboardData, isLoading } = useQuery({
+        queryKey: ['leaderboard', period],
+        queryFn: async () => {
+            const res = await api.get(`/api/stats/leaderboard?period=${period}&limit=50`);
+            let data = res.data.leaderboard || [];
+            data.sort((a: any, b: any) => b.games_played - a.games_played);
+            return data.map((item: any, idx: number) => ({ ...item, rank: idx + 1 }));
+        },
+    });
 
-    const getBadgeIcon = (rank: number) => {
-        if (rank === 1) return '🥇';
-        if (rank === 2) return '🥈';
-        if (rank === 3) return '🥉';
-        return `#${rank}`;
-    };
+    const periods: { label: string; value: Period }[] = [
+        { label: 'Daily', value: 'daily' },
+        { label: 'Weekly', value: 'weekly' },
+        { label: 'Monthly', value: 'monthly' },
+        { label: 'Yearly', value: 'yearly' },
+    ];
 
-    const getRankColor = (rank: number) => {
-        if (rank === 1) return 'from-yellow-400 to-orange-500';
-        if (rank === 2) return 'from-gray-300 to-gray-400';
-        if (rank === 3) return 'from-amber-600 to-amber-700';
-        return 'from-slate-700 to-slate-800';
-    };
+
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
+        <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 p-2 pb-24">
             <div className="max-w-4xl mx-auto">
-                {/* Header */}
                 <div className="text-center mb-8">
-                    <Trophy className="w-16 h-16 mx-auto text-yellow-400 mb-4" />
-                    <h1 className="text-4xl font-black text-white mb-2">Leaderboards</h1>
-                    <p className="text-gray-300">Compete for glory and prizes!</p>
+                    <h1 className="text-3xl font-black text-white italic mb-1 tracking-tighter shadow-sm flex items-center justify-center gap-3">
+                        <Flame className="text-orange-500" size={32} />
+                        {period.toUpperCase()} CHAMPIONS
+                    </h1>
+                    <p className="text-white/40 text-xs">Ranked by total games played</p>
                 </div>
 
-                {/* Period Tabs */}
-                <div className="flex gap-2 mb-6 overflow-x-auto">
-                    {(['daily', 'weekly', 'monthly', 'alltime'] as Period[]).map((p) => (
-                        <button
-                            key={p}
-                            onClick={() => setPeriod(p)}
-                            className={`px-6 py-3 rounded-xl font-bold whitespace-nowrap transition-all ${period === p
-                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-105'
-                                : 'bg-slate-800 text-gray-400 hover:bg-slate-700'
-                                }`}
-                        >
-                            {p.charAt(0).toUpperCase() + p.slice(1)}
-                        </button>
-                    ))}
-                </div>
-
-                {/* Prize Pool & Reset Info */}
-                {leaderboard && period !== 'alltime' && (
-                    <div className="bg-slate-800/50 backdrop-blur rounded-xl p-4 mb-6 flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                            <Gift className="w-5 h-5 text-yellow-400" />
-                            <span className="text-white font-bold">Prize Pool: {leaderboard.prizePool} Birr</span>
-                        </div>
-                        {leaderboard.resetsIn && (
-                            <div className="flex items-center gap-2 text-gray-400">
-                                <Clock className="w-4 h-4" />
-                                <span className="text-sm">Resets in {leaderboard.resetsIn}</span>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Leaderboard List */}
-                {loading ? (
-                    <div className="text-center text-white py-12">
-                        <div className="animate-spin w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                        <p>Loading leaderboard...</p>
-                    </div>
-                ) : leaderboard && leaderboard.players.length > 0 ? (
-                    <div className="space-y-3">
-                        {leaderboard.players.map((player, index) => (
-                            <motion.div
-                                key={player.userId}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: index * 0.05 }}
-                                className={`bg-gradient-to-r ${getRankColor(player.rank)} rounded-xl p-4 flex items-center gap-4 shadow-lg`}
+                {/* Filters */}
+                <div className="flex flex-col gap-4 mb-8">
+                    {/* Period Selector */}
+                    <div className="flex p-1 bg-black/20 backdrop-blur-md rounded-full border border-white/10 self-center">
+                        {periods.map((p) => (
+                            <button
+                                key={p.value}
+                                onClick={() => setPeriod(p.value)}
+                                className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${period === p.value
+                                    ? 'bg-white text-purple-900 shadow-lg'
+                                    : 'text-white/60 hover:text-white'
+                                    }`}
                             >
-                                {/* Rank Badge */}
-                                <div className="text-3xl font-black w-16 text-center">
-                                    {getBadgeIcon(player.rank)}
-                                </div>
-
-                                {/* Player Info */}
-                                <div className="flex-1">
-                                    <h3 className="text-white font-bold text-lg">{player.username}</h3>
-                                    <div className="flex gap-4 text-sm">
-                                        <span className="text-white/80">
-                                            <TrendingUp className="w-4 h-4 inline mr-1" />
-                                            {player.wins} wins
-                                        </span>
-                                        <span className="text-white/80">
-                                            <Medal className="w-4 h-4 inline mr-1" />
-                                            {player.winRate.toFixed(1)}% win rate
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Earnings */}
-                                <div className="text-right">
-                                    <div className="text-2xl font-black text-white">{player.earnings}</div>
-                                    <div className="text-sm text-white/60">Birr</div>
-                                </div>
-                            </motion.div>
+                                {p.label}
+                            </button>
                         ))}
                     </div>
-                ) : (
-                    <div className="text-center text-gray-400 py-12">
-                        <Trophy className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                        <p>No players yet. Be the first!</p>
+
+
+                </div>
+
+                {/* Top 3 Podiums */}
+                {!isLoading && leaderboardData?.length >= 3 && (
+                    <div className="grid grid-cols-3 gap-2 items-end mb-12 h-64 px-4">
+                        <PodiumItem entry={leaderboardData[1]} rank={2} color="text-gray-300" />
+                        <PodiumItem entry={leaderboardData[0]} rank={1} color="text-yellow-400" />
+                        <PodiumItem entry={leaderboardData[2]} rank={3} color="text-orange-400" />
                     </div>
                 )}
 
-                {/* Total Players */}
-                {leaderboard && (
-                    <div className="text-center text-gray-400 mt-6">
-                        Total Players: {leaderboard.totalPlayers}
+                {/* List View */}
+                <div className="bg-black/20 backdrop-blur-xl rounded-3xl overflow-hidden border border-white/10">
+                    {isLoading ? (
+                        <div className="p-20 text-center">
+                            <div className="animate-spin w-12 h-12 border-4 border-white/20 border-t-white rounded-full mx-auto" />
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-white/5">
+                            {leaderboardData?.map((entry: LeaderboardEntry) => (
+                                <div className="p-2.5 flex items-center justify-between hover:bg-white/5 transition-colors group"
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-8 text-center font-black text-white/40 group-hover:text-white/80">
+                                            #{entry.rank}
+                                        </div>
+                                        <div>
+                                            <div className="text-white font-bold text-base">
+                                                {entry.user?.username ? `@${entry.user.username}` : entry.user?.first_name || 'Anonymous'}
+                                            </div>
+                                            <div className="text-white/40 text-[10px] flex items-center gap-2">
+                                                <Flame size={12} className="text-orange-500" />
+                                                {entry.wins} wins • {entry.games_played} games
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-lg font-black text-white tracking-tight">
+                                            {entry.games_played} Games
+                                        </div>
+                                        <div className="text-[10px] text-white/40 uppercase tracking-widest">
+                                            Played
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function PodiumItem({ entry, rank, color }: { entry: LeaderboardEntry; rank: number; color: string }) {
+    const heights = { 1: 'h-32', 2: 'h-24', 3: 'h-20' };
+    const icons = { 1: Crown, 2: Medal, 3: Medal };
+    const Icon = icons[rank as keyof typeof icons];
+
+    return (
+        <div className="flex flex-col items-center">
+            <div className={`relative mb-2 ${rank === 1 ? 'scale-110' : ''}`}>
+                <div className={`p-0.5 rounded-full border-2 ${color} bg-black/40`}>
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-white/10 to-white/5 flex items-center justify-center text-xl">
+                        {entry?.user?.first_name?.[0] || '?'}
                     </div>
-                )}
+                </div>
+                <div className={`absolute -top-6 left-1/2 -translate-x-1/2 ${color}`}>
+                    <Icon size={24} />
+                </div>
+            </div>
+            <div className="text-white font-bold text-xs truncate w-full text-center">
+                {entry?.user?.username ? `@${entry.user.username}` : entry?.user?.first_name || 'Anonymous'}
+            </div>
+            <div className={`w-full ${heights[rank as keyof typeof heights]} mt-2 rounded-t-2xl bg-gradient-to-b from-white/20 to-transparent flex flex-col items-center pt-4 border-x border-t border-white/10`}>
+                <div className="text-lg font-black text-white leading-none">
+                    {entry?.games_played || 0}
+                </div>
+                <div className="text-[10px] text-white/60 font-bold uppercase tracking-tight mt-1">
+                    Games
+                </div>
+                <div className={`mt-auto mb-1 text-xl font-black italic ${color}`}>#{rank}</div>
             </div>
         </div>
     );

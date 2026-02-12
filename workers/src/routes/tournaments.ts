@@ -12,7 +12,7 @@ export async function handleTournamentRoutes(request: Request, env: Env): Promis
         const { data, error } = await supabase
             .from('public_tournaments_view')
             .select('*')
-            .order('end_time', { ascending: true });
+            .order('end_date', { ascending: true });
 
         if (error) {
             return jsonResponse({ error: error.message }, 500);

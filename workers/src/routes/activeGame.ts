@@ -1,11 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
+import type { Env } from '../types';
+import { getSupabase } from '../utils';
 
-const SUPABASE_URL = 'https://bxqtnnhzfwqfxuqzqvxu.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ4cXRubmh6ZndxZnh1cXpxdnh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyNzA2NjMsImV4cCI6MjA0OTg0NjY2M30.9PFN_L5pqmXdOLhкойт8zXxK-WqJnZSVvLpVKKNGxs';
-
-export async function handleActiveGameRoutes(request: Request, env: any): Promise<Response> {
+export async function handleActiveGameRoutes(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabase = getSupabase(env);
 
     // Get user ID from request (you'll need to add auth middleware)
     const userId = url.searchParams.get('userId'); // Temporary - should come from auth

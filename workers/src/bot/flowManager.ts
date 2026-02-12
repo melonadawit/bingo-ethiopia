@@ -164,8 +164,9 @@ export class FlowManager {
             const method = config.methods[methodKey];
             const amount = userState.data.amount || 0;
             if (method) {
-                // Use bank-specific instructions directly (now includes full text from admin dashboard)
-                const instruction = method.instructions['am'].replace('{amount}', amount.toString());
+                // Safely get instructions, fallback to a basic message if missing
+                const rawInstruction = method.instructions?.['am'] || method.instructions?.['en'] || 'የባንክ መረጃ አልተገኘም። እባክዎን ሰፖርት ያግኙ።';
+                const instruction = rawInstruction.replace('{amount}', amount.toString());
                 await sendMessage(chatId, instruction, env);
             }
             return;
@@ -186,20 +187,20 @@ export class FlowManager {
 
     // HELPER: Get Prompt Text
     getPromptText(config: BotConfig, flow: string, step: string, userState?: any): string | null {
-        // Use New Standard Prompts
-        const p = config.prompts;
+        const flows = config.botFlows;
+        if (!flows) return `Please enter ${step}`;
 
         if (flow === 'deposit') {
-            if (step === 'amount') return p.depositAmount;
+            if (step === 'amount') return flows.deposit.prompt_amount;
         }
 
         if (flow === 'withdrawal') {
-            if (step === 'amount') return p.withdrawAmount;
+            if (step === 'amount') return flows.withdrawal.prompt_amount;
 
             if (step === 'account') {
                 const bank = userState?.data?.bank?.toLowerCase() || '';
                 const isMobile = bank.includes('telebirr') || bank.includes('m-pesa') || bank.includes('cbe birr');
-                return isMobile ? p.enterPhone : p.enterAccount;
+                return isMobile ? flows.withdrawal.prompt_phone : flows.withdrawal.prompt_account;
             }
         }
 

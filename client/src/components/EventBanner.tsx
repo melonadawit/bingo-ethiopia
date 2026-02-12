@@ -15,7 +15,14 @@ interface Event {
 
 export default function EventBanner() {
     const location = useLocation();
-    const [isVisible, setIsVisible] = useState(true);
+    const [dismissedIds, setDismissedIds] = useState<string[]>(() => {
+        try {
+            const saved = localStorage.getItem('dismissed_events');
+            return saved ? JSON.parse(saved) : [];
+        } catch {
+            return [];
+        }
+    });
 
     const { data: events } = useQuery({
         queryKey: ['events', 'active'],
@@ -23,15 +30,25 @@ export default function EventBanner() {
             const res = await api.get('/events/active');
             return res.data.events as Event[];
         },
-        refetchInterval: 30000 // Refresh every 30 seconds
+        refetchInterval: 60000 // Refresh every minute
     });
+
+    const handleDismiss = (id: string) => {
+        const newDismissed = [...dismissedIds, id];
+        setDismissedIds(newDismissed);
+        localStorage.setItem('dismissed_events', JSON.stringify(newDismissed));
+    };
 
     // Only show on Lobby
     if (location.pathname !== '/lobby') return null;
 
-    const activeEvents = (events || []).filter(e => e.is_active);
+    const activeEvents = (events || []).filter(e => {
+        const hasTimeRemaining = new Date(e.end_time).getTime() > Date.now();
+        const isDismissed = dismissedIds.includes(e.id);
+        return e.is_active && hasTimeRemaining && !isDismissed;
+    });
 
-    if (!isVisible || activeEvents.length === 0) {
+    if (activeEvents.length === 0) {
         return null;
     }
 
@@ -49,7 +66,7 @@ export default function EventBanner() {
                         >
                             {/* Close Button */}
                             <button
-                                onClick={() => setIsVisible(false)}
+                                onClick={() => handleDismiss(event.id)}
                                 className="absolute top-2 right-2 p-1 bg-black/20 hover:bg-black/40 rounded-full transition-colors"
                             >
                                 <X size={16} />

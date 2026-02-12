@@ -3,7 +3,7 @@ import { Env } from '../types';
 
 export const corsHeaders = () => ({
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, HEAD, POST, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-admin-token, x-telegram-init-data, Bypass-Tunnel-Reminder',
 });
 

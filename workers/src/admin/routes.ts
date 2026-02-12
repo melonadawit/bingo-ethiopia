@@ -12,7 +12,18 @@ export async function handleAdminRequest(request: Request, env: Env): Promise<Re
     const url = new URL(request.url);
     const path = url.pathname.replace('/admin', '');
 
-    // 3. Routing
+    const role = (request as any).adminUser?.role || 'readonly';
+    const isSuper = role === 'super_admin';
+
+    // --- RBAC CHECKS ---
+    // Finance: Super or Finance
+    if (path.startsWith('/finance') && role !== 'finance' && !isSuper) return jsonResponse({ error: 'Forbidden' }, 403);
+    // Marketing: Super or Marketing
+    if (path.startsWith('/marketing') && role !== 'marketing' && !isSuper) return jsonResponse({ error: 'Forbidden' }, 403);
+    // Bot/Config: Super or Ops
+    if ((path.startsWith('/bot') || path.startsWith('/config')) && role !== 'ops' && !isSuper) return jsonResponse({ error: 'Forbidden' }, 403);
+    // Admin Management: Super Only
+    if (path.startsWith('/team') && !isSuper) return jsonResponse({ error: 'Forbidden' }, 403);
     try {
         // --- GAMES ---
         if (path === '/games/live') {
@@ -88,30 +99,7 @@ export async function handleAdminRequest(request: Request, env: Env): Promise<Re
             // But existing code has it here.
         }
 
-        // --- BOT CONFIG ---
-        if (path === '/bot/config') {
-            if (request.method === 'GET') {
-                const supabase = getSupabase(env);
-                const { data, error } = await supabase!.from('bot_configs').select('*');
-                if (error) throw error;
-                return jsonResponse({ configs: data });
-            }
 
-            if (request.method === 'POST') {
-                const body = await request.json() as { updates: { key: string, value: string }[] };
-                const supabase = getSupabase(env);
-
-                // Batch upsert
-                // supabase upsert requires unique constraint on key
-                const { data, error } = await supabase!
-                    .from('bot_configs')
-                    .upsert(body.updates, { onConflict: 'key' })
-                    .select();
-
-                if (error) throw error;
-                return jsonResponse({ success: true, data });
-            }
-        }
         // --- USERS LIST ---
         if (path === '/users') {
             const supabase = getSupabase(env);
@@ -518,17 +506,30 @@ export async function handleAdminRequest(request: Request, env: Env): Promise<Re
             // Check if we should POST to Telegram
             const action = url.searchParams.get('action');
             if (action === 'post_telegram') {
-                const { AutomationService } = await import('../bot/automationService');
-                const channelId = env.TELEGRAM_CHANNEL_ID || '@BingoEthiopiaDemo'; // Default or Env
+                const { BotConfigService } = await import('../bot/configService');
+                const configService = new BotConfigService(env);
+                const config = await configService.getConfig();
+                const channelId = env.TELEGRAM_CHANNEL_ID || '@BingoEthiopiaDemo';
 
                 let caption = '';
-                if (url.searchParams.has('jackpot')) caption = `🚨 <b>BIG DERASH ALERT!</b>\n\nThe Jackpot has been hit! Amount: <b>${amount} ETB</b> 💰`;
-                else caption = `🏆 <b>CONGRATULATIONS!</b>\n\n${name} just won <b>${amount} ${currency}</b>! 🔥`;
+                if (url.searchParams.has('jackpot')) {
+                    caption = `🚨 <b>BIG DERASH ALERT!</b>\n\nThe Jackpot has been hit! Amount: <b>${amount} ETB</b> 💰`;
+                } else {
+                    // Use dynamic win message from bot configs if available
+                    const winTemplate = config.botFlows?.game?.winner_announcement || `🏆 <b>CONGRATULATIONS!</b>\n\n{winner} just won <b>{win_amount} {currency}</b>! 🔥`;
+                    caption = winTemplate
+                        .replace('{winner}', name)
+                        .replace('{win_amount}', amount)
+                        .replace('{amount}', amount) // fallback
+                        .replace('{currency}', currency);
+                }
 
                 try {
+                    const { AutomationService } = await import('../bot/automationService');
                     await AutomationService.postPhotoToChannel(env, channelId, pngBuffer, caption);
                     return jsonResponse({ success: true, message: `Posted to ${channelId}` });
                 } catch (e: any) {
+                    console.error('Failed to post to Telegram:', e);
                     return jsonResponse({ error: e.message }, 500);
                 }
             }
@@ -547,12 +548,25 @@ export async function handleAdminRequest(request: Request, env: Env): Promise<Re
             const supabase = getSupabase(env);
             if (request.method === 'GET') {
                 try {
-                    const { data, error } = await supabase!.from('tournaments').select('*').order('start_time', { ascending: false });
+                    const { data, error } = await supabase!
+                        .from('public_tournaments_view')
+                        .select('*')
+                        .order('start_date', { ascending: false });
+
                     if (error) {
                         console.error('Supabase GET tournaments error:', error);
                         return jsonResponse({ error: error.message, details: error }, 500);
                     }
-                    return jsonResponse({ tournaments: data });
+
+                    // Map view fields back to what admin expects
+                    const mappedData = (data || []).map((t: any) => ({
+                        ...t,
+                        start_time: t.start_date,
+                        end_time: t.end_date,
+                        title: t.title || t.name
+                    }));
+
+                    return jsonResponse({ tournaments: mappedData });
                 } catch (err: any) {
                     console.error('Worker GET tournaments exception:', err);
                     return jsonResponse({ error: err.message, stack: err.stack }, 500);
@@ -656,6 +670,92 @@ export async function handleAdminRequest(request: Request, env: Env): Promise<Re
                 if (error) return jsonResponse({ error: error.message }, 500);
                 return jsonResponse({ success: true });
             }
+        }
+
+        // --- NEW: TOURNAMENT PAYOUT ---
+        const payoutMatch = path.match(/^\/tournaments\/([^\/]+)\/payout$/);
+        if (payoutMatch && request.method === 'POST') {
+            const tournamentId = payoutMatch[1];
+            const supabase = getSupabase(env);
+
+            // 1. Fetch tournament details
+            const { data: tournament, error: tError } = await supabase!
+                .from('tournaments')
+                .select('*')
+                .eq('id', tournamentId)
+                .single();
+
+            if (tError || !tournament) return jsonResponse({ error: 'Tournament not found' }, 404);
+            if (tournament.status === 'completed') return jsonResponse({ error: 'Tournament already paid out' }, 400);
+
+            // 2. Fetch top participants
+            const { data: leaders, error: lError } = await supabase!
+                .rpc('get_tournament_leaderboard', {
+                    tournament_uuid: tournamentId,
+                    limit_count: 3 // Pay top 3
+                });
+
+            if (lError) return jsonResponse({ error: lError.message }, 500);
+            if (!leaders || leaders.length === 0) return jsonResponse({ error: 'No participants found' }, 400);
+
+            // 3. Define prize distribution (e.g., 50%, 30%, 20%)
+            const dist = tournament.prize_distribution || { "1": 0.5, "2": 0.3, "3": 0.2 };
+            const prizePool = parseFloat(tournament.prize_pool);
+            const summaries: any[] = [];
+
+            // 4. Distribute prizes
+            for (const leader of leaders) {
+                const rank = leader.rank;
+                const pct = dist[rank.toString()];
+                if (!pct) continue;
+
+                const prize = prizePool * (parseFloat(pct) > 1 ? (parseFloat(pct) / prizePool) : parseFloat(pct));
+                if (prize <= 0) continue;
+
+                // Update user balance
+                // Leader has user_id (BIGINT telegram_id)
+                const { data: user, error: uError } = await supabase!
+                    .from('users')
+                    .select('id, balance')
+                    .eq('telegram_id', leader.user_id)
+                    .single();
+
+                if (uError || !user) continue;
+
+                const balanceBefore = parseFloat(user.balance);
+                const balanceAfter = balanceBefore + prize;
+
+                // Atomic balance update
+                await supabase!.from('users').update({ balance: balanceAfter }).eq('id', user.id);
+
+                // Record transaction
+                await supabase!.from('transactions').insert({
+                    user_id: user.id,
+                    type: 'game_win',
+                    amount: prize,
+                    balance_before: balanceBefore,
+                    balance_after: balanceAfter,
+                    reference_id: tournamentId,
+                    description: `Tournament Prize: ${tournament.title} (Rank ${rank})`
+                });
+
+                // Update participant record
+                await supabase!
+                    .from('tournament_participants')
+                    .update({ prize_won: prize })
+                    .eq('tournament_id', tournamentId)
+                    .eq('user_id', leader.user_id);
+
+                summaries.push({ user_id: leader.user_id, rank, prize });
+            }
+
+            // 5. Build Final result list for Telegram Notification
+            // (Optional: send notification here or let admin do it)
+
+            // 6. Close tournament
+            await supabase!.from('tournaments').update({ status: 'completed' }).eq('id', tournamentId);
+
+            return jsonResponse({ success: true, distributions: summaries });
         }
 
         if (path === '/tournaments/schedule') {
@@ -763,19 +863,6 @@ export async function handleAdminRequest(request: Request, env: Env): Promise<Re
                 return jsonResponse({ success: true });
             }
         }
-
-        const role = (request as any).adminUser?.role || 'readonly';
-        const isSuper = role === 'super_admin';
-
-        // --- RBAC CHECKS ---
-        // Finance: Super or Finance
-        if (path.startsWith('/finance') && role !== 'finance' && !isSuper) return jsonResponse({ error: 'Forbidden' }, 403);
-        // Marketing: Super or Marketing
-        if (path.startsWith('/marketing') && role !== 'marketing' && !isSuper) return jsonResponse({ error: 'Forbidden' }, 403);
-        // Bot/Config: Super or Ops
-        if ((path.startsWith('/bot') || path.startsWith('/config')) && role !== 'ops' && !isSuper) return jsonResponse({ error: 'Forbidden' }, 403);
-        // Admin Management: Super Only
-        if (path.startsWith('/team') && !isSuper) return jsonResponse({ error: 'Forbidden' }, 403);
 
 
         // --- ADMIN MANAGEMENT (Super Only) ---

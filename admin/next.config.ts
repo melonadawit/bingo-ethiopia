@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  trailingSlash: true,
   // redirects are not supported in static export
   // async redirects() {
   //   return [

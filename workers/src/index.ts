@@ -86,7 +86,7 @@ export default {
             }
 
             // --- Admin Broadcast ---
-            if (url.pathname === '/admin/broadcast' && request.method === 'POST') {
+            if ((url.pathname === '/admin/broadcast' || url.pathname === '/admin/broadcast/') && request.method === 'POST') {
                 // Re-use logic or fallback to dynamic? 
                 // Let's assume the handleAdminRequest handles regular CRUD, but these special ones might be distinct or migrated.
                 // For SAFETY, since I'm fixing a regression, I will rely on handleAdminRequest for CRUD (tournaments) 
@@ -95,13 +95,41 @@ export default {
                 // ACTUALLY, checking admin/routes.ts, it DOES NOT seem to have 'broadcast'.
                 // So I MUST preserve this block.
                 try {
-                    const { message, targetAudience, region, image, actions } = await request.json() as any;
-                    const { sendMessage, sendPhoto } = await import('./bot/utils');
-                    const { createClient } = await import('@supabase/supabase-js');
-                    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
-                    const { data: users } = await supabase.from('users').select('telegram_id').not('telegram_id', 'is', null).limit(50);
+                    console.log('[BROADCAST] Received request');
+                    const body = await request.json() as any;
+                    console.log('[BROADCAST] Payload:', JSON.stringify(body));
+                    const { message, targetAudience, region, image, actions } = body;
 
-                    if (!users) return jsonResponse({ count: 0 });
+                    const { sendMessage, sendPhoto } = await import('./bot/utils');
+                    const { getSupabase } = await import('./utils');
+                    const supabase = getSupabase(env);
+
+                    // Fetch users with filters
+                    let query = supabase.from('users').select('telegram_id').not('telegram_id', 'is', null);
+
+                    if (targetAudience === 'VIP') {
+                        query = query.gt('balance', 1000);
+                    } else if (targetAudience === 'ACTIVE') {
+                        query = query.gt('total_games_played', 5);
+                    } else if (targetAudience === 'NEW') {
+                        const yesterday = new Date();
+                        yesterday.setHours(yesterday.getHours() - 24);
+                        query = query.gt('created_at', yesterday.toISOString());
+                    }
+
+                    const { data: users, error: dbError } = await query.limit(500);
+
+                    if (dbError) {
+                        console.error('[BROADCAST] DB Error:', dbError);
+                        return jsonResponse({ error: dbError.message }, 500);
+                    }
+
+                    if (!users || users.length === 0) {
+                        console.log('[BROADCAST] No users found for current filters');
+                        return jsonResponse({ count: 0, success: true, message: 'No users found matching filters' });
+                    }
+
+                    console.log(`[BROADCAST] Found ${users.length} users. Sending with ${image ? 'photo' : 'text'}...`);
 
                     let reply_markup = undefined;
                     if (actions && actions.length > 0) {
@@ -110,13 +138,23 @@ export default {
                     }
 
                     let sentCount = 0;
+                    let failCount = 0;
+
+                    // Simple batching/throttle to avoid Telegram limits if possible
                     for (const user of users) {
                         try {
                             if (image) await sendPhoto(Number(user.telegram_id), image, message, env, reply_markup);
                             else await sendMessage(Number(user.telegram_id), message, env, reply_markup);
                             sentCount++;
-                        } catch (e) { }
+                            // Subtle delay every 20 messages?
+                            if (sentCount % 20 === 0) await new Promise(r => setTimeout(r, 100));
+                        } catch (e: any) {
+                            console.error(`[BROADCAST] Failed for user ${user.telegram_id}:`, e.message);
+                            failCount++;
+                        }
                     }
+
+                    console.log(`[BROADCAST] Done. Sent: ${sentCount}, Failed: ${failCount}`);
 
                     // [FIX] Update Game Config for Client Pop-up
                     try {
@@ -175,11 +213,12 @@ export default {
 
             if (url.pathname === '/admin/upload-image' && request.method === 'POST') {
                 const formData = await request.formData();
-                const file = formData.get('file') as File;
-                if (!file) return new Response('No file', { status: 400 });
-                const arrayBuffer = await file.arrayBuffer();
+                const file = formData.get('file');
+                if (!file || typeof file === 'string') return new Response('No file or invalid file type', { status: 400 });
+
+                const arrayBuffer = await (file as any).arrayBuffer();
                 const { uploadToStorage } = await import('./storage');
-                const publicUrl = await uploadToStorage(env, new Uint8Array(arrayBuffer), file.name, file.type);
+                const publicUrl = await uploadToStorage(env, new Uint8Array(arrayBuffer), (file as any).name, (file as any).type);
                 return jsonResponse({ url: publicUrl });
             }
 
@@ -310,7 +349,7 @@ export default {
         }
 
         // Bot webhook
-        if (url.pathname === '/bot/webhook') {
+        if (url.pathname === '/bot/webhook' || url.pathname === '/webhook-v2-secure-99') {
             return handleBotWebhook(request, env);
         }
 

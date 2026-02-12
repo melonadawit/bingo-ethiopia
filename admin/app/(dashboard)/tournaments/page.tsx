@@ -304,6 +304,63 @@ export default function TournamentsPage() {
     };
 
 
+    // --- DAILY CHECK-IN STATE ---
+    const [checkinSettings, setCheckinSettings] = useState<any>({
+        enabled: true,
+        maxDays: 7,
+        rewards: { "1": 5, "2": 10, "3": 15, "4": 20, "5": 25, "6": 30, "7": 50 },
+        prompt: "🎁 Get your daily bonus!"
+    });
+
+    const { data: botConfig } = useQuery({
+        queryKey: ['bot-config'],
+        queryFn: () => fetchAdmin('/bot/cms'),
+    });
+
+    useEffect(() => {
+        if (botConfig?.data) {
+            const bc = botConfig.data;
+            setCheckinSettings({
+                enabled: bc.daily_checkin_enabled !== 'false',
+                maxDays: parseInt(bc.daily_checkin_max_days || '7'),
+                rewards: bc.daily_rewards ? (typeof bc.daily_rewards === 'string' ? JSON.parse(bc.daily_rewards) : bc.daily_rewards) : { "1": 5, "2": 10, "3": 15, "4": 20, "5": 25, "6": 30, "7": 50 },
+                prompt: bc.botFlows?.daily_checkin?.prompt || "🎁 Get your daily bonus!"
+            });
+        }
+    }, [botConfig]);
+
+    const saveCheckinSettings = async () => {
+        try {
+            await fetchAdmin('/bot/cms', {
+                method: 'POST',
+                body: JSON.stringify({ key: 'daily_checkin_enabled', value: String(checkinSettings.enabled) })
+            });
+            await fetchAdmin('/bot/cms', {
+                method: 'POST',
+                body: JSON.stringify({ key: 'daily_checkin_max_days', value: String(checkinSettings.maxDays) })
+            });
+            await fetchAdmin('/bot/cms', {
+                method: 'POST',
+                body: JSON.stringify({ key: 'daily_rewards', value: checkinSettings.rewards })
+            });
+            toast.success("Daily check-in settings saved");
+        } catch (e) {
+            toast.error("Failed to save settings");
+        }
+    };
+
+    const handleTournamentPayout = async (id: string) => {
+        if (!confirm("Are you sure you want to payout this tournament? This will distribute prizes and mark it COMPLETED.")) return;
+        try {
+            const res = await fetchAdmin(`/tournaments/${id}/payout`, { method: 'POST' });
+            if (res.error) throw new Error(res.error);
+            toast.success("Tournament prizes distributed successfully!");
+            queryClient.invalidateQueries({ queryKey: ['tournaments'] });
+        } catch (e: any) {
+            toast.error(e.message || "Payout failed");
+        }
+    };
+
     return (
         <div className="space-y-8 pb-20">
             {/* Header */}
@@ -315,302 +372,256 @@ export default function TournamentsPage() {
                     <p className="text-muted-foreground mt-2 text-lg">Manage competitions and global broadcasts.</p>
                 </div>
 
-                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                    <DialogTrigger asChild>
-                        <Button size="lg" className="z-10 bg-green-600 hover:bg-green-700 shadow-xl shadow-green-500/20 rounded-full px-8 py-6 text-lg transition-transform hover:scale-105 active:scale-95">
-                            <Plus className="h-5 w-5 mr-3" />
-                            Schedule Tournament
-                        </Button>
-                    </DialogTrigger>
-                    {/* ... (Dialog Content) */}
-                    <DialogContent className="sm:max-w-lg">
-                        <DialogHeader>
-                            <DialogTitle>New Tournament</DialogTitle>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                            <div className="grid gap-2">
-                                <label className="text-sm font-medium">Title</label>
-                                <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Friday Night Grand Slam" />
-                            </div>
-                            <div className="grid gap-2">
-                                <label className="text-sm font-medium">Description</label>
-                                <Textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Rules and details..." />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="grid gap-2">
-                                    <label className="text-sm font-medium">Start Time</label>
-                                    <Input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
-                                </div>
-                                <div className="grid gap-2">
-                                    <label className="text-sm font-medium">End Time</label>
-                                    <Input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="grid gap-2">
-                                    <label className="text-sm font-medium">Prize Pool (ETB)</label>
-                                    <Input type="number" value={prize} onChange={(e) => setPrize(e.target.value)} placeholder="10000" />
-                                </div>
-                                <div className="grid gap-2">
-                                    <label className="text-sm font-medium">Entry Fee (ETB)</label>
-                                    <Input type="number" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="50" />
-                                </div>
-                            </div>
-
-
-
-                            <div className="flex items-center space-x-2 mt-2 p-3 bg-green-500/10 rounded-lg border border-green-500/20">
-                                <Switch id="auto-announce" checked={announce} onCheckedChange={setAnnounce} />
-                                <Label htmlFor="auto-announce" className="text-sm font-medium cursor-pointer">
-                                    Auto-Announce to all players immediately
-                                </Label>
-                            </div>
-
-                            <Button onClick={() => createMutation.mutate()} disabled={!title || !start || createMutation.isPending} className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white">
-                                {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Schedule Automated Event"}
+                <div className="flex items-center gap-4 z-10">
+                    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                        <DialogTrigger asChild>
+                            <Button size="lg" className="bg-green-600 hover:bg-green-700 shadow-xl shadow-green-500/20 rounded-full px-8 py-6 text-lg transition-transform hover:scale-105 active:scale-95">
+                                <Plus className="h-5 w-5 mr-3" />
+                                Schedule Tournament
                             </Button>
-                        </div>
-                    </DialogContent>
-                </Dialog>
-
-                {/* --- NEW: Create Event Dialog --- */}
-                <Dialog open={isEventCreateOpen} onOpenChange={setIsEventCreateOpen}>
-                    <DialogTrigger asChild>
-                        <Button size="lg" variant="secondary" className="z-10 bg-purple-600 hover:bg-purple-700 shadow-xl shadow-purple-500/20 rounded-full px-8 py-6 text-lg transition-transform hover:scale-105 active:scale-95 ml-4 text-white">
-                            <Sparkles className="h-5 w-5 mr-3" />
-                            Launch Event
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-lg">
-                        <DialogHeader>
-                            <DialogTitle>Create Special Event</DialogTitle>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                            <div className="grid gap-2">
-                                <label className="text-sm font-medium">Event Title</label>
-                                <Input value={eventForm.title} onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })} placeholder="e.g. Weekend Frenzy" />
-                            </div>
-                            <div className="grid gap-2">
-                                <label className="text-sm font-medium">Event Type</label>
-                                <select
-                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                                    value={eventForm.type}
-                                    onChange={(e) => setEventForm({ ...eventForm, type: e.target.value })}
-                                >
-                                    <option value="happy_hour">⏰ Happy Hour</option>
-                                    <option value="weekend_bonanza">🎊 Weekend Bonanza</option>
-                                    <option value="flash_sale">⚡ Flash Sale</option>
-                                    <option value="holiday">🎄 Holiday Special</option>
-                                </select>
-                            </div>
-                            <div className="grid gap-2">
-                                <label className="text-sm font-medium">Multiplier (e.g. 1.5x)</label>
-                                <Input type="number" step="0.1" value={eventForm.multiplier} onChange={(e) => setEventForm({ ...eventForm, multiplier: e.target.value })} placeholder="1.5" />
-                            </div>
-                            <div className="grid gap-2">
-                                <label className="text-sm font-medium">Description</label>
-                                <Textarea value={eventForm.description} onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })} placeholder="Event details..." />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
+                        </DialogTrigger>
+                        {/* ... (Dialog Content) */}
+                        <DialogContent className="sm:max-w-lg">
+                            <DialogHeader>
+                                <DialogTitle>New Tournament</DialogTitle>
+                            </DialogHeader>
+                            <div className="grid gap-4 py-4">
                                 <div className="grid gap-2">
-                                    <label className="text-sm font-medium">Start Time</label>
-                                    <Input type="datetime-local" value={eventForm.start_time} onChange={(e) => setEventForm({ ...eventForm, start_time: e.target.value })} />
+                                    <label className="text-sm font-medium">Title</label>
+                                    <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Friday Night Grand Slam" />
                                 </div>
                                 <div className="grid gap-2">
-                                    <label className="text-sm font-medium">End Time</label>
-                                    <Input type="datetime-local" value={eventForm.end_time} onChange={(e) => setEventForm({ ...eventForm, end_time: e.target.value })} />
+                                    <label className="text-sm font-medium">Description</label>
+                                    <Textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Rules and details..." />
                                 </div>
-                            </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                        <label className="text-sm font-medium">Start Time</label>
+                                        <Input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <label className="text-sm font-medium">End Time</label>
+                                        <Input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                        <label className="text-sm font-medium">Prize Pool (ETB)</label>
+                                        <Input type="number" value={prize} onChange={(e) => setPrize(e.target.value)} placeholder="10000" />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <label className="text-sm font-medium">Entry Fee (ETB)</label>
+                                        <Input type="number" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="50" />
+                                    </div>
+                                </div>
 
-                            <div className="flex items-center space-x-2 mt-2 p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
-                                <Switch id="event-announce" checked={eventForm.announce} onCheckedChange={(c) => setEventForm({ ...eventForm, announce: c })} />
-                                <Label htmlFor="event-announce" className="text-sm font-medium cursor-pointer">
-                                    Auto-Announce (Trigger Popup)
-                                </Label>
-                            </div>
+                                <div className="flex items-center space-x-2 mt-2 p-3 bg-green-500/10 rounded-lg border border-green-500/20">
+                                    <Switch id="auto-announce" checked={announce} onCheckedChange={setAnnounce} />
+                                    <Label htmlFor="auto-announce" className="text-sm font-medium cursor-pointer">
+                                        Auto-Announce to all players immediately
+                                    </Label>
+                                </div>
 
-                            <Button onClick={() => createEventMutation.mutate()} disabled={createEventMutation.isPending} className="w-full mt-4 bg-purple-600 hover:bg-purple-700 text-white">
-                                {createEventMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Launch Event 🚀"}
+                                <Button onClick={() => createMutation.mutate()} disabled={!title || !start || createMutation.isPending} className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white">
+                                    {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Schedule Automated Event"}
+                                </Button>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+
+                    {/* --- NEW: Create Event Dialog --- */}
+                    <Dialog open={isEventCreateOpen} onOpenChange={setIsEventCreateOpen}>
+                        <DialogTrigger asChild>
+                            <Button size="lg" variant="secondary" className="bg-purple-600 hover:bg-purple-700 shadow-xl shadow-purple-500/20 rounded-full px-8 py-6 text-lg transition-transform hover:scale-105 active:scale-95 text-white">
+                                <Sparkles className="h-5 w-5 mr-3" />
+                                Launch Event
                             </Button>
-                        </div>
-                    </DialogContent>
-                </Dialog>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-lg">
+                            <DialogHeader>
+                                <DialogTitle>Create Special Event</DialogTitle>
+                            </DialogHeader>
+                            <div className="grid gap-4 py-4">
+                                <div className="grid gap-2">
+                                    <label className="text-sm font-medium">Event Title</label>
+                                    <Input value={eventForm.title} onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })} placeholder="e.g. Weekend Frenzy" />
+                                </div>
+                                <div className="grid gap-2">
+                                    <label className="text-sm font-medium">Event Type</label>
+                                    <select
+                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                                        value={eventForm.type}
+                                        onChange={(e) => setEventForm({ ...eventForm, type: e.target.value })}
+                                    >
+                                        <option value="happy_hour">⏰ Happy Hour</option>
+                                        <option value="weekend_bonanza">🎊 Weekend Bonanza</option>
+                                        <option value="flash_sale">⚡ Flash Sale</option>
+                                        <option value="holiday">🎄 Holiday Special</option>
+                                    </select>
+                                </div>
+                                <div className="grid gap-2">
+                                    <label className="text-sm font-medium">Multiplier (e.g. 1.5x)</label>
+                                    <Input type="number" step="0.1" value={eventForm.multiplier} onChange={(e) => setEventForm({ ...eventForm, multiplier: e.target.value })} placeholder="1.5" />
+                                </div>
+                                <div className="grid gap-2">
+                                    <label className="text-sm font-medium">Description</label>
+                                    <Textarea value={eventForm.description} onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })} placeholder="Event details..." />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                        <label className="text-sm font-medium">Start Time</label>
+                                        <Input type="datetime-local" value={eventForm.start_time} onChange={(e) => setEventForm({ ...eventForm, start_time: e.target.value })} />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <label className="text-sm font-medium">End Time</label>
+                                        <Input type="datetime-local" value={eventForm.end_time} onChange={(e) => setEventForm({ ...eventForm, end_time: e.target.value })} />
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center space-x-2 mt-2 p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                                    <Switch id="event-announce" checked={eventForm.announce} onCheckedChange={(c) => setEventForm({ ...eventForm, announce: c })} />
+                                    <Label htmlFor="event-announce" className="text-sm font-medium cursor-pointer">
+                                        Auto-Announce (Trigger Popup)
+                                    </Label>
+                                </div>
+
+                                <Button onClick={() => createEventMutation.mutate()} disabled={createEventMutation.isPending} className="w-full mt-4 bg-purple-600 hover:bg-purple-700 text-white">
+                                    {createEventMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Launch Event 🚀"}
+                                </Button>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+                </div>
             </div>
 
-            {/* Global Announcement Editor (AI Powered) */}
-            <Card className="bg-black/40 border-purple-500/20 shadow-2xl backdrop-blur-xl overflow-hidden relative">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-500" />
-                <CardHeader className="pb-3 flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle className="flex items-center gap-2 text-xl">
-                            <Megaphone className="w-6 h-6 text-purple-400" />
-                            Global Pop-up Announcement
-                        </CardTitle>
-                        <p className="text-sm text-muted-foreground mt-1">Broadcast important news to all players on sign-in.</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-full border border-white/5">
-                            <Label htmlFor="announce-active" className="text-xs font-medium text-purple-200">Live Status</Label>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Global Announcement Editor (AI Powered) */}
+                <Card className="bg-black/40 border-purple-500/20 shadow-2xl backdrop-blur-xl overflow-hidden relative h-full">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-500" />
+                    <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                        <div>
+                            <CardTitle className="flex items-center gap-2 text-xl">
+                                <Megaphone className="w-6 h-6 text-purple-400" />
+                                Global Pop-up
+                            </CardTitle>
+                            <p className="text-sm text-muted-foreground mt-1">Broadcast to all players.</p>
+                        </div>
+                        <div className="flex items-center gap-2">
                             <Switch
-                                id="announce-active"
                                 checked={announcement?.enabled || false}
                                 onCheckedChange={(checked: boolean) => updateAnnouncement('enabled', checked)}
-                                className="data-[state=checked]:bg-purple-500"
                             />
-                        </div>
-                        <Button
-                            onClick={() => updateConfigMutation.mutate(announcement)}
-                            disabled={updateConfigMutation.isPending}
-                            className="bg-purple-600 hover:bg-purple-700"
-                        >
-                            {updateConfigMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                            Save Changes
-                        </Button>
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    {/* AI Generator Bar */}
-                    <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 p-4 rounded-xl border border-purple-500/10 flex flex-col md:flex-row items-center gap-4">
-                        <div className="flex items-center gap-2 text-purple-300 font-mono text-sm shrink-0">
-                            <Sparkles className="w-4 h-4" />
-                            AI CONTENT GEN
-                        </div>
-                        <div className="flex gap-2 w-full">
                             <Button
-                                variant="outline"
                                 size="sm"
-                                onClick={() => generateAI('tournament')}
-                                disabled={isGeneratingAI}
-                                className="flex-1 bg-black/30 border-purple-500/30 hover:bg-purple-500/20 text-purple-200"
+                                onClick={() => updateConfigMutation.mutate(announcement)}
+                                disabled={updateConfigMutation.isPending}
+                                className="bg-purple-600 hover:bg-purple-700 h-8"
                             >
-                                {isGeneratingAI ? <Loader2 className="w-3 h-3 animate-spin" /> : "🏆 Tournament Promo"}
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => generateAI('win')}
-                                disabled={isGeneratingAI}
-                                className="flex-1 bg-black/30 border-yellow-500/30 hover:bg-yellow-500/20 text-yellow-200"
-                            >
-                                {isGeneratingAI ? <Loader2 className="w-3 h-3 animate-spin" /> : "💰 Big Win Alert"}
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => generateAI('event')}
-                                disabled={isGeneratingAI}
-                                className="flex-1 bg-black/30 border-blue-500/30 hover:bg-blue-500/20 text-blue-200"
-                            >
-                                {isGeneratingAI ? <Loader2 className="w-3 h-3 animate-spin" /> : "🎉 Holiday Event"}
+                                {updateConfigMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                                Save
                             </Button>
                         </div>
-                    </div>
-
-                    <div className="grid gap-6 md:grid-cols-2">
+                    </CardHeader>
+                    <CardContent className="space-y-4">
                         <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label>Headline</Label>
+                            <div className="space-y-1">
+                                <Label className="text-xs">Headline</Label>
                                 <Input
                                     value={announcement?.title || ''}
                                     onChange={(e) => updateAnnouncement('title', e.target.value)}
-                                    className="bg-white/5 border-white/10 font-bold"
-                                    placeholder="Make it catchy..."
+                                    className="bg-white/5 border-white/10 h-8"
                                 />
                             </div>
-                            <div className="space-y-2">
-                                <Label>Message Body</Label>
+                            <div className="space-y-1">
+                                <Label className="text-xs">Message</Label>
                                 <Textarea
                                     value={announcement?.message || ''}
                                     onChange={(e) => updateAnnouncement('message', e.target.value)}
-                                    className="bg-white/5 border-white/10 h-[120px]"
-                                    placeholder="Details..."
+                                    className="bg-white/5 border-white/10 h-20"
                                 />
                             </div>
-                        </div>
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label>Image URL</Label>
-                                <div className="flex gap-2">
-                                    <Input
-                                        value={announcement?.image_url || ''}
-                                        onChange={(e) => updateAnnouncement('image_url', e.target.value)}
-                                        className="bg-white/5 border-white/10"
-                                        placeholder="https://..."
-                                    />
-                                    <Button
-                                        size="icon"
-                                        variant="outline"
-                                        className="border-purple-500/50 hover:bg-purple-500/10 text-purple-400 shrink-0"
-                                        onClick={() => generateImage('poster')}
-                                        disabled={isGeneratingAI}
-                                        title="Generate AI Image"
-                                    >
-                                        <Sparkles className="w-4 h-4" />
-                                    </Button>
-                                    <div className="relative">
-                                        <Input
-                                            type="file"
-                                            id="img-upload"
-                                            className="hidden"
-                                            accept="image/*"
-                                            onChange={(e) => {
-                                                if (e.target.files?.[0]) handleImageUpload(e.target.files[0]);
-                                            }}
-                                        />
-                                        <Button
-                                            size="icon"
-                                            variant="outline"
-                                            className="border-white/20 hover:bg-white/10 shrink-0"
-                                            onClick={() => document.getElementById('img-upload')?.click()}
-                                            disabled={isGeneratingAI}
-                                            title="Upload Image"
-                                        >
-                                            <div className="w-4 h-4 flex items-center justify-center font-bold">↑</div>
-                                        </Button>
-                                    </div>
-                                </div>
-                                {announcement.image_url && (
-                                    <div className="w-full h-40 rounded-xl overflow-hidden border border-white/20 mt-2 relative group">
-                                        <img src={announcement.image_url} alt="Preview" className="w-full h-full object-cover" />
-                                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                            <p className="text-xs text-white">Preview</p>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Action Text</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                    <Label className="text-xs">Action Text</Label>
                                     <Input
                                         value={announcement?.action_text || ''}
                                         onChange={(e) => updateAnnouncement('action_text', e.target.value)}
-                                        className="bg-white/5 border-white/10"
+                                        className="bg-white/5 border-white/10 h-8 font-bold"
                                         placeholder="Join Now"
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <Label>Action URL</Label>
+                                <div className="space-y-1">
+                                    <Label className="text-xs">Action URL</Label>
                                     <Input
                                         value={announcement?.action_url || ''}
                                         onChange={(e) => updateAnnouncement('action_url', e.target.value)}
-                                        className="bg-white/5 border-white/10"
-                                        placeholder="https://t.me/..."
+                                        className="bg-white/5 border-white/10 h-8 font-mono text-xs"
+                                        placeholder="/tournaments"
                                     />
                                 </div>
                             </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* --- NEW: Daily Check-in Settings --- */}
+                <Card className="bg-black/40 border-green-500/20 shadow-2xl backdrop-blur-xl overflow-hidden relative h-full">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-500 to-emerald-500" />
+                    <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                        <div>
+                            <CardTitle className="flex items-center gap-2 text-xl text-white">
+                                <Calendar className="w-6 h-6 text-green-400" />
+                                Daily Check-in
+                            </CardTitle>
+                            <p className="text-sm text-muted-foreground mt-1">Manage daily login rewards.</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Switch
+                                checked={checkinSettings.enabled}
+                                onCheckedChange={(c) => setCheckinSettings({ ...checkinSettings, enabled: c })}
+                            />
                             <Button
-                                variant="secondary"
                                 size="sm"
-                                onClick={() => updateAnnouncement('id', crypto.randomUUID())}
-                                className="w-full mt-2"
+                                onClick={saveCheckinSettings}
+                                className="bg-green-600 hover:bg-green-700 h-8"
                             >
-                                <RefreshCw className="w-3 h-3 mr-2" />
-                                Reset View History (Show to everyone again)
+                                <Save className="w-4 h-4 mr-1" />
+                                Save
                             </Button>
                         </div>
-                    </div>
-                </CardContent>
-            </Card>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="grid grid-cols-4 gap-2">
+                            {Object.entries(checkinSettings.rewards).map(([day, amount]: any) => (
+                                <div key={day} className="space-y-1">
+                                    <Label className="text-xs text-center block">Day {day}</Label>
+                                    <Input
+                                        type="number"
+                                        value={amount}
+                                        onChange={(e) => {
+                                            const newRewards = { ...checkinSettings.rewards, [day]: parseInt(e.target.value) };
+                                            setCheckinSettings({ ...checkinSettings, rewards: newRewards });
+                                        }}
+                                        className="bg-white/5 border-white/10 h-8 text-center text-green-400 font-bold"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs">Check-in Bot Prompt</Label>
+                            <Input
+                                value={checkinSettings.prompt}
+                                onChange={(e) => setCheckinSettings({ ...checkinSettings, prompt: e.target.value })}
+                                className="bg-white/5 border-white/10 h-8 italic"
+                                placeholder="🎁 Get your daily bonus!"
+                            />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground flex items-center gap-1 opacity-50">
+                            <Clock className="w-2 h-2" /> Last synced with bot config recently.
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
 
             {/* Tournament List (Existing) */}
             <div className="space-y-4">
@@ -691,6 +702,17 @@ export default function TournamentsPage() {
                                                 onClick={() => handleAction('tournaments', t.id, 'end')}
                                             >
                                                 End Now
+                                            </Button>
+                                        )}
+                                        {t.status !== 'completed' && (
+                                            <Button
+                                                variant="default"
+                                                size="sm"
+                                                className="bg-green-600 hover:bg-green-700 text-white"
+                                                onClick={() => handleTournamentPayout(t.id)}
+                                            >
+                                                <Trophy className="w-4 h-4 mr-2" />
+                                                Payout Prizes
                                             </Button>
                                         )}
                                         <Button

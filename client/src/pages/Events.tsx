@@ -49,42 +49,32 @@ export default function EventsPage() {
                     <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 text-center">
                         <p className="text-white text-xl">No active events right now</p>
                         <p className="text-white/70 mt-2">Check back soon!</p>
-
-                        <div className="mt-8 p-4 bg-zinc-900/50 rounded-xl border border-white/5 text-left max-w-sm mx-auto">
-                            <h3 className="text-sm font-bold text-white/50 mb-2 uppercase tracking-widest">Debugging info:</h3>
-                            <p className="text-xs text-white/70 font-mono">Is Loading: No</p>
-                            <p className="text-xs text-white/70 font-mono">Data Count: {events?.length || 0}</p>
-                            <p className="text-xs text-white/70 font-mono break-all">API URL: https://bingo-api.melonadawit71.workers.dev</p>
-                        </div>
                     </div>
                 ) : (
                     <div className="space-y-12">
                         {/* ACTIVE EVENTS */}
-                        {events.filter(e => e.is_active).length > 0 ? (
-                            <section>
-                                <h2 className="text-2xl font-bold text-orange-400 mb-6 flex items-center gap-2">
-                                    <span className="w-2 h-2 bg-orange-500 rounded-full animate-ping"></span>
-                                    Active Now
-                                </h2>
-                                <div className="space-y-6">
-                                    {events.filter(e => e.is_active).map((event: any) => (
-                                        <EventCard key={event.id} event={event} />
-                                    ))}
+                        {(() => {
+                            const activeNow = events.filter(e => e.is_active && new Date(e.end_time).getTime() > Date.now());
+                            if (activeNow.length === 0) return (
+                                <div className="bg-white/11 backdrop-blur-lg rounded-2xl p-8 text-center border border-white/5">
+                                    <p className="text-white text-xl">No active events right now</p>
+                                    <p className="text-white/70 mt-2">Check back soon!</p>
                                 </div>
-                            </section>
-                        ) : (
-                            <div className="bg-white/11 backdrop-blur-lg rounded-2xl p-8 text-center border mr-2 border-white/5">
-                                <p className="text-white text-xl">No active events right now</p>
-                                <p className="text-white/70 mt-2">Check back soon!</p>
-
-                                <div className="mt-8 p-4 bg-zinc-900/50 rounded-xl border border-white/5 text-left max-w-sm mx-auto">
-                                    <h3 className="text-sm font-bold text-white/50 mb-2 uppercase tracking-widest">Debugging info:</h3>
-                                    <p className="text-xs text-white/70 font-mono">Is Loading: No</p>
-                                    <p className="text-xs text-white/70 font-mono">Data Count: {events?.length || 0}</p>
-                                    <p className="text-xs text-white/70 font-mono break-all">API URL: https://bingo-api.melonadawit71.workers.dev</p>
-                                </div>
-                            </div>
-                        )}
+                            );
+                            return (
+                                <section>
+                                    <h2 className="text-2xl font-bold text-orange-400 mb-6 flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-orange-500 rounded-full animate-ping"></span>
+                                        Active Now
+                                    </h2>
+                                    <div className="space-y-6">
+                                        {activeNow.map((event: any) => (
+                                            <EventCard key={event.id} event={event} />
+                                        ))}
+                                    </div>
+                                </section>
+                            );
+                        })()}
                     </div>
                 )}
             </div>
@@ -94,26 +84,28 @@ export default function EventsPage() {
 
 function EventCard({ event }: { event: Event }) {
     const endTime = new Date(event.end_time);
-    const minutesLeft = Math.floor((endTime.getTime() - Date.now()) / (1000 * 60));
+    const msLeft = endTime.getTime() - Date.now();
+    const minutesLeft = Math.max(0, Math.floor(msLeft / (1000 * 60)));
     const hoursLeft = Math.floor(minutesLeft / 60);
+    const isActuallyActive = event.is_active && msLeft > 0;
 
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`backdrop-blur-lg rounded-2xl p-6 border-2 transition-all ${event.is_active
+            className={`backdrop-blur-lg rounded-2xl p-6 border-2 transition-all ${isActuallyActive
                 ? 'bg-gradient-to-r from-orange-500/20 via-red-500/20 to-pink-500/20 border-orange-400/30 hover:border-orange-400/50'
                 : 'bg-white/5 border-white/10 opacity-75 grayscale-[0.5]'
                 }`}
         >
             <div className="flex justify-between items-start mb-4">
                 <div>
-                    <h2 className={`text-3xl font-bold mb-2 ${event.is_active ? 'text-white' : 'text-white/70'}`}>
+                    <h2 className={`text-3xl font-bold mb-2 ${isActuallyActive ? 'text-white' : 'text-white/70'}`}>
                         {event.name}
                     </h2>
                     <div className="flex items-center gap-2">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold text-white ${event.is_active ? 'bg-orange-500/30' : 'bg-gray-500/30'}`}>
-                            {event.is_active ? 'LIVE' : 'ENDED'}
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold text-white ${isActuallyActive ? 'bg-orange-500/30' : 'bg-gray-500/30'}`}>
+                            {isActuallyActive ? 'LIVE' : 'ENDED'}
                         </span>
                         <span className="inline-block px-3 py-1 bg-white/10 rounded-full text-xs text-white uppercase tracking-wider">
                             {event.type.replace('_', ' ')}
@@ -121,7 +113,7 @@ function EventCard({ event }: { event: Event }) {
                     </div>
                 </div>
                 <div className="text-right">
-                    <div className={`text-5xl font-bold ${event.is_active ? 'text-yellow-400' : 'text-white/30'}`}>
+                    <div className={`text-5xl font-bold ${isActuallyActive ? 'text-yellow-400' : 'text-white/30'}`}>
                         {event.multiplier}x
                     </div>
                     <div className="text-xs text-white/50 uppercase font-bold tracking-widest">Multiplier</div>
@@ -132,7 +124,7 @@ function EventCard({ event }: { event: Event }) {
                 {event.description}
             </p>
 
-            {event.is_active && (
+            {isActuallyActive && (
                 <div className="bg-white/5 rounded-xl p-4 mb-6 border border-white/5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -157,13 +149,13 @@ function EventCard({ event }: { event: Event }) {
 
             <button
                 onClick={() => window.location.href = '/lobby'}
-                disabled={!event.is_active}
-                className={`w-full font-bold py-4 px-6 rounded-xl transition-all text-lg flex items-center justify-center gap-3 ${event.is_active
+                disabled={!isActuallyActive}
+                className={`w-full font-bold py-4 px-6 rounded-xl transition-all text-lg flex items-center justify-center gap-3 ${isActuallyActive
                     ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white hover:from-orange-600 hover:to-red-700 shadow-lg shadow-orange-500/20'
                     : 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5'
                     }`}
             >
-                {event.is_active ? (
+                {isActuallyActive ? (
                     <>
                         <span>🎮 Play Now & Boost Rewards</span>
                     </>

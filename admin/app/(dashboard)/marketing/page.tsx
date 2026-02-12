@@ -52,10 +52,19 @@ export default function MarketingPage() {
                 body: JSON.stringify(payload)
             });
         },
-        onSuccess: () => {
-            toast.success(`Campaign "${campaignTitle}" sent to ${targetAudience} users!`);
+        onSuccess: (data: any) => {
+            const count = data.count || 0;
+            const fails = data.failCount || 0;
+            if (count > 0) {
+                toast.success(`Campaign "${campaignTitle}" sent to ${count} users!${fails > 0 ? ` (${fails} failed)` : ''}`);
+            } else {
+                toast.warning(`Campaign processed, but 0 users were reached. Check your filters.`);
+            }
             setMessage('');
-        }
+            setButtonText('');
+            setButtonUrl('');
+            setSelectedImage(null);
+        },
     });
 
     const generateAiMutation = useMutation({
