@@ -272,12 +272,24 @@ export class GameRoom {
 
                     // If active in ANOTHER game, block them
                     if (checkData.isActive && checkData.currentGameId !== this.gameState.gameId) {
-                        // ALLOW rejoin if it's the SAME game ID (persistence)
-                        // But BLOCK if different
-                        console.log(`🚫 Silent Reject: Player ${userId} is locked to game ${checkData.currentGameId}`);
-                        ws.close(1000, "Already playing elsewhere");
+                        console.log(`🚫 Rejecting: Player ${userId} is locked to game ${checkData.currentGameId}`);
+                        ws.send(JSON.stringify({
+                            type: 'mode_conflict',
+                            data: {
+                                message: `You are currently active in a ${checkData.currentMode} room. Please leave it to switch.`,
+                                activeMode: checkData.currentMode,
+                                activeGameId: checkData.currentGameId
+                            }
+                        }));
                         return;
                     }
+
+                    // NO CONFLICT? Register proactively for THIS mode/game immediately
+                    await tracker.fetch('https://dummy/register-player', {
+                        method: 'POST',
+                        body: JSON.stringify({ userId, gameId: this.gameState.gameId || gameId, mode: this.gameState.mode || (gameId.split('-global-')[0]) }),
+                        headers: { 'Content-Type': 'application/json' }
+                    });
                 }
             } catch (err) {
                 console.error("PlayerTracker check error:", err);
@@ -1275,5 +1287,17 @@ export class GameRoom {
             const j = Math.floor(Math.random() * (i + 1));
             [array[i], array[j]] = [array[j], array[i]];
         }
+    }
+
+    // Persistence helpers
+    async saveState() {
+        // No-op for now as this version clears storage in constructor, 
+        // but defined to satisfy calls and linting.
+        return Promise.resolve();
+    }
+
+    async savePlayer(userId: string) {
+        // No-op for now to match saveState.
+        return Promise.resolve();
     }
 }
