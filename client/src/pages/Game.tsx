@@ -273,312 +273,14 @@ const GamePage: React.FC = () => {
     }, [gameId]);
 
     useEffect(() => {
-        // REMOVED: This was causing infinite redirect loops
-        // The user object takes time to load, so redirecting immediately breaks navigation
-        // if (!user) {
-        //     navigate('/lobby');
-        //     return;
-        // }
+        console.log('🚀 [GAME] Starting setup for game:', gameId);
 
-        console.log('Game component setup for game:', gameId);
-
-        // Aggressively clean up any existing listeners first
-        gameSocket.off('card_selected');
-        gameSocket.off('card_deselected');
-        gameSocket.off('selection_state');
-        gameSocket.off('countdown_tick');
-        gameSocket.off('number_called');
-        gameSocket.off('game_started');
-        gameSocket.off('game_state_changed');
-        gameSocket.off('game_won');
-        gameSocket.off('game_ended');
-
-        console.log('Game component mounted, starting connection phase');
-
-        // CONNECT SOCKET FIRST
-        if (!gameSocket.connected && gameId) {
-            console.log('Connecting socket to server...');
-            gameSocket.connect(gameId);
-        }
-
-        // Listen for connection, then join game
-        const handleConnect = () => {
-            console.log('✅ WebSocket connected');
-            setConnectionStatus('connected');
-            _setReconnectAttempts(0);
-            setError(null);
-
-            // Join game immediately - use Telegram ID if available (matches backend DB), otherwise use temporary guest ID
-            // CRITICAL FIX: Backend expects userId to be the integer Telegram ID for balance operations
-            const userId = user?.telegram_id ? user.telegram_id.toString() : `guest-${Date.now()}`;
-            const username = user?.username || 'Guest';
-
-            console.log('Joining game room:', gameId, 'as', username, '(ID:', userId, ')');
-            gameSocket.emit('join_game', { gameId, userId, username });
-
-            // Request current selection state
-            gameSocket.emit('request_selection_state', { gameId });
-        };
-
-        // If already connected, join immediately
-        if (gameSocket.connected && gameId) {
-            handleConnect();
-        } else {
-            // Wait for connection
-            gameSocket.on('connect', handleConnect);
-        }
-
-        // Listen for successful join
-        gameSocket.on('joined_successfully', ({ gameId: joinedGameId }: { gameId: string }) => {
-            console.log('✅ Successfully joined game:', joinedGameId);
-            setStatus('selection');
-        });
-
-        // Listen for join errors and retry
-        gameSocket.on('error', ({ message }: { message: string }) => {
-            console.log('❌ Join error:', message);
-            if (message === 'Game not found') {
-                console.log('Retrying join in 1 second...');
-                setTimeout(() => {
-                    if (gameId && user?.id) {
-                        gameSocket.emit('join_game', { gameId, userId: user.id });
-                        gameSocket.emit('request_selection_state', { gameId });
-                    }
-                }, 1000);
-            }
-        });
-
-        return () => {
-            gameSocket.off('connect', handleConnect);
+        // 1. CLEANUP PREVIOUS LISTENERS
+        const cleanupListeners = () => {
+            console.log('🧹 [GAME] Cleaning up socket listeners');
+            gameSocket.off('connect');
             gameSocket.off('joined_successfully');
             gameSocket.off('error');
-        };
-    }, [user, navigate, gameId]);
-
-    // Server handles auto-start countdown now
-
-    // Listen for all game events
-    useEffect(() => {
-        gameSocket.on('game_won', (data: any) => {
-            console.log('🏆 GAME_WON EVENT RECEIVED:', data);
-            setWinners(data.winners);
-            setStatus('ended');
-            setIsLoading(false); // Reset BINGO loading state
-
-            console.log('✅ Status set to "ended", winners updated:', data.winners.length);
-
-            // Clear any game intervals immediately
-            if (gameIntervalRef.current) {
-                console.log('🛑 Clearing local game interval');
-                clearInterval(gameIntervalRef.current);
-                gameIntervalRef.current = null;
-            }
-            // Stop processing any further number calls
-            voiceCaller.stop();
-        });
-
-        // Listen for game reset (server-side auto-restart)
-        gameSocket.on('game_reset', (data: { status?: GameStatus }) => {
-            console.log('Game reset by server - starting new round');
-            // Use status from server if available, otherwise default to waiting
-            setStatus(data?.status || 'waiting');
-            setWinners([]);
-            setShowNoWinner(false); // Clear no-winner state
-            setCalledNumbers(new Set());
-            setPreviewCards([]);
-            setSelectedCards([]); // Clear selected cards for new game
-            setCurrentNumber(null);
-            setCountdown((data as any).countdown || 30);
-            setSelectedCardsByPlayer({});
-            setIsLoading(false); // Ensure loading is reset on new game
-        });
-
-        // Real-time card selection events
-        gameSocket.on('card_selected', ({ cardId, userId, playerCount }: { cardId: number; userId: string; playerCount: number }) => {
-            console.log('Card selected:', cardId, 'by', userId);
-            setSelectedCardsByPlayer((prev) => ({ ...prev, [cardId]: userId }));
-            setRealPlayerCount(playerCount);
-        });
-
-        gameSocket.on('card_deselected', ({ cardId, playerCount }: { cardId: number; playerCount: number }) => {
-            console.log('Card deselected:', cardId);
-            setSelectedCardsByPlayer((prev) => {
-                const next = { ...prev };
-                delete next[cardId];
-                return next;
-            });
-            setRealPlayerCount(playerCount);
-        });
-
-        gameSocket.on('selection_state', ({ selectedCards, playerCount, status: serverStatus, countdown: serverCountdown, drawnNumbers }: { selectedCards: any; playerCount: number; status?: GameStatus; countdown?: number; drawnNumbers?: number[] }) => {
-            console.log('Got selection state:', selectedCards, playerCount, serverStatus, serverCountdown);
-            setSelectedCardsByPlayer(selectedCards);
-            setRealPlayerCount(playerCount);
-
-            // Set status based on server payload or default to selection phase
-            if (serverStatus) {
-                setStatus(serverStatus);
-                // If still in selecting phase and countdown hasn't started, trigger start
-                if (serverStatus === 'selecting' && (serverCountdown === undefined || serverCountdown === 30)) {
-                    console.log('Fallback: emitting start_countdown from client');
-                    gameSocket.emit('start_countdown', { gameId });
-                }
-            } else {
-                setStatus('selection');
-            }
-            if (serverCountdown !== undefined) setCountdown(serverCountdown);
-            if (drawnNumbers && drawnNumbers.length > 0) {
-                setCalledNumbers(new Set(drawnNumbers));
-                setCurrentNumber(drawnNumbers[drawnNumbers.length - 1]);
-            }
-        });
-
-        // SERVER-CONTROLLED COUNTDOWN
-        gameSocket.on('countdown_tick', ({ countdown }: { countdown: number }) => {
-            console.log('Server countdown:', countdown);
-            setCountdown(countdown);
-            // Transition to countdown UI
-            setStatus('countdown');
-        });
-
-        // SERVER-CONTROLLED NUMBER CALLING
-        gameSocket.on('number_called', ({ number, history }: { number: number; history: number[] }) => {
-            try {
-                console.log('📢 [LIVE] Server called number:', number, 'History size:', history.length);
-                setCurrentNumber(number);
-                setCalledNumbers(new Set(history));
-
-                // CALL NUMBER WITH VOICE!
-                // Use ref to avoid stale closure in useEffect listener
-                if (!latestIsMuted.current) {
-                    voiceCaller.callNumber(number).catch(err => {
-                        console.error('Voice caller error (non-fatal):', err);
-                    });
-                }
-            } catch (err) {
-                console.error('Critical error in number_called listener:', err);
-            }
-        });
-
-        // SERVER GAME START
-        gameSocket.on('game_started', () => {
-            console.log('Server started game');
-
-            // PROMOTE PREVIEW CARDS TO ACTIVE CARDS
-            const currentPreview = previewCardsRef.current;
-            if (currentPreview.length > 0) {
-                console.log('Promoting preview cards to active:', currentPreview);
-                // myCards is now computed from selectedCards and previewCards
-            } else {
-                console.log('No cards selected - Spectator Mode');
-                // myCards will be empty array when selectedCards is empty
-            }
-
-            setStatus('playing');
-
-            // Announce start
-            if (!latestIsMuted.current) {
-                voiceCaller.announceGameStart();
-            }
-        });
-
-        // Invalid BINGO claim feedback - OPTIMIZED
-        gameSocket.on('invalid_claim', (data: any) => {
-            console.log('❌ INVALID CLAIM EVENT RECEIVED:', data);
-            setIsLoading(false); // Clear loading state immediately
-
-            if (status === 'ended') return;
-
-            // Only show toast once per BINGO attempt using ref (prevents spam)
-            if (!invalidToastShownRef.current) {
-                invalidToastShownRef.current = true;
-                const displayMsg = data?.message || '❌ No BINGO! Pattern not complete';
-                toast(displayMsg, {
-                    id: 'server-invalid-claim',
-                    duration: 3000,
-                    position: 'top-center',
-                    style: {
-                        background: '#ef4444',
-                        color: '#ffffff',
-                        fontWeight: 'bold',
-                        fontSize: '14px',
-                        padding: '8px 16px',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)',
-                        zIndex: 9999,
-                    },
-                });
-
-                // Reset flag after toast duration
-                setTimeout(() => {
-                    invalidToastShownRef.current = false;
-                }, 3000);
-            }
-        });
-
-        // No winner scenario
-        gameSocket.on('no_winner', () => {
-            console.log('No winner - all 75 numbers called');
-            setShowNoWinner(true);
-            setStatus('ended');
-        });
-
-        // Player rejoin - active game
-        gameSocket.on('rejoin_active', (data: any) => {
-            console.log('🔄 REJOIN_ACTIVE EVENT RECEIVED:', data);
-            console.log('Selected cards from server:', data.selectedCards);
-
-            if (data.selectedCards && Array.isArray(data.selectedCards) && data.selectedCards.length > 0) {
-                // CRITICAL: Regenerate cards first, then set both states
-                const restoredCards = data.selectedCards.map((cardId: number) => generateBingoCard(cardId));
-
-                console.log('✅ Preview cards regenerated:', restoredCards);
-                console.log('✅ Setting selectedCards:', data.selectedCards);
-
-                // Set both states to restore full card display
-                setPreviewCards(restoredCards);
-                setSelectedCards(data.selectedCards);
-
-                // Force update by setting refs
-                previewCardsRef.current = restoredCards;
-                selectedCardsRef.current = data.selectedCards;
-
-                console.log('✅ Cards fully restored - should be visible now!');
-            } else {
-                console.warn('⚠️ No cards to restore or empty array');
-            }
-
-            setWatchOnly(false);
-            console.log('✅ Active state restored');
-        });
-
-        // Mode conflict - player already in another mode
-        gameSocket.on('mode_conflict', (data: any) => {
-            console.log('🚫 MODE_CONFLICT EVENT RECEIVED:', data);
-            setModeConflict(data);
-        });
-
-        // Player rejoin - watch only
-        gameSocket.on('watch_only', (data: any) => {
-            console.log('👁️ WATCH_ONLY EVENT RECEIVED:', data);
-            setWatchOnly(true);
-            toast('👁️ ' + (data.message || 'Watching only'), {
-                duration: 4000,
-                position: 'top-center',
-                style: {
-                    background: '#6366F1',
-                    color: 'white',
-                },
-            });
-        });
-
-        gameSocket.on('game_state_changed', ({ state }: { state: GameStatus }) => {
-            console.log('Game state changed to:', state);
-            setStatus(state);
-        });
-
-        return () => {
-            console.log('🧹 Cleaning up socket listeners');
             gameSocket.off('card_selected');
             gameSocket.off('card_deselected');
             gameSocket.off('selection_state');
@@ -595,12 +297,121 @@ const GamePage: React.FC = () => {
             gameSocket.off('watch_only');
             gameSocket.off('mode_conflict');
         };
-    }, [gameId, status]);
 
+        cleanupListeners();
 
-    // CLIENT COUNTDOWN REMOVED - Server fully controls countdown, game start, and number calling.
-    // Client listens for 'countdown_tick', 'game_started', and 'number_called' events.
+        // 2. DEFINE LISTENERS (Register these BEFORE emitting join_game)
+        const handleConnect = () => {
+            console.log('✅ [SOCKET] Connected to server');
+            setConnectionStatus('connected');
+            _setReconnectAttempts(0);
+            setError(null);
 
+            const userId = user?.telegram_id ? user.telegram_id.toString() : `guest-${Date.now()}`;
+            const username = user?.username || 'Guest';
+
+            console.log('📡 [SOCKET] Sending join_game:', { gameId, userId, username });
+            gameSocket.emit('join_game', { gameId, userId, username });
+            gameSocket.emit('request_selection_state', { gameId });
+        };
+
+        // UI Update Listeners
+        gameSocket.on('joined_successfully', ({ gameId: joinedGameId }: { gameId: string }) => {
+            console.log('✅ [SUCCESS] Joined game:', joinedGameId, 'Moving to selection state');
+            setStatus('selection');
+        });
+
+        gameSocket.on('mode_conflict', (data: any) => {
+            console.log('🚫 [CONFLICT] MODE CONFLICT DETECTED:', data);
+            setModeConflict(data);
+        });
+
+        gameSocket.on('game_won', (data: any) => {
+            console.log('🏆 [WON] game_won received:', data);
+            setWinners(data.winners);
+            setStatus('ended');
+            setIsLoading(false);
+            if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
+            voiceCaller.stop();
+        });
+
+        gameSocket.on('game_state_changed', ({ state }: { state: GameStatus }) => {
+            console.log('🔄 [STATE] Changed to:', state);
+            setStatus(state);
+        });
+
+        gameSocket.on('countdown_tick', ({ countdown }: { countdown: number }) => {
+            setCountdown(countdown);
+            setStatus('countdown');
+        });
+
+        gameSocket.on('number_called', ({ number, history }: { number: number; history: number[] }) => {
+            setCurrentNumber(number);
+            setCalledNumbers(new Set(history));
+            if (!latestIsMuted.current) voiceCaller.callNumber(number).catch(() => { });
+        });
+
+        gameSocket.on('game_started', () => {
+            console.log('🎮 [START] Game transitioned to playing');
+            setStatus('playing');
+            if (!latestIsMuted.current) voiceCaller.announceGameStart();
+        });
+
+        gameSocket.on('rejoin_active', (data: any) => {
+            console.log('🔄 [REJOIN] Restoring state:', data);
+            if (data.selectedCards?.length > 0) {
+                const restoredCards = data.selectedCards.map((id: number) => generateBingoCard(id));
+                setPreviewCards(restoredCards);
+                setSelectedCards(data.selectedCards);
+                previewCardsRef.current = restoredCards;
+                selectedCardsRef.current = data.selectedCards;
+            }
+            setWatchOnly(false);
+            setStatus('playing');
+        });
+
+        gameSocket.on('watch_only', (data: any) => {
+            console.log('👁️ [WATCH] Mode activated');
+            setWatchOnly(true);
+        });
+
+        // Online multiplayer listeners
+        gameSocket.on('card_selected', (data: any) => {
+            setSelectedCardsByPlayer(prev => ({ ...prev, [data.cardId]: data.userId }));
+            setRealPlayerCount(data.playerCount);
+        });
+        gameSocket.on('card_deselected', (data: any) => {
+            setSelectedCardsByPlayer(prev => {
+                const next = { ...prev };
+                delete next[data.cardId];
+                return next;
+            });
+            setRealPlayerCount(data.playerCount);
+        });
+        gameSocket.on('selection_state', (data: any) => {
+            setSelectedCardsByPlayer(data.selectedCards);
+            setRealPlayerCount(data.playerCount);
+            if (data.status) setStatus(data.status);
+            if (data.countdown !== undefined) setCountdown(data.countdown);
+        });
+        gameSocket.on('error', (data: any) => {
+            console.error('❌ [SOCKET ERROR]:', data.message);
+            setError(data.message);
+        });
+
+        // 3. START CONNECTION
+        gameSocket.on('connect', handleConnect);
+        if (!gameSocket.connected && gameId) {
+            gameSocket.connect(gameId);
+        } else if (gameSocket.connected && gameId) {
+            handleConnect(); // Join immediately if already re-mounted while connected
+        }
+
+        return () => {
+            cleanupListeners();
+            gameSocket.off('connect', handleConnect);
+        };
+    }, [user, navigate, gameId]);
 
     const handleNextGame = async () => {
         console.log('Starting next round...');
@@ -625,13 +436,13 @@ const GamePage: React.FC = () => {
         setStatus('selecting');
         setCountdown(30);
 
-        // Use matchmaking to join/create game (ensures all players in same game)
+        // Use matchmaking to join/create game
         try {
             const response = await fetch(`${import.meta.env.VITE_API_URL}/game/create`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    mode: gameMode || 'and-zig',
+                    mode: gameMode || 'ande-zig',
                     entryFee: 10
                 })
             });
@@ -639,11 +450,9 @@ const GamePage: React.FC = () => {
             const data = await response.json();
             console.log('Joined/created game for round 2:', data.gameId);
 
-            // Update gameId in state (no navigation = no remount = no duplicate listeners)
             setCurrentGameId(data.gameId);
             window.history.replaceState(null, '', `/game/${data.gameId}`);
 
-            // Join the new game
             if (user?.id) {
                 gameSocket.emit('join_game', { gameId: data.gameId, userId: user.id });
                 gameSocket.emit('request_selection_state', { gameId: data.gameId });
@@ -655,11 +464,8 @@ const GamePage: React.FC = () => {
 
     const handleCellClick = (_cardId: number, num: number) => {
         if (highlightMode !== 'manual') return;
-
         setManuallyMarkedCells(prev => {
             const next = new Set(prev);
-
-            // For each card the player has, toggle the cell with this number
             selectedCards.forEach(selectedCardId => {
                 const cellKey = `${selectedCardId}-${num}`;
                 if (next.has(cellKey)) {
@@ -668,32 +474,22 @@ const GamePage: React.FC = () => {
                     next.add(cellKey);
                 }
             });
-
             return next;
         });
     };
 
     const handleSelectCard = (id: number) => {
         console.log(`🖱️ Card Clicked: ${id}`);
-
-        // Safety check
         if (!gameSocket?.connected) {
-            console.error('❌ Socket not connected in handleSelectCard');
             toast.error("Connecting... please wait", { id: 'conn-toast' });
             return;
         }
 
-        // BALANCE CHECK: Parse explicitly to number
         const mode = gameId?.split('-global-')[0] || 'ande-zig';
         const unitPrice = mode === 'ande-zig' ? 10 : mode === 'hulet-zig' ? 20 : 50;
-        const rawBalance = user?.balance;
-        const userBalance = Number(rawBalance || 0);
+        const userBalance = Number(user?.balance || 0);
 
-        console.log(`💰 Balance Check: User=${user?.username}, Balance=${userBalance}, Price=${unitPrice}, Mode=${mode}, Connected=${gameSocket.connected}`);
-
-        // Allow deselection regardless of balance
         if (selectedCards.includes(id)) {
-            console.log(`📉 Deselecting card ${id}`);
             setSelectedCards(prev => prev.filter(c => c !== id));
             setPreviewCards(prev => prev.filter(c => c.id !== id));
             const socketUserId = user?.telegram_id ? user.telegram_id.toString() : user?.id;
@@ -701,22 +497,16 @@ const GamePage: React.FC = () => {
             return;
         }
 
-        // Check balance for NEW selection
         if (userBalance < unitPrice) {
-            console.warn(`❌ Insufficient balance: ${userBalance} < ${unitPrice}`);
-            toast.error(`Need ${unitPrice} Birr to play! (Balance: ${userBalance})`, { id: 'bal-err' });
+            toast.error(`Need ${unitPrice} Birr to play!`, { id: 'bal-err' });
             return;
         }
 
-        // Limit to 2 cards
         if (selectedCards.length >= 2) {
-            console.warn(`❌ Max cards reached`);
             toast.error("Max 2 cards allowed", { id: 'max-cards' });
             return;
         }
 
-        // Select
-        console.log(`📈 Selecting card ${id}`);
         const newCard = generateBingoCard(id);
         setSelectedCards(prev => [...prev, id]);
         setPreviewCards(prev => [...prev, newCard]);
@@ -724,23 +514,9 @@ const GamePage: React.FC = () => {
         gameSocket.emit('select_card', { cardId: id, userId: socketUserId });
     };
 
-
     const handleClaimBingo = () => {
-        console.log('🎯 BINGO button clicked - running local validation');
-
         if (isLoading) return;
         setIsLoading(true);
-
-        // Safety timeout: Reset loading after 5 seconds if no response
-        const safetyTimeout = setTimeout(() => {
-            setIsLoading(prev => {
-                if (prev) {
-                    console.warn('⚠️ Bingo claim timed out locally');
-                    return false;
-                }
-                return false;
-            });
-        }, 5000);
 
         const currentCards = selectedCards.map(id =>
             previewCards.find(c => c.id === id) || generateBingoCard(id)
@@ -748,40 +524,26 @@ const GamePage: React.FC = () => {
 
         if (currentCards.length === 0 || !gameId || !user?.id) {
             setIsLoading(false);
-            clearTimeout(safetyTimeout);
             return;
         }
 
-        // Use unified validation logic from bingoLogic
         const winningCards = currentCards.filter(card => {
             const result = checkWinningPattern(card.numbers, calledNumbers, gameMode);
             return result.isWinner;
         });
 
         if (winningCards.length > 0) {
-            // Send claims ONLY for valid candidates
             winningCards.forEach(card => {
-                console.log(`🚀 Sending claim for potentially winning card: ${card.id}`);
                 gameSocket.emit('claim_bingo', {
                     cardId: card.id,
                     card: { id: card.id, numbers: card.numbers }
                 });
             });
         } else {
-            console.log('❌ Local validation failed for all cards');
             setIsLoading(false);
-            clearTimeout(safetyTimeout);
-
             if (!invalidToastShownRef.current) {
                 invalidToastShownRef.current = true;
-                toast("❌ Not yet! You need a Line or 4 Corners.", {
-                    id: 'local-invalid-claim',
-                    duration: 2000,
-                    style: {
-                        background: '#ef4444',
-                        color: 'white',
-                    }
-                });
+                toast("❌ Not yet!", { id: 'local-invalid-claim' });
                 setTimeout(() => invalidToastShownRef.current = false, 2000);
             }
         }
