@@ -100,6 +100,8 @@ export interface BotConfig {
         withdrawal: string[];
     };
     dailyCheckinEnabled?: boolean;
+    welcomeBonusEnabled?: boolean;
+    welcomeBonusAmount?: number;
 }
 
 export const PAYMENT_CONFIG_Values = {

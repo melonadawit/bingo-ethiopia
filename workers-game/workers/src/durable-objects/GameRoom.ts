@@ -323,6 +323,7 @@ export class GameRoom {
                     data: {
                         canPlay: true,
                         selectedCards: existingPlayer.selectedCards,
+                        drawnNumbers: this.gameState.calledNumbers,
                         message: 'Welcome back! Resuming your game.'
                     }
                 }));
@@ -693,7 +694,7 @@ export class GameRoom {
 
         this.broadcast({
             type: 'game_started',
-            data: {},
+            data: { history: this.gameState.calledNumbers },
         });
 
         // Generate shuffled numbers

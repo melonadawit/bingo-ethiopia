@@ -50,8 +50,9 @@ export default {
 
         // WebSocket for game rooms (CRITICAL)
         if (url.pathname.startsWith('/ws/game/')) {
-            const gameId = url.pathname.split('/').pop();
-            console.log(`[EDGE] WebSocket connection attempt for gameId: ${gameId}`);
+            const parts = url.pathname.split('/');
+            const gameId = parts[3]; // format is /ws/game/[gameId]/...
+            console.log(`[EDGE] WebSocket request for gameId: ${gameId}, path: ${url.pathname}`);
 
             if (!gameId) {
                 console.error('[EDGE] Missing gameId in WebSocket URL');

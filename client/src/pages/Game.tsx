@@ -10,6 +10,7 @@ import { voiceCaller } from '../services/voiceCaller';
 import { WinnerAnnouncement } from '../components/game/WinnerAnnouncement';
 import { NoWinnerAnnouncement } from '../components/game/NoWinnerAnnouncement';
 import { ConnectionStatus } from '../components/ui/ConnectionStatus';
+import { checkWinningPattern } from '../utils/bingoLogic';
 import type { GameMode } from '../utils/bingoLogic';
 import toast from 'react-hot-toast';
 
@@ -101,7 +102,13 @@ const MasterBoard = ({ calledNumbers, lastCalled }: { calledNumbers: Set<number>
     );
 };
 
-const PlayingCard = ({ card, calledNumbers }: { card: BingoCard, calledNumbers: Set<number> }) => {
+const PlayingCard = ({ card, calledNumbers, highlightMode, manuallyMarkedCells, onCellClick }: {
+    card: BingoCard,
+    calledNumbers: Set<number>,
+    highlightMode: 'auto' | 'manual',
+    manuallyMarkedCells: Set<string>,
+    onCellClick: (cardId: number, num: number) => void
+}) => {
     return (
         <div className="bg-gradient-to-br from-indigo-900/90 to-blue-900/80 rounded-2xl p-2 border border-indigo-500/30 h-full flex flex-col shadow-2xl">
             <div className="bg-gradient-to-r from-yellow-600 to-orange-600 rounded-xl py-1 px-3 mb-2 text-center shrink-0">
@@ -125,18 +132,27 @@ const PlayingCard = ({ card, calledNumbers }: { card: BingoCard, calledNumbers: 
                         {row.map((num, c) => {
                             const isCenter = r === 2 && c === 2;
                             const isCalled = num !== 0 && calledNumbers.has(num);
+                            const cellKey = `${card.id}-${num}`;
+                            const isManuallyMarked = manuallyMarkedCells.has(cellKey);
+                            const isHighlighted = highlightMode === 'auto' ? isCalled : isManuallyMarked;
 
                             return (
                                 <button
                                     key={`${r}-${c}`}
-                                    disabled={isCenter || !isCalled}
+                                    disabled={isCenter}
+                                    onClick={() => {
+                                        if (highlightMode === 'manual' && isCalled && !isCenter) {
+                                            onCellClick(card.id, num);
+                                        }
+                                    }}
                                     className={cn(
                                         "aspect-square flex items-center justify-center rounded-lg text-sm font-bold transition-all",
                                         isCenter
                                             ? "bg-emerald-500 text-white text-xl"
-                                            : isCalled
+                                            : isHighlighted
                                                 ? "bg-purple-600 text-white"
-                                                : "bg-white text-slate-900"
+                                                : "bg-white text-slate-900",
+                                        highlightMode === 'manual' && isCalled && !isCenter && "cursor-pointer hover:bg-purple-300"
                                     )}
                                 >
                                     {isCenter ? '★' : num}
@@ -218,10 +234,12 @@ const GamePage: React.FC = () => {
     const [_selectedCardsByPlayer, setSelectedCardsByPlayer] = useState<Record<number, string>>({});  // cardId -> userId
     const [realPlayerCount, setRealPlayerCount] = useState(0); // Real-time player count from server (USED in UI)
     const [_isSpectator, _setIsSpectator] = useState(false); // True if joined after game started
+    const [highlightMode, setHighlightMode] = useState<'auto' | 'manual'>('auto');
+    const [manuallyMarkedCells, setManuallyMarkedCells] = useState<Set<string>>(new Set());
 
-    // Get game mode from URL or default to 'and-zig'
+    // Get game mode from URL or default to 'ande-zig'
     const [searchParams] = useSearchParams();
-    const gameMode = (searchParams.get('mode') as GameMode) || 'and-zig';
+    const gameMode = (searchParams.get('mode') as GameMode) || 'ande-zig';
 
     // Mock initial data - 300 cards
     const availableCards = useMemo(() => Array.from({ length: 300 }, (_, i) => i + 1), []);
@@ -341,11 +359,16 @@ const GamePage: React.FC = () => {
     // Listen for all game events
     useEffect(() => {
         gameSocket.on('game_won', (data: any) => {
-            console.log('Game Won!', data);
+            console.log('🏆 GAME_WON EVENT RECEIVED:', data);
             setWinners(data.winners);
             setStatus('ended');
+            setIsLoading(false); // Reset BINGO loading state
+
+            console.log('✅ Status set to "ended", winners updated:', data.winners.length);
+
             // Clear any game intervals immediately
             if (gameIntervalRef.current) {
+                console.log('🛑 Clearing local game interval');
                 clearInterval(gameIntervalRef.current);
                 gameIntervalRef.current = null;
             }
@@ -363,11 +386,10 @@ const GamePage: React.FC = () => {
             setCalledNumbers(new Set());
             setPreviewCards([]);
             setSelectedCards([]); // Clear selected cards for new game
-            setCalledNumbers(new Set());
             setCurrentNumber(null);
             setCountdown((data as any).countdown || 30);
-            setWinners([]);
             setSelectedCardsByPlayer({});
+            setIsLoading(false); // Ensure loading is reset on new game
         });
 
         // Real-time card selection events
@@ -438,7 +460,6 @@ const GamePage: React.FC = () => {
         });
 
         // SERVER GAME START
-        // SERVER GAME START
         gameSocket.on('game_started', () => {
             console.log('Server started game');
 
@@ -470,7 +491,8 @@ const GamePage: React.FC = () => {
             // Only show toast once per BINGO attempt using ref (prevents spam)
             if (!invalidToastShownRef.current) {
                 invalidToastShownRef.current = true;
-                toast('❌ No BINGO! Pattern not complete', {
+                const displayMsg = data?.message || '❌ No BINGO! Pattern not complete';
+                toast(displayMsg, {
                     id: 'server-invalid-claim',
                     duration: 3000,
                     position: 'top-center',
@@ -526,22 +548,18 @@ const GamePage: React.FC = () => {
             }
 
             setWatchOnly(false);
-            setWatchOnly(false);
             console.log('✅ Active state restored');
         });
 
         // Mode conflict - player already in another mode
         gameSocket.on('mode_conflict', (data: any) => {
             console.log('🚫 MODE_CONFLICT EVENT RECEIVED (Ignored to allow switch):', data);
-            // We ignore this now to allow players to switch games freely
-            // The server state will be overwritten by the new join
         });
 
         // Player rejoin - watch only
         gameSocket.on('watch_only', (data: any) => {
             console.log('👁️ WATCH_ONLY EVENT RECEIVED:', data);
             setWatchOnly(true);
-            console.log('Watch only mode enabled:', watchOnly); // Use watchOnly variable
             toast('👁️ ' + (data.message || 'Watching only'), {
                 duration: 4000,
                 position: 'top-center',
@@ -575,7 +593,8 @@ const GamePage: React.FC = () => {
             gameSocket.off('watch_only');
             gameSocket.off('mode_conflict');
         };
-    }, [gameId]);
+    }, [gameId, status]);
+
 
     // CLIENT COUNTDOWN REMOVED - Server fully controls countdown, game start, and number calling.
     // Client listens for 'countdown_tick', 'game_started', and 'number_called' events.
@@ -632,6 +651,26 @@ const GamePage: React.FC = () => {
         }
     };
 
+    const handleCellClick = (_cardId: number, num: number) => {
+        if (highlightMode !== 'manual') return;
+
+        setManuallyMarkedCells(prev => {
+            const next = new Set(prev);
+
+            // For each card the player has, toggle the cell with this number
+            selectedCards.forEach(selectedCardId => {
+                const cellKey = `${selectedCardId}-${num}`;
+                if (next.has(cellKey)) {
+                    next.delete(cellKey);
+                } else {
+                    next.add(cellKey);
+                }
+            });
+
+            return next;
+        });
+    };
+
     const handleSelectCard = (id: number) => {
         console.log(`🖱️ Card Clicked: ${id}`);
 
@@ -683,59 +722,23 @@ const GamePage: React.FC = () => {
         gameSocket.emit('select_card', { cardId: id, userId: socketUserId });
     };
 
-    const checkCardHasWinPotential = (card: BingoCard, called: Set<number>) => {
-        const grid = card.numbers;
-        const size = 5;
-
-        // Helper to check if a cell is marked
-        const isMarked = (r: number, c: number) => {
-            if (r === 2 && c === 2) return true; // Free space
-            return called.has(grid[r][c]);
-        };
-
-        // Check Rows
-        for (let r = 0; r < size; r++) {
-            let rowFull = true;
-            for (let c = 0; c < size; c++) {
-                if (!isMarked(r, c)) { rowFull = false; break; }
-            }
-            if (rowFull) return true;
-        }
-
-        // Check Columns
-        for (let c = 0; c < size; c++) {
-            let colFull = true;
-            for (let r = 0; r < size; r++) {
-                if (!isMarked(r, c)) { colFull = false; break; }
-            }
-            if (colFull) return true;
-        }
-
-        // Check Main Diagonal
-        let mainDiagFull = true;
-        for (let i = 0; i < size; i++) {
-            if (!isMarked(i, i)) { mainDiagFull = false; break; }
-        }
-        if (mainDiagFull) return true;
-
-        // Check Anti Diagonal
-        let antiDiagFull = true;
-        for (let i = 0; i < size; i++) {
-            if (!isMarked(i, size - 1 - i)) { antiDiagFull = false; break; }
-        }
-        if (antiDiagFull) return true;
-
-        // Check 4 Corners
-        if (isMarked(0, 0) && isMarked(0, 4) && isMarked(4, 0) && isMarked(4, 4)) {
-            return true;
-        }
-
-        return false;
-    };
 
     const handleClaimBingo = () => {
         console.log('🎯 BINGO button clicked - running local validation');
+
+        if (isLoading) return;
         setIsLoading(true);
+
+        // Safety timeout: Reset loading after 5 seconds if no response
+        const safetyTimeout = setTimeout(() => {
+            setIsLoading(prev => {
+                if (prev) {
+                    console.warn('⚠️ Bingo claim timed out locally');
+                    return false;
+                }
+                return false;
+            });
+        }, 5000);
 
         const currentCards = selectedCards.map(id =>
             previewCards.find(c => c.id === id) || generateBingoCard(id)
@@ -743,17 +746,19 @@ const GamePage: React.FC = () => {
 
         if (currentCards.length === 0 || !gameId || !user?.id) {
             setIsLoading(false);
+            clearTimeout(safetyTimeout);
             return;
         }
 
-        // Strict Local Filter: Only consider cards that have at least one Line or 4 Corners
-        const potentialWinningCards = currentCards.filter(card =>
-            checkCardHasWinPotential(card, calledNumbers)
-        );
+        // Use unified validation logic from bingoLogic
+        const winningCards = currentCards.filter(card => {
+            const result = checkWinningPattern(card.numbers, calledNumbers, gameMode);
+            return result.isWinner;
+        });
 
-        if (potentialWinningCards.length > 0) {
+        if (winningCards.length > 0) {
             // Send claims ONLY for valid candidates
-            potentialWinningCards.forEach(card => {
+            winningCards.forEach(card => {
                 console.log(`🚀 Sending claim for potentially winning card: ${card.id}`);
                 gameSocket.emit('claim_bingo', {
                     cardId: card.id,
@@ -761,9 +766,9 @@ const GamePage: React.FC = () => {
                 });
             });
         } else {
-            // Instant feedback if NO cards are valid locally
             console.log('❌ Local validation failed for all cards');
             setIsLoading(false);
+            clearTimeout(safetyTimeout);
 
             if (!invalidToastShownRef.current) {
                 invalidToastShownRef.current = true;
@@ -906,8 +911,37 @@ const GamePage: React.FC = () => {
             {/* Main Game Area */}
             <div className="flex-1 overflow-hidden flex relative gap-0.5">
                 {/* Left Panel: Master Board - 50% */}
-                <div className="w-1/2 h-full p-0.5 bg-[#1a1b2e] shrink-0">
+                <div className="w-1/2 h-full p-0.5 bg-[#1a1b2e] shrink-0 relative">
                     <MasterBoard calledNumbers={calledNumbers} lastCalled={currentNumber} />
+
+                    {/* Highlighting Mode Toggle - FLOATING ABSOLUTE POSITION (LEFT SIDE) */}
+                    <div className="absolute bottom-0 left-1 z-50 pointer-events-none">
+                        <div className="flex items-center gap-1 bg-slate-900/95 backdrop-blur-sm rounded-t-lg px-2 py-1 border border-slate-700 border-b-0 pointer-events-auto">
+                            <span className="text-[10px] text-slate-400 font-medium">Highlight:</span>
+                            <button
+                                onClick={() => setHighlightMode('auto')}
+                                className={cn(
+                                    "px-2 py-0.5 rounded text-[10px] font-bold transition-all",
+                                    highlightMode === 'auto'
+                                        ? "bg-green-600 text-white shadow-lg"
+                                        : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                                )}
+                            >
+                                Auto
+                            </button>
+                            <button
+                                onClick={() => setHighlightMode('manual')}
+                                className={cn(
+                                    "px-2 py-0.5 rounded text-[10px] font-bold transition-all",
+                                    highlightMode === 'manual'
+                                        ? "bg-blue-600 text-white shadow-lg"
+                                        : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                                )}
+                            >
+                                Manual
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Right Panel: Play Area - 50% */}
@@ -1003,6 +1037,9 @@ const GamePage: React.FC = () => {
                                         <PlayingCard
                                             card={card}
                                             calledNumbers={calledNumbers}
+                                            highlightMode={highlightMode}
+                                            manuallyMarkedCells={manuallyMarkedCells}
+                                            onCellClick={handleCellClick}
                                         />
                                     </div>
                                 ))}
@@ -1041,7 +1078,7 @@ const GamePage: React.FC = () => {
                 <Button
                     className="w-full h-full text-2xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-black shadow-[0_0_20px_rgba(251,191,36,0.5)] animate-pulse border-none"
                     onClick={handleClaimBingo}
-                    disabled={status !== 'playing' || isLoading}
+                    disabled={status !== 'playing' || isLoading || watchOnly}
                 >
                     BINGO!
                 </Button>

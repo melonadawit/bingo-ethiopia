@@ -3,7 +3,7 @@
  * handles winning pattern verification for Ethiopian Bingo modes
  */
 
-export type GameMode = 'and-zig' | 'hulet-zig' | 'mulu-zig';
+export type GameMode = 'ande-zig' | 'hulet-zig' | 'mulu-zig';
 
 interface WinningResult {
     isWinner: boolean;
@@ -16,7 +16,7 @@ interface WinningResult {
 export const checkWinningPattern = (
     card: number[][],
     calledNumbers: Set<number>,
-    gameMode: string // 'and-zig' | 'hulet-zig' | 'mulu-zig'
+    gameMode: string // 'ande-zig' | 'hulet-zig' | 'mulu-zig'
 ): WinningResult => {
     // 1. Mark the grid
     const marked = card.map((row, rowIndex) =>
@@ -67,7 +67,7 @@ export const checkWinningPattern = (
     }
 
     // --- CHECK 4 CORNERS ---
-    // 4 Corners counts as a "line" equivalent for And-zig/Hulet-zig logic
+    // 4 Corners counts as a "line" equivalent for Ande-zig/Hulet-zig logic
     // Coordinates: (0,0), (0,4), (4,0), (4,4)
     const corners = [[0, 0], [0, 4], [4, 0], [4, 4]];
     const hasClusters = corners.every(([r, c]) => marked[r][c]);
@@ -82,7 +82,7 @@ export const checkWinningPattern = (
     let isWinner = false;
 
     switch (gameMode) {
-        case 'and-zig':
+        case 'ande-zig':
             // Criteria: 1 Line OR 4 Corners
             // Since we counted corners as a line above, simple check:
             isWinner = completedLinesCount >= 1;

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { fetchAdmin } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -33,11 +34,12 @@ export default function UsersPage() {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const queryClient = useQueryClient();
+    const router = useRouter();
 
     const actionMutation = useMutation({
         mutationFn: async ({ id, isBlocked }: { id: string, isBlocked: boolean }) => {
             return fetchAdmin(`/users/${id}/status`, {
-                method: 'POST',
+                method: 'PATCH',
                 body: JSON.stringify({ is_blocked: isBlocked })
             });
         },
@@ -215,14 +217,18 @@ export default function UsersPage() {
                                                     </Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end" className="bg-black border-white/10">
-                                                    <DropdownMenuItem onClick={() => actionMutation.mutate({ id: user.id, isBlocked: !user.is_blocked })}>
+                                                    <DropdownMenuItem onClick={() => {
+                                                        if (confirm(`Are you sure you want to ${user.is_blocked ? 'unban' : 'ban'} this user?`)) {
+                                                            actionMutation.mutate({ id: user.id, isBlocked: !user.is_blocked });
+                                                        }
+                                                    }}>
                                                         {user.is_blocked ? (
                                                             <><CheckCircle className="w-4 h-4 mr-2 text-green-500" /> Unban User</>
                                                         ) : (
                                                             <><Ban className="w-4 h-4 mr-2 text-red-500" /> Ban User</>
                                                         )}
                                                     </DropdownMenuItem>
-                                                    <DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => router.push(`/users/profile/?id=${user.id}`)}>
                                                         <Search className="w-4 h-4 mr-2" /> View Full Profile
                                                     </DropdownMenuItem>
                                                 </DropdownMenuContent>

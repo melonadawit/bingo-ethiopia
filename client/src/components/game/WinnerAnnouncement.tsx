@@ -18,15 +18,27 @@ interface WinnerAnnouncementProps {
     winners: Winner[];
     calledNumbers: number[];
     onNextGame: () => void;
+    externalCountdown?: number;
 }
 
 export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
     winners,
     calledNumbers,
-    onNextGame
+    onNextGame,
+    externalCountdown
 }) => {
-    const [countdown, setCountdown] = useState(10);
+    const [countdown, setCountdown] = useState(externalCountdown || 10);
     const [showConfetti, setShowConfetti] = useState(true);
+
+    // Sync with external countdown if provided
+    useEffect(() => {
+        if (externalCountdown !== undefined) {
+            setCountdown(externalCountdown);
+            if (externalCountdown <= 0) {
+                onNextGame();
+            }
+        }
+    }, [externalCountdown, onNextGame]);
 
     useEffect(() => {
         const announceWinners = async () => {
@@ -40,6 +52,7 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
             setCountdown(prev => {
                 if (prev <= 1) {
                     clearInterval(timer);
+                    onNextGame(); // Trigger next game immediately when countdown ends
                     return 0;
                 }
                 return prev - 1;
@@ -94,7 +107,7 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
 
                 {/* Subtitle */}
                 <div className="flex flex-col items-center gap-1 text-white font-bold text-xl mb-6 text-center">
-                    <div>🎉 {winners.length > 1 ? `${winners.length} WINNERS!` : `${winners[0].name || 'One'} WON!`} 🎉</div>
+                    <div>🎉 {winners.length > 1 ? `${winners.length} WINNERS!` : `${winners[0].name || winners[0].userId} WON!`} 🎉</div>
                     {winners.length > 1 && (
                         <div className="text-sm text-amber-300 bg-amber-900/40 px-3 py-1 rounded-full border border-amber-500/30">
                             Prize Pot Split Equally
@@ -151,16 +164,16 @@ export const WinnerAnnouncement: React.FC<WinnerAnnouncementProps> = ({
                                                         className={`
                                                             h-7 rounded-md flex items-center justify-center text-sm font-bold shadow-sm transition-all
                                                             ${isFree
-                                                                ? 'bg-[#1ed6e3] text-black border-[#0fbcc7] shadow-[0_0_15px_#1ed6e3] z-10' // Free star -> CYAN (Requested)
+                                                                ? 'bg-[#1656AD] text-white border-[#0d3d7a] shadow-[0_0_15px_#1656AD]' // Free star -> BLUE (matches winning pattern)
                                                                 : isWinningCell
-                                                                    ? 'bg-[#1ed6e3] text-black border-[#0fbcc7] shadow-[0_0_20px_#1ed6e3] z-10 scale-110 font-black' // Winning cells -> CYAN
+                                                                    ? 'bg-[#1656AD] text-white border-[#0d3d7a] shadow-[0_0_20px_#1656AD] font-black' // Winning cells -> BLUE (removed scale-110)
                                                                     : isCalled
-                                                                        ? 'bg-[#ed85f2] text-white border-[#d946e0]' // Matches -> Pink
+                                                                        ? 'bg-[#F4A460] text-white border-[#d4844a]' // Called numbers -> SANDY BROWN
                                                                         : 'bg-white text-slate-900 border-white/10' // Unmatched White
                                                             }
                                                         `}
                                                     >
-                                                        {isFree ? <Sparkles size={14} className="text-black" /> : num}
+                                                        {isFree ? <Sparkles size={14} className="text-white" /> : num}
                                                     </div>
                                                 );
                                             })}

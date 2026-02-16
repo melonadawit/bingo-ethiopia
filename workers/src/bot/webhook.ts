@@ -231,6 +231,11 @@ async function handleCommand(chatId: number, userId: number, text: string, usern
             await handleBalance(chatId, userId, env, supabase);
             break;
 
+        case '/leaderboard':
+        case '📊 Leaderboard':
+            await handleLeaderboard(chatId, userId, 'weekly', env, supabase, config);
+            break;
+
         case '/deposit':
         case '💳 Deposit':
             {
@@ -777,6 +782,11 @@ async function handleCallbackQuery(callbackQuery: any, env: Env, supabase: any, 
                     await supabase.from('users').update({ last_name: null }).eq('telegram_id', userId);
                 }
             }
+            break;
+
+        case 'lb': // Leaderboard pagination/period
+            const lbPeriod = params[0] as any;
+            await handleLeaderboard(chatId, userId, lbPeriod, env, supabase, config, true);
             break;
 
         default:
@@ -1411,6 +1421,8 @@ async function handleContactShare(message: any, env: Env, supabase: any, config:
     }
 
     // Upsert user with is_registered = true
+    const welcomeBonus = config.welcomeBonusEnabled ? (config.welcomeBonusAmount || 0) : 0;
+
     const { error: upsertError } = await supabase
         .from('users')
         .upsert({
@@ -1418,7 +1430,7 @@ async function handleContactShare(message: any, env: Env, supabase: any, config:
             username: message.from.username || contact.first_name,
             phone_number: contact.phone_number,
             first_name: contact.first_name,
-            balance: existingUser?.balance || config.referral.referredReward,
+            balance: existingUser?.balance || welcomeBonus,
             referral_code: refCode,
             is_registered: true,
             updated_at: new Date().toISOString(),
@@ -1445,10 +1457,11 @@ async function handleContactShare(message: any, env: Env, supabase: any, config:
     }
 
     const successMsg = config.botFlows?.onboarding?.registration_success || '✅ <b>Registration Complete!</b>';
+
     await sendMessage(
         chatId,
         `${successMsg}\n\n` +
-        `💰 Welcome bonus: ${config.referral.referredReward} Birr\n` +
+        (welcomeBonus > 0 ? `💰 Welcome bonus: ${welcomeBonus} Birr\n` : '') +
         `🎁 Your referral code: <code>${refCode}</code>\n\n` +
         `Use the menu below to get started!`,
         env,
@@ -1508,4 +1521,63 @@ async function applyReferralRewards(userId: number, referrerId: number, env: Env
         `You earned ${config.referral.referrerReward} Birr! 💰`,
         env
     );
+}
+
+async function handleLeaderboard(chatId: number, userId: number, period: 'daily' | 'weekly' | 'monthly' | 'yearly' = 'weekly', env: Env, supabase: any, config: any, isEdit: boolean = false) {
+    console.log(`Fetching ${period} leaderboard...`);
+
+    // Fetch top 10 from leaderboard_entries using ACTUAL column names (matches the view)
+    const { data: entries, error } = await supabase
+        .from('leaderboard_entries')
+        .select(`
+            rank,
+            wins,
+            earnings,
+            gamesPlayed,
+            username
+        `)
+        .eq('period', period)
+        .order('rank', { ascending: true })
+        .limit(10);
+
+    if (error) {
+        console.error('Leaderboard fetch error:', error);
+        await sendMessage(chatId, '❌ Failed to fetch leaderboard.', env);
+        return;
+    }
+
+    const title = {
+        daily: '📅 Daily Champions',
+        weekly: '📅 Weekly Champions',
+        monthly: '📅 Monthly Champions',
+        yearly: '👑 Yearly Legends'
+    }[period];
+
+    let message = `🏆 <b>${title}</b>\n`;
+    message += `<i>Ranked by total games played</i>\n\n`;
+
+    if (!entries || entries.length === 0) {
+        message += `<i>No rankings yet for this period. Be the first!</i>`;
+    } else {
+        entries.forEach((entry: any, index: number) => {
+            const medal = index === 0 ? '🥇 ' : index === 1 ? '🥈 ' : index === 2 ? '🥉 ' : `#${index + 1} `;
+            const name = entry.username ? (entry.username.startsWith('@') ? entry.username : `@${entry.username}`) : 'Anonymous';
+            message += `${medal}<b>${name}</b>\n   🔥 ${entry.gamesPlayed} games • ${entry.wins} wins\n\n`;
+        });
+    }
+
+    const keyboard = {
+        inline_keyboard: [
+            [
+                { text: period === 'daily' ? '• Daily •' : 'Daily', callback_data: 'lb:daily' },
+                { text: period === 'weekly' ? '• Weekly •' : 'Weekly', callback_data: 'lb:weekly' }
+            ],
+            [
+                { text: period === 'monthly' ? '• Monthly •' : 'Monthly', callback_data: 'lb:monthly' },
+                { text: period === 'yearly' ? '• Yearly •' : 'Yearly', callback_data: 'lb:yearly' }
+            ]
+        ]
+    };
+
+    await sendMessage(chatId, message, env, keyboard);
 }

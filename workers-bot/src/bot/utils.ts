@@ -104,10 +104,11 @@ export function getMainKeyboard(userId?: number, config?: any) {
 
     // Default if no config provided
     const defaultButtons = [
-        [{ text: '🎮', web_app: { url: webAppUrl } }],
-        [{ text: '💰 Balance' }, { text: '💳 Deposit' }],
-        [{ text: '💸 Withdraw' }, { text: '🎁 Referral' }],
-        [{ text: '🎁 Daily Bonus' }, { text: '📞 Support' }]
+        [{ text: '🎮 Play Now', web_app: { url: webAppUrl } }],
+        [{ text: '💰 Balance' }, { text: '📊 Leaderboard' }],
+        [{ text: '💳 Deposit' }, { text: '💸 Withdraw' }],
+        [{ text: '🎁 Referral' }, { text: '🎁 Daily Bonus' }],
+        [{ text: '📞 Support' }]
     ];
 
     if (!config?.botMenuButtons || config.botMenuButtons.length === 0) {

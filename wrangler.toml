@@ -13,12 +13,12 @@ SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
 [[durable_objects.bindings]]
 name = "GAME_ROOM"
 class_name = "GameRoom"
-script_name = "bingo-api-worker"
+script_name = "bingo-game-worker"
 
 [[durable_objects.bindings]]
 name = "PLAYER_TRACKER"
 class_name = "PlayerTracker"
-script_name = "bingo-api-worker"
+script_name = "bingo-game-worker"
 
 [ai]
 binding = "AI"
@@ -36,12 +36,12 @@ SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
 [[env.production.durable_objects.bindings]]
 name = "GAME_ROOM"
 class_name = "GameRoom"
-script_name = "bingo-api-worker"
+script_name = "bingo-game-worker"
 
 [[env.production.durable_objects.bindings]]
 name = "PLAYER_TRACKER"
 class_name = "PlayerTracker"
-script_name = "bingo-api-worker"
+script_name = "bingo-game-worker"
 
 [env.production.ai]
 binding = "AI"
