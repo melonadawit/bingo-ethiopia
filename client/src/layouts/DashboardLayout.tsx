@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, Wallet, History, Settings, ChevronRight, ChevronLeft, Trophy, Calendar, Gift, Flame, Plus, Minus } from 'lucide-react';
+import { Home, Wallet, History, Settings, ChevronRight, ChevronLeft, Trophy, Calendar, Gift, Plus, Minus } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../utils/cn';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -20,7 +20,6 @@ export default function Layout() {
         { icon: Trophy, label: 'Tournaments', path: '/tournaments', badge: 'Live' },
         { icon: Calendar, label: 'Events', path: '/events' },
         { icon: Gift, label: 'Referral', path: '/referral' },
-        { icon: Flame, label: 'Daily Bonus', path: '/daily-bonus' },
         { icon: Trophy, label: 'Leaderboard', path: '/leaderboard' },
         { icon: Wallet, label: 'Wallet', path: '/wallet' },
         { icon: History, label: 'History', path: '/history' },
@@ -172,7 +171,7 @@ export default function Layout() {
                                         BINGO ETHIOPIA
                                     </span>
                                 </h1>
-                                <p className="text-[10px] text-slate-500 font-medium tracking-widest mt-0.5 opacity-60">OFFICIAL V3.2</p>
+                                <p className="text-[10px] text-slate-500 font-medium tracking-widest mt-0.5 opacity-60">OFFICIAL V3.5</p>
                             </div>
                         </motion.aside>
                     )}

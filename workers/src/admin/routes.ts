@@ -1143,6 +1143,68 @@ export async function handleAdminRequest(request: Request, env: Env): Promise<Re
             return jsonResponse({ success: true });
         }
 
+        // --- USER DETAILS ---
+        const userMatch = path.match(/^\/users\/([^\/]+)(?:\/status)?\/?$/);
+        if (userMatch) {
+            const userId = userMatch[1];
+            const supabase = getSupabase(env);
+
+            if (request.method === 'GET') {
+                // Fetch user
+                const { data: user, error: uError } = await supabase!
+                    .from('users')
+                    .select('*')
+                    .eq('id', userId)
+                    .single();
+
+                if (uError || !user) return jsonResponse({ error: 'User not found' }, 404);
+
+                // Fetch recent transactions
+                const { data: transactions } = await supabase!
+                    .from('transactions')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .order('created_at', { ascending: false })
+                    .limit(20);
+
+                // Fetch game stats
+                const { data: gameStats } = await supabase!
+                    .from('game_transactions')
+                    .select('amount, type')
+                    .eq('user_id', user.telegram_id); // Game transactions use telegram_id
+
+                const totalBets = gameStats?.filter(s => s.type === 'bet').reduce((acc, s) => acc + Number(s.amount), 0) || 0;
+                const totalWins = gameStats?.filter(s => s.type === 'win').reduce((acc, s) => acc + Number(s.amount), 0) || 0;
+
+                return jsonResponse({
+                    ...user,
+                    transactions: transactions || [],
+                    stats: {
+                        totalBets,
+                        totalWins,
+                        totalProfit: totalWins - totalBets
+                    }
+                });
+            }
+
+            if (request.method === 'PATCH') {
+                const body = await request.json() as any;
+                const statusPathMatch = path.match(/\/status\/?$/);
+
+                if (statusPathMatch) {
+                    const { data, error } = await supabase!
+                        .from('users')
+                        .update({ is_blocked: body.is_blocked })
+                        .eq('id', userId)
+                        .select()
+                        .single();
+
+                    if (error) return jsonResponse({ error: error.message }, 500);
+                    return jsonResponse(data);
+                }
+            }
+        }
+
         // Fallback for unmatched routes
         return jsonResponse({ error: 'Not Found' }, 404);
     } catch (e: any) {

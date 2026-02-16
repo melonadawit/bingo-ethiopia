@@ -1,6 +1,5 @@
 import type { Env } from '../types';
 import { getSupabase } from '../utils';
-import { createRedisClient, scheduleEvent, GameEvent } from '../utils/redis';
 import { BotConfigService } from '../bot/configService';
 
 interface Player {
@@ -34,22 +33,23 @@ export class GameRoom {
         countdown: number;
         winners: any[];
         startTime: number | null;
-        pendingClaims: Map<string, { cardId: number; card: BingoCard; claimTime: number }>; // Track simultaneous claims
+        pendingClaims: Map<string, { cardId: number; card: BingoCard; claimTime: number }>;
     };
     countdownInterval: any;
     gameInterval: any;
-    countdownStartTimeout: any; // Track the fast-start timeout
+    countdownStartTimeout: any;
 
     constructor(state: DurableObjectState, env: Env) {
         this.state = state;
         this.env = env;
         this.sessions = new Map();
+        console.log("[VERSION] Workers-Game-DO v1.2 Active - Shared Logic");
         this.gameState = {
             gameId: '',
             mode: 'ande-zig',
             status: 'waiting',
             players: new Map(),
-            selectedCards: new Map(), // Changed from new Set() to Map per earlier observation
+            selectedCards: new Map(),
             calledNumbers: [],
             currentNumber: null,
             countdown: 30,
@@ -57,132 +57,146 @@ export class GameRoom {
             startTime: null,
             pendingClaims: new Map(),
         };
-
-        // Don't start the loop automatically - wait for players to join
+        this.state.blockConcurrencyWhile(async () => {
+            await this.initialize();
+        });
     }
 
-    // ... (rest of methods)
+    private async initialize() {
+        const storedState = await this.state.storage.get<{
+            gameId: string;
+            mode: GameMode;
+            status: GameStatus;
+            calledNumbers: number[];
+            startTime: number | null;
+        }>('room_state');
 
-    startPerpetualLoop() {
-        // CLEAR EVERYTHING FIRST
-        if (this.gameInterval) {
-            clearInterval(this.gameInterval);
-            this.gameInterval = null;
-        }
-        if (this.countdownInterval) {
-            clearInterval(this.countdownInterval);
-            this.countdownInterval = null;
-        }
-        if (this.countdownStartTimeout) {
-            clearTimeout(this.countdownStartTimeout);
-            this.countdownStartTimeout = null;
-        }
+        if (storedState) {
+            this.gameState.gameId = storedState.gameId;
+            this.gameState.mode = storedState.mode;
+            this.gameState.status = storedState.status;
+            this.gameState.calledNumbers = storedState.calledNumbers;
+            this.gameState.startTime = storedState.startTime;
 
-        // Set status and countdown directly
+            const playersMap = await this.state.storage.list<Omit<Player, 'connection'>>({ prefix: 'p:' });
+            for (const [key, p] of playersMap) {
+                const userId = key.split(':')[1];
+                this.gameState.players.set(userId, {
+                    ...p,
+                    connection: null as any,
+                });
+                for (const cardId of p.selectedCards) {
+                    this.gameState.selectedCards.set(cardId, p.userId);
+                }
+            }
+            console.log(`[INIT] Restored room ${this.gameState.gameId} with ${this.gameState.players.size} players.`);
+        }
+    }
+
+    private async saveState() {
+        await this.state.storage.put('room_state', {
+            gameId: this.gameState.gameId,
+            mode: this.gameState.mode,
+            status: this.gameState.status,
+            calledNumbers: this.gameState.calledNumbers,
+            startTime: this.gameState.startTime,
+        });
+    }
+
+    private async savePlayer(userId: string) {
+        const p = this.gameState.players.get(userId);
+        if (p) {
+            const { connection, ...persistable } = p;
+            await this.state.storage.put(`p:${userId}`, persistable);
+        }
+    }
+
+    async startPerpetualLoop() {
+        if (this.gameInterval) clearInterval(this.gameInterval);
+        if (this.countdownInterval) clearInterval(this.countdownInterval);
+        if (this.countdownStartTimeout) clearTimeout(this.countdownStartTimeout);
+
         this.gameState.status = 'countdown';
         this.gameState.countdown = 30;
+        await this.saveState();
 
-        // Broadcast initial countdown state
-        this.broadcast({
-            type: 'game_state_changed',
-            data: { state: 'countdown' }
-        });
+        this.broadcast({ type: 'game_state_changed', data: { state: 'countdown' } });
+        this.broadcast({ type: 'countdown_tick', data: { countdown: 30 } });
 
-        this.broadcast({
-            type: 'countdown_tick',
-            data: { countdown: 30 }
-        });
-
-        // Start countdown immediately - no delay!
-        this.countdownInterval = setInterval(() => {
+        this.countdownInterval = setInterval(async () => {
             if (this.gameState.countdown <= 0) {
                 if (this.countdownInterval) {
                     clearInterval(this.countdownInterval);
                     this.countdownInterval = null;
                 }
-                this.startGame();
+                await this.startGame();
             } else {
                 this.gameState.countdown--;
-                this.broadcast({
-                    type: 'countdown_tick',
-                    data: { countdown: this.gameState.countdown }
-                });
+                this.broadcast({ type: 'countdown_tick', data: { countdown: this.gameState.countdown } });
             }
         }, 1000);
     }
 
-    resetGame() {
+    async resetGame() {
         console.log('Resetting game for next round');
 
-        // UNLOCK ALL PLAYERS from PlayerTracker
-        if (this.gameState.players.size > 0 && this.env.PLAYER_TRACKER) {
+        // Reset only the game state for the new round, PRESERVE PLAYERS
+        this.gameState.status = 'waiting';
+        this.gameState.selectedCards = new Map();
+        this.gameState.winners = [];
+        this.gameState.calledNumbers = [];
+        this.gameState.currentNumber = null;
+        this.gameState.pendingClaims.clear();
+        this.gameState.countdown = 30;
+
+        // Clear only the selections for each player, but keep them in the room
+        this.gameState.players.forEach(p => {
+            p.selectedCards = [];
+        });
+
+        await this.saveState();
+
+        // 🟢 CRITICAL: Unregister all players from the tracker for this mode 
+        // since their selections are now cleared for the new round.
+        try {
             const trackerStub = this.env.PLAYER_TRACKER.idFromName('global');
             const tracker = this.env.PLAYER_TRACKER.get(trackerStub);
-
-            // Fire and forget unlock requests
-            for (const [userId] of this.gameState.players) {
+            for (const [userId, _] of this.gameState.players) {
+                // Non-blocking fire-and-forget
                 tracker.fetch('https://dummy/unregister-player', {
                     method: 'POST',
-                    body: JSON.stringify({ userId }),
+                    body: JSON.stringify({ userId, mode: this.gameState.mode }),
                     headers: { 'Content-Type': 'application/json' }
-                }).catch(err => console.error(`Failed to unlock player ${userId}:`, err));
+                }).catch(e => console.error('Tracker unregister failed in resetGame:', e));
             }
-            console.log(`🔓 Unlocked ${this.gameState.players.size} players from tracker.`);
+        } catch (err) {
+            console.error('Error during global tracker cleanup in resetGame:', err);
         }
 
-        this.gameState = {
-            ...this.gameState,
-            status: 'waiting', // Enforce waiting state so startPerpetualLoop can transition to countdown
-            selectedCards: new Map(), // Changed from new Set() to new Map() to match gameState type
-            winners: [],
-            calledNumbers: [], // Changed from new Set() to [] to match gameState type
-            currentNumber: null,
-            players: new Map(), // CLEAR PLAYERS ON RESET (They must rejoin/reselect for next round) - User said "return before session game ends". Reset = new session.
-            pendingClaims: new Map(),
-        };
+        // Restart the countdown loop
+        await this.startPerpetualLoop();
 
-        // Restart the game loop FIRST to set status to 'countdown'
-        this.startPerpetualLoop();
-
-        // Broadcast reset to all players with the NEW status
         this.broadcast({
             type: 'game_reset',
             data: {
                 gameId: this.gameState.gameId,
-                status: this.gameState.status, // This will now be 'countdown'
-                countdown: this.gameState.countdown
+                status: 'selecting',
+                countdown: 30
             }
         });
     }
 
     async fetch(request: Request) {
+        if (!this.gameState.gameId) {
+            await this.state.blockConcurrencyWhile(() => this.initialize());
+        }
+
         const url = new URL(request.url);
-
-        // Internal endpoints for Redis event processing
-        if (url.pathname === '/internal/countdown-tick') {
-            const body = await request.json() as { countdown: number };
-            this.gameState.countdown = body.countdown;
-            this.broadcast({ type: 'countdown_tick', data: { countdown: body.countdown } });
-            return new Response('OK');
-        }
-
-        if (url.pathname === '/internal/start-game') {
-            this.startGame();
-            return new Response('OK');
-        }
-
-        if (url.pathname === '/internal/call-number') {
-            const body = await request.json() as { numberIndex: number };
-            // For now, return mock data - we'll implement full number calling logic later
-            return Response.json({ hasWinner: false, maxNumbers: 75 });
-        }
-
         if (url.pathname === '/internal/reset-game') {
-            this.resetGame();
+            await this.resetGame();
             return new Response('OK');
         }
 
-        // WebSocket upgrade
         const upgradeHeader = request.headers.get('Upgrade');
         if (upgradeHeader !== 'websocket') {
             return new Response('Expected WebSocket', { status: 400 });
@@ -190,7 +204,6 @@ export class GameRoom {
 
         const webSocketPair = new WebSocketPair();
         const [client, server] = Object.values(webSocketPair);
-
         this.handleSession(server as WebSocket);
 
         return new Response(null, {
@@ -202,10 +215,10 @@ export class GameRoom {
     handleSession(webSocket: WebSocket) {
         webSocket.accept();
 
-        webSocket.addEventListener('message', (msg: MessageEvent) => {
+        webSocket.addEventListener('message', async (msg: MessageEvent) => {
             try {
                 const data = JSON.parse(msg.data as string);
-                this.handleMessage(data, webSocket);
+                await this.handleMessage(data, webSocket);
             } catch (error) {
                 console.error('Error handling message:', error);
             }
@@ -219,167 +232,70 @@ export class GameRoom {
             }
         });
     }
-
-    handleMessage(data: any, ws: WebSocket) {
+    async handleMessage(data: any, ws: WebSocket) {
         switch (data.type) {
-            case 'join_game':
-                this.handlePlayerJoin(data.data, ws);
+            case 'join_game': await this.handlePlayerJoin(data.data, ws); break;
+            case 'select_card': await this.handleCardSelect(data.data, ws); break;
+            case 'deselect_card': await this.handleCardDeselect(data.data, ws); break;
+            case 'claim_bingo': await this.handleBingoClaim(data.data, ws); break;
+            case 'request_selection_state': this.sendSelectionState(ws); break;
+            case 'start_countdown': await this.startPerpetualLoop(); break;
+            case 'leave_game': {
+                const userId = this.sessions.get(ws);
+                if (userId) this.handlePlayerLeave(userId);
                 break;
-
-            case 'select_card':
-                this.handleCardSelect(data.data, ws);
-                break;
-
-            case 'deselect_card':
-                this.handleCardDeselect(data.data, ws);
-                break;
-
-
-            case 'claim_bingo':
-                this.handleBingoClaim(data.data, ws);
-                break;
-
-            case 'request_selection_state':
-                this.sendSelectionState(ws);
-                break;
+            }
         }
     }
 
     async handlePlayerJoin(data: { gameId: string; userId: string; username?: string }, ws: WebSocket) {
-        // [DEBUG] Log incoming join request
-        console.log(`[DEBUG] handlePlayerJoin: userId=${data.userId}, username=${data.username}, gameId=${data.gameId}`);
         const { gameId, userId, username } = data;
+        let existingPlayer = this.gameState.players.get(userId);
 
-        // Check if player already exists (rejoining)
-        const existingPlayer = this.gameState.players.get(userId);
-
-        // MODE LOCK CHECK (New Player Only)
-        // If player is NOT in memory, check if they are locked to another room via PlayerTracker
-        if (!existingPlayer) {
-            try {
-                // We use a 'global' singleton for the tracker to store valid active sessions
-                const trackerStub = this.env.PLAYER_TRACKER.idFromName('global');
-                const tracker = this.env.PLAYER_TRACKER.get(trackerStub);
-
-                const checkRes = await tracker.fetch('https://dummy/check-player', {
-                    method: 'POST',
-                    body: JSON.stringify({ userId }),
-                    headers: { 'Content-Type': 'application/json' }
-                });
-
-                if (checkRes.ok) {
-                    const checkData = await checkRes.json() as { isActive: boolean; currentGameId?: string; currentMode?: string };
-
-                    // If active in ANOTHER game, block them
-                    if (checkData.isActive && checkData.currentGameId !== this.gameState.gameId) {
-                        // ALLOW rejoin if it's the SAME game ID (persistence)
-                        // But BLOCK if different
-                        console.log(`🚫 Player ${userId} is locked to game ${checkData.currentGameId}, blocking join to ${this.gameState.gameId}`);
-                        ws.send(JSON.stringify({
-                            type: 'error',
-                            data: { message: `You are already playing in ${checkData.currentMode} mode! Finish that game first.` }
-                        }));
-                        ws.close(1000, "Already playing elsewhere");
-                        return;
-                    }
-                }
-            } catch (err) {
-                console.error("PlayerTracker check error:", err);
-                // Fail open? or Fail closed? Let's fail open to not block legit users if tracker is down
-            }
-
-            // CRITICAL: Only set gameId if not already set (preserve rotating DB IDs)
-            if (!this.gameState.gameId) {
-                this.gameState.gameId = gameId;
-            }
-
-            // Extract and set mode from gameId for NEW players only
+        // 1. Basic Initialization
+        if (!this.gameState.gameId) {
+            this.gameState.gameId = gameId;
             const extractedMode = gameId.split('-global-')[0] as GameMode;
-            if (['ande-zig', 'hulet-zig', 'mulu-zig'].includes(extractedMode)) {
-                this.gameState.mode = extractedMode;
-            } else {
-                this.gameState.mode = 'ande-zig';
-            }
+            this.gameState.mode = (['ande-zig', 'hulet-zig', 'mulu-zig'].includes(extractedMode)) ? extractedMode : 'ande-zig';
         }
 
         this.sessions.set(ws, userId);
 
-        // Check if player already exists
-        const isRejoining = !!existingPlayer;
-
-        if (isRejoining) {
-            console.log(`Player ${userId} is rejoining. Current status: ${this.gameState.status}`);
-            console.log(`Player's selected cards:`, existingPlayer.selectedCards);
-
-            // Update connection
+        // 2. Rejoin Logic
+        if (existingPlayer) {
+            console.log(`[JOIN] Player ${userId} rejoining room ${gameId}`);
             existingPlayer.connection = ws;
-
-            // Check game status for rejoin handling
-            if (this.gameState.status === 'playing') {
-                // Player rejoining active game - let them continue
-                console.log('Player rejoining active game - restoring state');
-                ws.send(JSON.stringify({
-                    type: 'rejoin_active',
-                    data: {
-                        canPlay: true,
-                        selectedCards: existingPlayer.selectedCards,
-                        message: 'Welcome back! Resuming your game.'
-                    }
-                }));
-            } else if (['ended', 'ending'].includes(this.gameState.status)) {
-                // Game ended - watch only mode
-                console.log('Player rejoining ended game - watch only');
-                ws.send(JSON.stringify({
-                    type: 'watch_only',
-                    data: {
-                        canPlay: false,
-                        message: 'Game ended. Watching next round.'
-                    }
-                }));
-            } else {
-                // Game in countdown/selecting - restore cards
-                console.log(`Player rejoining during ${this.gameState.status} - restoring cards`);
-                ws.send(JSON.stringify({
-                    type: 'rejoin_active',
-                    data: {
-                        canPlay: true,
-                        selectedCards: existingPlayer.selectedCards,
-                        message: 'Welcome back! Your cards have been restored.'
-                    }
-                }));
-            }
-
-            // Send current game state
-            this.sendGameState(ws);
-            return;
-        }
-
-        // NEW PLAYER - Check game status first
-        if (this.gameState.status === 'playing' || this.gameState.status === 'ending') {
-            // Game already started - redirect to watch-only mode
-            console.log(`❌ New player ${userId} trying to join active game - redirecting to watch-only`);
             ws.send(JSON.stringify({
-                type: 'watch_only',
+                type: 'rejoin_active',
                 data: {
-                    canPlay: false,
-                    message: 'Game already in progress. You can watch this round.'
+                    canPlay: true,
+                    selectedCards: existingPlayer.selectedCards,
+                    drawnNumbers: this.gameState.calledNumbers,
+                    calledNumbers: this.gameState.calledNumbers,
+                    history: this.gameState.calledNumbers,
+                    message: 'Welcome back!'
                 }
             }));
 
-            // Still add them as a spectator so they can see the game
-            const spectator: Player = {
-                userId,
-                username: username || `Player${userId.slice(0, 6)}`,
-                selectedCards: [],
-                connection: ws,
-                joinedAt: Date.now(),
-            };
-            this.gameState.players.set(userId, spectator);
+            if (this.gameState.status === 'waiting' && !this.countdownInterval) {
+                console.log('🔄 Restarting countdown for rejoining player');
+                await this.startPerpetualLoop();
+            }
+
             this.sendGameState(ws);
             return;
         }
 
-        // New player joining
+        // 3. New Join Logic
+        if (this.gameState.status === 'playing' || this.gameState.status === 'ended') {
+            ws.send(JSON.stringify({
+                type: 'watch_only',
+                data: { canPlay: false, message: 'Game in progress.' }
+            }));
+            return;
+        }
+
+        // 4. Pre-register player to avoid race conditions with selection calls
         const player: Player = {
             userId,
             username: username || `Player ${userId.slice(0, 6)}`,
@@ -387,32 +303,56 @@ export class GameRoom {
             connection: ws,
             joinedAt: Date.now(),
         };
-
-        const isFirstPlayer = this.gameState.players.size === 0;
         this.gameState.players.set(userId, player);
 
-        // Start the game loop when the first player joins - DO NOT MODIFY THIS TIMING
-        if (isFirstPlayer && this.gameState.status === 'waiting') {
-            console.log('First player joined, starting countdown');
-            this.startPerpetualLoop();
+        // 5. Mode-Lock Check (Re-enabled for flickering fix)
+        if (this.env.PLAYER_TRACKER) {
+            try {
+                const trackerStub = this.env.PLAYER_TRACKER.idFromName('global');
+                const tracker = this.env.PLAYER_TRACKER.get(trackerStub);
+                const resp = await tracker.fetch('https://dummy/check-player', {
+                    method: 'POST',
+                    body: JSON.stringify({ userId }),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (resp.ok) {
+                    const check = await resp.json() as any;
+                    if (check.isActive && check.sessions) {
+                        const otherModeSession = check.sessions.find((s: any) => s.mode !== this.gameState.mode && s.gameId !== gameId);
+                        if (otherModeSession) {
+                            console.log(`🚫 MODE CONFLICT: User ${userId} is in ${otherModeSession.mode}`);
+                            this.gameState.players.delete(userId); // Evict if locked
+                            ws.send(JSON.stringify({
+                                type: 'mode_conflict',
+                                data: {
+                                    message: `You are currently in an active ${otherModeSession.mode} room. Please leave it to switch modes.`,
+                                    activeMode: otherModeSession.mode,
+                                    activeGameId: otherModeSession.gameId
+                                }
+                            }));
+                            return;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('[JOIN] PlayerTracker check failed:', err);
+            }
         }
 
-        // Send current game state to new player
-        ws.send(JSON.stringify({
-            type: 'joined_successfully',
-            data: { gameId },
-        }));
+        await this.savePlayer(userId);
+        await this.saveState();
 
+        if (this.gameState.status === 'waiting' && !this.countdownInterval) {
+            console.log('🏁 Starting countdown loop for new player');
+            await this.startPerpetualLoop();
+        }
+
+        ws.send(JSON.stringify({ type: 'joined_successfully', data: { gameId } }));
         this.sendGameState(ws);
-
-        // Broadcast player joined to others
         this.broadcast({
             type: 'player_joined',
-            data: {
-                userId,
-                username: player.username,
-                playerCount: this.gameState.players.size,
-            },
+            data: { userId, username: player.username, playerCount: this.gameState.players.size }
         }, ws);
     }
 
@@ -420,132 +360,109 @@ export class GameRoom {
         const player = this.gameState.players.get(userId);
         if (!player) return;
 
-        // PERSISTENCE FIX: 
-        // If player has selected cards (committed to game), DO NOT REMOVE THEM.
-        // Just mark as disconnected (implicitly by WS close)
-        // This allows them to rejoin later.
-        if (player.selectedCards.length > 0) {
-            console.log(`⚠️ Player ${userId} left but has cards! Keeping in game state for rejoin.`);
-            // Only remove from sessions map (already done in handleSession)
-            return;
-        }
+        // 🟢 FIX: If the player leaves during non-playing phases, clear their cards and tracker
+        if (this.gameState.status === 'waiting' || this.gameState.status === 'selecting' || this.gameState.status === 'countdown') {
+            console.log(`[LEAVE] Clearing selection for user ${userId} since game hasn't started`);
 
-        // If no cards, fully remove them
-        this.gameState.players.delete(userId);
+            // Release cards
+            player.selectedCards.forEach(cardId => {
+                this.gameState.selectedCards.delete(cardId);
+            });
 
-        this.broadcast({
-            type: 'player_left',
-            data: {
-                userId,
-                playerCount: this.gameState.players.size,
-            },
-        });
-    }
-
-    async handleCardSelect(data: { cardId: number }, ws: WebSocket) {
-        const userId = this.sessions.get(ws);
-        if (!userId) return;
-
-        const player = this.gameState.players.get(userId);
-        if (!player) return;
-
-        const { cardId } = data;
-
-        // Check if card is already selected by someone
-        if (this.gameState.selectedCards.has(cardId)) {
-            ws.send(JSON.stringify({
-                type: 'error',
-                data: { message: 'Card already selected' },
-            }));
-            return;
-        }
-
-        // Check if player already has 2 cards (MAX 2 PER PLAYER)
-        if (player.selectedCards.length >= 2) {
-            ws.send(JSON.stringify({
-                type: 'error',
-                data: { message: 'Maximum 2 cards per player' },
-            }));
-            return;
-        }
-
-        // LOCK PLAYER TO THIS MODE (If first card)
-        if (player.selectedCards.length === 0) {
-            try {
-                const trackerStub = this.env.PLAYER_TRACKER.idFromName('global');
-                const tracker = this.env.PLAYER_TRACKER.get(trackerStub);
-                await tracker.fetch('https://dummy/register-player', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        userId,
-                        gameId: this.gameState.gameId,
-                        mode: this.gameState.mode,
-                    }),
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                console.log(`🔐 Player ${userId} LOCKED to game ${this.gameState.gameId}`);
-            } catch (e) {
-                console.error("Failed to register player lock:", e);
-            }
-        }
-
-        // Add card selection
-        player.selectedCards.push(cardId);
-        this.gameState.selectedCards.set(cardId, userId);
-
-        // Update status to selecting if still waiting
-        if (this.gameState.status === 'waiting') {
-            this.gameState.status = 'selecting';
-        }
-
-        this.broadcast({
-            type: 'card_selected',
-            data: {
-                cardId,
-                userId,
-                playerCount: this.gameState.players.size,
-            },
-        });
-    }
-
-    handleCardDeselect(data: { cardId: number }, ws: WebSocket) {
-        const userId = this.sessions.get(ws);
-        if (!userId) return;
-
-        const player = this.gameState.players.get(userId);
-        if (!player) return;
-
-        const { cardId } = data;
-
-        // Remove card selection
-        const index = player.selectedCards.indexOf(cardId);
-        if (index > -1) {
-            player.selectedCards.splice(index, 1);
-            this.gameState.selectedCards.delete(cardId);
-
-            // UNLOCK PLAYER IF NO CARDS LEFT
-            if (player.selectedCards.length === 0) {
+            // Unregister from global tracker
+            if (this.env.PLAYER_TRACKER) {
                 try {
                     const trackerStub = this.env.PLAYER_TRACKER.idFromName('global');
                     const tracker = this.env.PLAYER_TRACKER.get(trackerStub);
                     tracker.fetch('https://dummy/unregister-player', {
                         method: 'POST',
-                        body: JSON.stringify({ userId }),
+                        body: JSON.stringify({ userId, mode: this.gameState.mode }),
                         headers: { 'Content-Type': 'application/json' }
-                    });
-                    console.log(`🔓 Player ${userId} UNLOCKED (no cards)`);
-                } catch (e) {
-                    console.error("Failed to unregister player lock:", e);
-                }
+                    }).catch(e => console.error('Leave tracker cleanup failed:', e));
+                } catch (err) { }
             }
 
-            this.broadcast({
-                type: 'card_deselected',
-                data: {
-                    cardId,
-                    playerCount: this.gameState.players.size,
-                },
+            this.gameState.players.delete(userId);
+            this.broadcast({ type: 'player_left', data: { userId, playerCount: this.gameState.players.size } });
+            return;
+        }
+
+        // If game is in progress, keep the player record for rejoining
+        console.log(`[LEAVE] Player ${userId} disconnected during ${this.gameState.status} - preserving state for rejoin.`);
+    }
+
+    async handleCardSelect(data: { cardId: number }, ws: WebSocket) {
+        const userId = this.sessions.get(ws);
+        console.log(`[SELECT] User ${userId} attempting to select card ${data?.cardId}`);
+        if (!userId) return;
+        const player = this.gameState.players.get(userId);
+        if (!player) {
+            console.warn(`[SELECT] Player ${userId} not found in gameState`);
+            return;
+        }
+
+        const { cardId } = data;
+        const alreadyTaken = this.gameState.selectedCards.get(cardId);
+        if (alreadyTaken) {
+            console.log(`[SELECT] Card ${cardId} already taken by ${alreadyTaken}`);
+            ws.send(JSON.stringify({ type: 'error', data: { message: 'Card taken' } }));
+            return;
+        }
+
+        if (player.selectedCards.length >= 2) {
+            console.log(`[SELECT] User ${userId} reached card limit (${player.selectedCards.length})`);
+            ws.send(JSON.stringify({ type: 'error', data: { message: 'Max 2 cards' } }));
+            return;
+        }
+
+        if (player.selectedCards.length === 0) {
+            const trackerStub = this.env.PLAYER_TRACKER.idFromName('global');
+            const tracker = this.env.PLAYER_TRACKER.get(trackerStub);
+            await tracker.fetch('https://dummy/register-player', {
+                method: 'POST',
+                body: JSON.stringify({ userId, gameId: this.gameState.gameId, mode: this.gameState.mode }),
+                headers: { 'Content-Type': 'application/json' }
             });
+        }
+
+        player.selectedCards.push(cardId);
+        this.gameState.selectedCards.set(cardId, userId);
+        if (this.gameState.status === 'waiting') this.gameState.status = 'selecting';
+
+        await this.savePlayer(userId);
+        await this.saveState();
+
+        this.broadcast({
+            type: 'card_selected',
+            data: { cardId, userId, playerCount: this.gameState.players.size }
+        });
+    }
+
+    async handleCardDeselect(data: { cardId: number }, ws: WebSocket) {
+        const userId = this.sessions.get(ws);
+        if (!userId) return;
+        const player = this.gameState.players.get(userId);
+        if (!player) return;
+
+        const { cardId } = data;
+        const index = player.selectedCards.indexOf(cardId);
+        if (index > -1) {
+            player.selectedCards.splice(index, 1);
+            this.gameState.selectedCards.delete(cardId);
+            await this.savePlayer(userId);
+
+            if (player.selectedCards.length === 0) {
+                await this.state.storage.delete(`p:${userId}`);
+                const trackerStub = this.env.PLAYER_TRACKER.idFromName('global');
+                const tracker = this.env.PLAYER_TRACKER.get(trackerStub);
+                tracker.fetch('https://dummy/unregister-player', {
+                    method: 'POST',
+                    body: JSON.stringify({ userId, mode: this.gameState.mode }),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+
+            this.broadcast({ type: 'card_deselected', data: { cardId, playerCount: this.gameState.players.size } });
         }
     }
 
@@ -553,451 +470,218 @@ export class GameRoom {
         this.gameState.status = 'playing';
         this.gameState.startTime = Date.now();
         this.gameState.calledNumbers = [];
+        await this.saveState();
 
-        // Deduct balance from all players
-        const betAmounts: Record<GameMode, number> = {
-            'ande-zig': 10,
-            'hulet-zig': 20,
-            'mulu-zig': 50
-        };
+        const betAmounts: Record<GameMode, number> = { 'ande-zig': 10, 'hulet-zig': 20, 'mulu-zig': 50 };
         const betAmount = betAmounts[this.gameState.mode] || 10;
         const supabase = getSupabase(this.env);
-
-        // CREATE NEW DB GAME RECORD (Essential for history tracking per round)
-        // CRITICAL CHECK: Ensure supabase client is valid
-        if (!supabase) {
-            console.error("CRITICAL: Supabase client not initialized!");
-            return;
-        }
+        if (!supabase) return;
 
         try {
-            const { data: newGame, error: gameError } = await supabase
-                .from('games')
-                .insert({
-                    mode: this.gameState.mode,
-                    status: 'active',
-                    entry_fee: betAmount,
-                    prize_pool: 0
-                })
-                .select('id')
-                .single();
-
+            const { data: newGame } = await supabase.from('games').insert({
+                mode: this.gameState.mode, status: 'active', entry_fee: betAmount, prize_pool: 0
+            }).select('id').single();
             if (newGame) {
-                console.log(`🆕 Created new DB Game ID: ${newGame.id} (replacing room ID ${this.gameState.gameId})`);
                 this.gameState.gameId = newGame.id;
-            } else if (gameError) {
-                console.error('Failed to create new game db record:', gameError);
+                await this.saveState();
             }
-        } catch (err) {
-            console.error('Error creating game record:', err);
-        }
+        } catch (err) { console.error('Error creating game record:', err); }
 
-        // Deduct balance for each player
-        // CRITICAL: Ensure we only charge players WITH CARDS
         for (const [userId, player] of this.gameState.players) {
-            // Skip spectators
             if (player.selectedCards.length === 0) continue;
-
             try {
-                // Get current balance and stats
-                // ROBUST ID HANDLING: Check if userId is a valid Telegram ID (numeric) or needs UUID lookup
                 const isTelegramId = /^\d+$/.test(userId);
                 let userData;
-                let userError;
-
                 if (isTelegramId) {
-                    const { data, error } = await supabase
-                        .from('users')
-                        .select('balance, total_games_played, id, telegram_id')
-                        .eq('telegram_id', parseInt(userId))
-                        .single();
+                    const { data } = await supabase.from('users').select('balance, total_games_played, id').eq('telegram_id', parseInt(userId)).single();
                     userData = data;
-                    userError = error;
                 } else {
-                    // Assume UUID
-                    const { data, error } = await supabase
-                        .from('users')
-                        .select('balance, total_games_played, id, telegram_id')
-                        .eq('id', userId)
-                        .single();
+                    const { data } = await supabase.from('users').select('balance, total_games_played, id').eq('id', userId).single();
                     userData = data;
-                    userError = error;
                 }
 
-                if (userError || !userData) {
-                    console.error(`Failed to get balance for user ${userId} (isTelegramId=${isTelegramId}):`, userError);
-                    continue;
+                if (userData) {
+                    const totalBet = betAmount * player.selectedCards.length;
+                    const balanceBefore = parseFloat(userData.balance || '0');
+                    const balanceAfter = balanceBefore - totalBet;
+                    await supabase.from('users').update({ balance: balanceAfter, total_games_played: (userData.total_games_played || 0) + 1 }).eq('id', userData.id);
+                    await supabase.from('game_transactions').insert({ user_id: userData.id, game_id: this.gameState.gameId, type: 'bet', amount: totalBet, balance_before: balanceBefore, balance_after: balanceAfter });
+
+                    const historyEntries = player.selectedCards.map(cardId => ({
+                        game_id: this.gameState.gameId, user_id: userData.id, card_id: cardId, card_data: JSON.stringify({ numbers: [] }), is_winner: false, prize_amount: 0, joined_at: new Date().toISOString()
+                    }));
+                    await supabase.from('game_players').insert(historyEntries);
+
+                    this.sendToPlayer(userId, { type: 'balance_update', data: { balance: balanceAfter, change: -totalBet, reason: 'Game Entry' } });
                 }
-
-                const cardCount = player.selectedCards.length;
-                const totalBet = betAmount * cardCount;
-                const balanceBefore = parseFloat(userData.balance || '0');
-                const balanceAfter = balanceBefore - totalBet;
-                const gamesPlayed = (userData.total_games_played || 0) + 1;
-
-                // Deduct balance and update stats
-                const { error: updateError } = await supabase
-                    .from('users')
-                    .update({ balance: balanceAfter, total_games_played: gamesPlayed })
-                    .eq('id', userData.id); // ALWAYS use the resolved UUID for updates to avoid ambiguity
-
-                if (updateError) {
-                    console.error(`Failed to deduct balance for user ${userId}:`, updateError);
-                    continue;
-                }
-
-                // Record transaction
-                const { error: txError } = await supabase
-                    .from('game_transactions')
-                    .insert({
-                        user_id: userData.id, // Use resolved UUID
-                        game_id: this.gameState.gameId, // Use the NEW gameId
-                        type: 'bet',
-                        amount: totalBet,
-                        balance_before: balanceBefore,
-                        balance_after: balanceAfter
-                    });
-
-                if (txError) console.error(`Failed to record bet transaction:`, txError);
-                console.log(`💰 Deducted ${totalBet} from ${userId} (UUID: ${userData.id}). Bal: ${balanceBefore}->${balanceAfter}`);
-
-                // Record player in game_players table (ISOLATED)
-                // This is what History.tsx reads via the 'recent_games' view/logic
-                const historyEntries = player.selectedCards.map(cardId => ({
-                    game_id: this.gameState.gameId,
-                    user_id: userData.id, // UUID
-                    card_id: cardId,
-                    card_data: JSON.stringify({ numbers: [] }), // Minimal placeholder
-                    is_winner: false,
-                    prize_amount: 0,
-                    joined_at: new Date().toISOString()
-                }));
-
-                const { error: gpError } = await supabase.from('game_players').insert(historyEntries);
-                if (gpError) console.error(`[HISTORY] Error inserting game_players:`, gpError);
-
-                // SYNC 1: Notify App via WebSocket (Instant Update)
-                this.sendToPlayer(userId, {
-                    type: 'balance_update',
-                    data: {
-                        balance: balanceAfter,
-                        change: -totalBet,
-                        reason: 'Game Entry'
-                    }
-                });
-
-            } catch (error) {
-                console.error(`Error processing balance for user ${userId}:`, error);
-            }
+            } catch (error) { console.error(`Error processing balance for user ${userId}:`, error); }
         }
 
-        this.broadcast({
-            type: 'game_started',
-            data: {},
-        });
+        this.broadcast({ type: 'game_started', data: { history: this.gameState.calledNumbers } });
 
-        // Generate shuffled numbers
         const numbers = Array.from({ length: 75 }, (_, i) => i + 1);
         this.shuffleArray(numbers);
-
         let index = 0;
-        this.gameInterval = setInterval(() => {
+        this.gameInterval = setInterval(async () => {
             if (index >= numbers.length || this.gameState.status === 'ended') {
                 clearInterval(this.gameInterval);
-
-                // Check for no-winner scenario (all 75 numbers called, no winner)
-                if (index >= numbers.length && this.gameState.status !== 'ended' && this.gameState.winners.length === 0) {
-                    console.log('[NO WINNER] All 75 numbers called without a BINGO claim');
+                if (index >= numbers.length && this.gameState.status !== 'ended') {
                     this.gameState.status = 'ended';
+                    this.gameState.countdown = 10;
+                    await this.saveState();
+                    this.broadcast({ type: 'no_winner', data: { message: 'All 75 numbers called, no winner', countdown: 10 } });
 
-                    // Broadcast no-winner event
-                    this.broadcast({
-                        type: 'no_winner',
-                        data: { message: 'All 75 numbers called, no winner this round' },
-                    });
-
-                    // Auto-restart after 10 seconds (same as winner announcement)
-                    setTimeout(() => {
-                        console.log('Auto-restarting after no-winner scenario');
-                        this.resetGame();
-                        if (['waiting', 'selecting'].includes(this.gameState.status)) {
-                            this.startPerpetualLoop();
+                    const endTimer = setInterval(async () => {
+                        this.gameState.countdown--;
+                        if (this.gameState.countdown <= 0) {
+                            clearInterval(endTimer);
+                            await this.resetGame();
+                        } else {
+                            this.broadcast({ type: 'end_countdown_tick', data: { countdown: this.gameState.countdown } });
                         }
-                    }, 10000); // 10 seconds
+                    }, 1000);
                 }
-
                 return;
             }
-
             const number = numbers[index++];
             this.gameState.currentNumber = number;
             this.gameState.calledNumbers.push(number);
-            const num = this.gameState.calledNumbers[this.gameState.calledNumbers.length - 1];
-            console.log(`📢 [NUMBER CALLED] GameId: ${this.gameState.gameId} | Mode: ${this.gameState.mode} | Number: ${num} | Total called: ${this.gameState.calledNumbers.length}`);
-            this.broadcast({
-                type: 'number_called',
-                data: {
-                    number,
-                    history: this.gameState.calledNumbers,
-                },
-            });
+            await this.saveState();
+            this.broadcast({ type: 'number_called', data: { number, history: this.gameState.calledNumbers } });
         }, 4000);
     }
 
-
-
-    handleBingoClaim(data: { cardId: number; card: BingoCard }, ws: WebSocket) {
+    async handleBingoClaim(data: { cardId: number; card: BingoCard }, ws: WebSocket) {
         const userId = this.sessions.get(ws);
         if (!userId) return;
 
-        const player = this.gameState.players.get(userId);
-        if (!player) return;
-
-        // CRITICAL: Check if game already ended (another player won)
-        // This prevents sending invalid_claim for other cards when one card already won
-        if (this.gameState.status === 'ended') {
-            console.log(`⏹️ Game already ended, ignoring BINGO claim from ${userId}`);
-            return; // Don't send invalid_claim, game is over
+        if (this.gameState.status !== 'playing') {
+            const msg = `Bingo is only available during active play (Current Status: ${this.gameState.status})`;
+            console.log(`⚠️ Blocked Bingo claim from ${userId}: ${msg}`);
+            ws.send(JSON.stringify({
+                type: 'invalid_claim',
+                data: { message: msg }
+            }));
+            return;
         }
 
-        // Validate the claim
+        console.log(`🎯 Received Bingo claim from ${userId} for card ${data.cardId}`);
         const isValid = this.validateWin(data.card, this.gameState.mode);
+        console.log(`Validation result: ${isValid ? '✅ VALID' : '❌ INVALID'} for mode ${this.gameState.mode}`);
 
-        if (isValid) {
-            const claimTime = Date.now();
-            const currentNumber = this.gameState.currentNumber;
+        if (this.validateWin(data.card, this.gameState.mode)) {
+            // IMMEDIATE STOP: Prevents further numbers from being called while we wait for other simultaneous claims
+            if (this.gameInterval) {
+                console.log('🛑 Win detected - Immediately stopping number calling interval');
+                clearInterval(this.gameInterval);
+                this.gameInterval = null;
+            }
 
-            // Add to pending claims
-            this.gameState.pendingClaims.set(userId, {
-                cardId: data.cardId,
-                card: data.card,
-                claimTime,
-            });
+            this.gameState.pendingClaims.set(userId, { cardId: data.cardId, card: data.card, claimTime: Date.now() });
 
-            // Wait 500ms to collect simultaneous claims on the same number
             setTimeout(async () => {
-                // Only process if this is the first claim being processed
                 if (!this.gameState.pendingClaims.has(userId)) return;
 
-                // Collect all claims for this number
                 const simultaneousClaims: any[] = [];
                 this.gameState.pendingClaims.forEach((claim, claimUserId) => {
-                    const claimPlayer = this.gameState.players.get(claimUserId);
-                    if (claimPlayer) {
-                        // Get winning pattern
-                        const winningPattern = this.getWinningPattern(claim.card, this.gameState.mode);
-
-                        simultaneousClaims.push({
-                            userId: claimUserId,
-                            username: claimPlayer.username,
-                            cardId: claim.cardId,
-                            card: claim.card, // Include full card array for display
-                            winningPattern: winningPattern, // Add winning pattern
-                            calledNumbers: this.gameState.calledNumbers.length,
-                            claimTime: claim.claimTime,
-                        });
-                    }
+                    const cp = this.gameState.players.get(claimUserId);
+                    if (cp) simultaneousClaims.push({
+                        userId: claimUserId, username: cp.username, cardId: claim.cardId, card: claim.card,
+                        winningPattern: this.getWinningPattern(claim.card, this.gameState.mode),
+                        calledNumbers: this.gameState.calledNumbers.length, claimTime: claim.claimTime
+                    });
                 });
 
-                // Clear pending claims
+                console.log(`🏆 Processing ${simultaneousClaims.length} simultaneous winners...`);
                 this.gameState.pendingClaims.clear();
-
-                // End game IMMEDIATELY
                 this.gameState.status = 'ended';
                 if (this.gameInterval) {
+                    console.log('🛑 Stopping number calling interval');
                     clearInterval(this.gameInterval);
+                    this.gameInterval = null;
                 }
-
-                // Add all winners (prize will be split equally)
                 this.gameState.winners.push(...simultaneousClaims);
+                await this.saveState();
 
-                // Calculate and distribute prizes
-                const betAmounts: Record<GameMode, number> = {
-                    'ande-zig': 10,
-                    'hulet-zig': 20,
-                    'mulu-zig': 50
-                };
+                // 1. BROADCAST IMMEDIATELY - Don't wait for DB/notifications
+                const betAmounts: Record<GameMode, number> = { 'ande-zig': 10, 'hulet-zig': 20, 'mulu-zig': 50 };
                 const betAmount = betAmounts[this.gameState.mode] || 10;
-
-                // Calculate Total Pot based on Total Cards (not just players)
                 let totalCards = 0;
-                this.gameState.players.forEach(p => {
-                    totalCards += p.selectedCards.length;
-                });
+                this.gameState.players.forEach(p => totalCards += p.selectedCards.length);
 
-                // Fetch dynamic commission rate
                 const configService = new BotConfigService(this.env);
                 const config = await configService.getConfig();
-                const commissionPct = config.gameRules?.commissionPct ?? 15; // Default 15%
-                const returnRate = 1 - (commissionPct / 100);
-
-                // Apply dynamic fee
-                const grossPot = totalCards * betAmount;
-                const totalPot = grossPot * returnRate;
+                const commissionPct = config.gameRules?.commissionPct ?? 15;
+                const totalPot = totalCards * betAmount * (1 - (commissionPct / 100));
                 const prizePerWinner = totalPot / simultaneousClaims.length;
-                const supabase = getSupabase(this.env);
 
-                // Import notification service dynamically to avoid top-level issues
-                const { notifyWinner, notifyBalanceUpdate } = await import('../bot/notifications');
-
-                // Distribute prizes to winners
-                for (const winner of simultaneousClaims) {
-                    try {
-
-                        // CRITICAL FIX: Handle both Integer (Telegram ID) and String (UUID) match
-                        // The user might have joined with a UUID (frontend glitch), but we need to find their DB record
-                        let targetTelegramId: number | null = null;
-                        const userIdAsInt = parseInt(winner.userId);
-
-                        if (!isNaN(userIdAsInt) && userIdAsInt.toString() === winner.userId) {
-                            // It is a valid integer Telegram ID
-                            targetTelegramId = userIdAsInt;
-                        } else {
-                            // It is a UUID string. We must look up the Telegram ID from the 'users' table using the UUID 'id' column
-                            console.log(`[DEBUG] Handling UUID userId ${winner.userId}, looking up Telegram ID...`);
-                            const { data: idLookup, error: idError } = await supabase
-                                .from('users')
-                                .select('telegram_id')
-                                .eq('id', winner.userId)
-                                .single();
-
-                            if (!idError && idLookup) {
-                                targetTelegramId = idLookup.telegram_id;
-                                console.log(`[DEBUG] Resolved UUID ${winner.userId} to Telegram ID ${targetTelegramId}`);
-                            } else {
-                                console.error(`[DEBUG] Failed to resolve UUID ${winner.userId} to Telegram ID`);
-                            }
-                        }
-
-                        if (!targetTelegramId) {
-                            console.error(`[CRITICAL] Could not determine Telegram ID for user ${winner.userId}. Skipping balance update.`);
-                            continue;
-                        }
-
-                        // Get current balance and stats
-                        const { data: userData, error: userError } = await supabase
-                            .from('users')
-                            .select('balance, total_wins, total_winnings')
-                            .eq('telegram_id', targetTelegramId)
-                            .single();
-
-                        if (userError || !userData) {
-                            console.error(`Failed to get balance for winner ${winner.userId}:`, userError);
-                            continue;
-                        }
-
-                        const balanceBefore = parseFloat(userData.balance || '0');
-                        const balanceAfter = balanceBefore + prizePerWinner;
-                        const wins = (userData.total_wins || 0) + 1;
-                        const winnings = parseFloat(userData.total_winnings || '0') + prizePerWinner;
-
-                        // Add prize and update stats
-                        const { error: updateError } = await supabase
-                            .from('users')
-                            .update({
-                                balance: balanceAfter,
-                                total_wins: wins,
-                                total_winnings: winnings
-                            })
-                            .eq('telegram_id', targetTelegramId);
-
-                        if (updateError) {
-                            console.error(`Failed to add prize for winner ${winner.userId}:`, updateError);
-                            continue;
-                        }
-
-                        // Record win transaction
-                        const { error: txError } = await supabase
-                            .from('game_transactions')
-                            .insert({
-                                user_id: targetTelegramId,
-                                game_id: this.gameState.gameId,
-                                type: 'win',
-                                amount: prizePerWinner,
-                                balance_before: balanceBefore,
-                                balance_after: balanceAfter
-                            });
-
-                        if (txError) {
-                            console.error(`Failed to record win transaction for ${winner.userId}:`, txError);
-                        }
-
-                        // Update game_players record with result (ISOLATED)
-                        try {
-                            const { data: idData } = await supabase
-                                .from('users')
-                                .select('id')
-                                .eq('telegram_id', targetTelegramId)
-                                .single();
-
-                            if (idData) {
-                                const { error: gpUpdateError } = await supabase
-                                    .from('game_players')
-                                    .update({
-                                        is_winner: true,
-                                        prize_amount: prizePerWinner,
-                                        card_id: winner.cardId,
-                                        card_data: JSON.stringify(winner.card)
-                                    })
-                                    .eq('game_id', this.gameState.gameId)
-                                    .eq('user_id', idData.id)
-                                    .eq('card_id', winner.cardId); // CRITICAL: Only mark the winning card!
-
-                                if (gpUpdateError) console.error('GP update error:', gpUpdateError);
-                            }
-                        } catch (hError) {
-                            console.error('History update error:', hError);
-                        }
-
-                        // SYNC 2: Notify App via WebSocket (Instant Update)
-                        this.sendToPlayer(winner.userId, {
-                            type: 'balance_update',
-                            data: {
-                                userId: winner.userId,
-                                balance: balanceAfter,
-                                change: prizePerWinner,
-                                reason: 'Bingo Win'
-                            }
-                        });
-
-                        // SYNC 3: Notify User via Telegram Bot
-                        await notifyWinner([winner], totalPot, this.env);
-
-                        console.log(`🎉 Added ${prizePerWinner} Birr prize to winner ${winner.userId}. Balance: ${balanceBefore} → ${balanceAfter}`);
-                    } catch (error) {
-                        console.error(`Error processing prize for winner ${winner.userId}:`, error);
-                    }
-                }
-
+                this.gameState.countdown = 10;
                 this.broadcast({
                     type: 'game_won',
                     data: {
                         winners: simultaneousClaims,
-                        prizeShare: simultaneousClaims.length > 1 ? 'split' : 'full',
                         totalPot,
                         prizePerWinner,
-                    },
+                        countdown: 10
+                    }
                 });
 
-                // Auto-restart game after 10 seconds (winner announcement duration)
-                setTimeout(() => {
-                    console.log('Auto-restarting game after winner announcement');
-                    this.resetGame();
-                    // Start new countdown immediately
-                    if (this.gameState.status === 'waiting' || this.gameState.status === 'selecting') {
-                        this.startPerpetualLoop();
+                // 2. Schedule Reset Timer
+                const endTimer = setInterval(async () => {
+                    this.gameState.countdown--;
+                    if (this.gameState.countdown <= 0) {
+                        clearInterval(endTimer);
+                        await this.resetGame();
+                    } else {
+                        this.broadcast({ type: 'end_countdown_tick', data: { countdown: this.gameState.countdown } });
                     }
-                }, 10000); // 10 seconds for winner announcement
-            }, 500); // 500ms window for simultaneous claims
+                }, 1000);
+
+                // 3. Background Prize Processing (Safe & Non-blocking)
+                try {
+                    const supabase = getSupabase(this.env);
+                    if (supabase) {
+                        const { notifyWinner } = await import('../bot/notifications');
+                        for (const winner of simultaneousClaims) {
+                            try {
+                                let targetTelegramId: number | null = null;
+                                const userIdAsInt = parseInt(winner.userId);
+                                if (!isNaN(userIdAsInt) && userIdAsInt.toString() === winner.userId) {
+                                    targetTelegramId = userIdAsInt;
+                                } else {
+                                    const { data: idLookup } = await supabase.from('users').select('telegram_id').eq('id', winner.userId).single();
+                                    if (idLookup) targetTelegramId = idLookup.telegram_id;
+                                }
+
+                                if (targetTelegramId) {
+                                    const { data: ud } = await supabase.from('users').select('balance, total_wins, total_winnings, id').eq('telegram_id', targetTelegramId).single();
+                                    if (ud) {
+                                        const balanceAfter = parseFloat(ud.balance || '0') + prizePerWinner;
+                                        await supabase.from('users').update({ balance: balanceAfter, total_wins: (ud.total_wins || 0) + 1, total_winnings: (ud.total_winnings || 0) + prizePerWinner }).eq('telegram_id', targetTelegramId);
+                                        await supabase.from('game_transactions').insert({ user_id: targetTelegramId, game_id: this.gameState.gameId, type: 'win', amount: prizePerWinner, balance_before: ud.balance, balance_after: balanceAfter });
+                                        await supabase.from('game_players').update({ is_winner: true, prize_amount: prizePerWinner, card_data: JSON.stringify(winner.card) }).eq('game_id', this.gameState.gameId).eq('user_id', ud.id).eq('card_id', winner.cardId);
+
+                                        this.sendToPlayer(winner.userId, { type: 'balance_update', data: { balance: balanceAfter, change: prizePerWinner, reason: 'Bingo Win' } });
+                                    }
+                                }
+                            } catch (e) { console.error('Error processing winner DB:', e); }
+                        }
+                        await notifyWinner(simultaneousClaims, totalPot, this.env);
+                    }
+                } catch (err) {
+                    console.error('Final Prize Processing Error:', err);
+                }
+            }, 500);
         } else {
-            // Only send invalid_claim if game is still active
-            // Double-check status in case it changed during validation
-            if (this.gameState.status === 'playing') {
-                ws.send(JSON.stringify({
-                    type: 'invalid_claim',
-                    data: { message: 'No valid Bingo pattern found' },
-                }));
-            }
+            console.log(`❌ Invalid claim rejected for user ${userId} / card ${data.cardId}`);
+            ws.send(JSON.stringify({
+                type: 'invalid_claim',
+                data: {
+                    message: 'No valid Bingo pattern found. Please check your card again.',
+                    mode: this.gameState.mode,
+                    calledCount: this.gameState.calledNumbers.length
+                }
+            }));
         }
     }
 
@@ -1005,164 +689,45 @@ export class GameRoom {
         const numbers = card.numbers;
         const called = new Set(this.gameState.calledNumbers);
         const pattern: boolean[][] = Array(5).fill(0).map(() => Array(5).fill(false));
-
-        // Mark free space
         pattern[2][2] = true;
 
-        // Check if number is marked
-        const isMarked = (row: number, col: number): boolean => {
-            if (row === 2 && col === 2) return true;
-            return called.has(numbers[row][col]);
-        };
+        const isMarked = (row: number, col: number) => (row === 2 && col === 2) || called.has(numbers[row][col]);
 
-        // Check and mark rows
         for (let row = 0; row < 5; row++) {
-            let rowComplete = true;
-            for (let col = 0; col < 5; col++) {
-                if (!isMarked(row, col)) {
-                    rowComplete = false;
-                    break;
-                }
-            }
-            if (rowComplete) {
-                for (let col = 0; col < 5; col++) {
-                    pattern[row][col] = true;
-                }
-            }
+            if ([0, 1, 2, 3, 4].every(col => isMarked(row, col))) [0, 1, 2, 3, 4].forEach(col => pattern[row][col] = true);
         }
-
-        // Check and mark columns
         for (let col = 0; col < 5; col++) {
-            let colComplete = true;
-            for (let row = 0; row < 5; row++) {
-                if (!isMarked(row, col)) {
-                    colComplete = false;
-                    break;
-                }
-            }
-            if (colComplete) {
-                for (let row = 0; row < 5; row++) {
-                    pattern[row][col] = true;
-                }
-            }
+            if ([0, 1, 2, 3, 4].every(row => isMarked(row, col))) [0, 1, 2, 3, 4].forEach(row => pattern[row][col] = true);
         }
-
-        // Check and mark diagonal 1 (top-left to bottom-right)
-        let diag1Complete = true;
-        for (let i = 0; i < 5; i++) {
-            if (!isMarked(i, i)) {
-                diag1Complete = false;
-                break;
-            }
+        if ([0, 1, 2, 3, 4].every(i => isMarked(i, i))) [0, 1, 2, 3, 4].forEach(i => pattern[i][i] = true);
+        if ([0, 1, 2, 3, 4].every(i => isMarked(i, 4 - i))) [0, 1, 2, 3, 4].forEach(i => pattern[i][4 - i] = true);
+        if (mode === 'ande-zig' && isMarked(0, 0) && isMarked(0, 4) && isMarked(4, 0) && isMarked(4, 4)) {
+            pattern[0][0] = pattern[0][4] = pattern[4][0] = pattern[4][4] = true;
         }
-        if (diag1Complete) {
-            for (let i = 0; i < 5; i++) {
-                pattern[i][i] = true;
-            }
-        }
-
-        // Check and mark diagonal 2 (top-right to bottom-left)
-        let diag2Complete = true;
-        for (let i = 0; i < 5; i++) {
-            if (!isMarked(i, 4 - i)) {
-                diag2Complete = false;
-                break;
-            }
-        }
-        if (diag2Complete) {
-            for (let i = 0; i < 5; i++) {
-                pattern[i][4 - i] = true;
-            }
-        }
-
-        // Check and mark 4 corners (for Ande Zig)
-        if (mode === 'ande-zig') {
-            const corners4Complete = isMarked(0, 0) && isMarked(0, 4) && isMarked(4, 0) && isMarked(4, 4);
-            if (corners4Complete) {
-                pattern[0][0] = true;
-                pattern[0][4] = true;
-                pattern[4][0] = true;
-                pattern[4][4] = true;
-            }
-        }
-
         return pattern;
     }
 
     validateWin(card: BingoCard, mode: GameMode): boolean {
         const numbers = card.numbers;
         const called = new Set(this.gameState.calledNumbers);
+        const isMarked = (r: number, c: number) => (r === 2 && c === 2) || called.has(numbers[r][c]);
 
-        // Check if number is marked (called)
-        const isMarked = (row: number, col: number): boolean => {
-            if (row === 2 && col === 2) return true; // Free space
-            return called.has(numbers[row][col]);
-        };
-
-        // Check row
-        const checkRow = (row: number): boolean => {
-            for (let col = 0; col < 5; col++) {
-                if (!isMarked(row, col)) return false;
-            }
-            return true;
-        };
-
-        // Check column
-        const checkCol = (col: number): boolean => {
-            for (let row = 0; row < 5; row++) {
-                if (!isMarked(row, col)) return false;
-            }
-            return true;
-        };
-
-        // Check diagonal
-        const checkDiagonal1 = (): boolean => {
-            for (let i = 0; i < 5; i++) {
-                if (!isMarked(i, i)) return false;
-            }
-            return true;
-        };
-
-        const checkDiagonal2 = (): boolean => {
-            for (let i = 0; i < 5; i++) {
-                if (!isMarked(i, 4 - i)) return false;
-            }
-            return true;
-        };
-
-        // Check 4 corners
-        const check4Corners = (): boolean => {
-            return isMarked(0, 0) && isMarked(0, 4) && isMarked(4, 0) && isMarked(4, 4);
-        };
-
-        // Count patterns
         let patterns = 0;
-
         for (let i = 0; i < 5; i++) {
-            if (checkRow(i)) patterns++;
-            if (checkCol(i)) patterns++;
+            if ([0, 1, 2, 3, 4].every(c => isMarked(i, c))) patterns++;
+            if ([0, 1, 2, 3, 4].every(r => isMarked(r, i))) patterns++;
         }
-        if (checkDiagonal1()) patterns++;
-        if (checkDiagonal2()) patterns++;
+        if ([0, 1, 2, 3, 4].every(i => isMarked(i, i))) patterns++;
+        if ([0, 1, 2, 3, 4].every(i => isMarked(i, 4 - i))) patterns++;
 
-        // Validate based on mode
-        switch (mode) {
-            case 'ande-zig': // One pattern OR 4 corners
-                return patterns >= 1 || check4Corners();
-            case 'hulet-zig': // Two patterns
-                return patterns >= 2;
-            case 'mulu-zig': // Full card (24 numbers + free space)
-                let markedCount = 1; // Free space
-                for (let row = 0; row < 5; row++) {
-                    for (let col = 0; col < 5; col++) {
-                        if (row === 2 && col === 2) continue;
-                        if (called.has(numbers[row][col])) markedCount++;
-                    }
-                }
-                return markedCount === 25;
-            default:
-                return false;
+        if (mode === 'ande-zig') return patterns >= 1 || (isMarked(0, 0) && isMarked(0, 4) && isMarked(4, 0) && isMarked(4, 4));
+        if (mode === 'hulet-zig') return patterns >= 2;
+        if (mode === 'mulu-zig') {
+            let count = 0;
+            for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) if (isMarked(r, c)) count++;
+            return count === 25;
         }
+        return false;
     }
 
     sendGameState(ws: WebSocket) {
@@ -1172,62 +737,29 @@ export class GameRoom {
                 status: this.gameState.status,
                 playerCount: this.gameState.players.size,
                 calledNumbers: this.gameState.calledNumbers,
-                countdown: this.gameState.countdown,
-            },
+                history: this.gameState.calledNumbers,
+                drawnNumbers: this.gameState.calledNumbers,
+                countdown: this.gameState.countdown
+            }
         }));
     }
 
     sendSelectionState(ws: WebSocket) {
         const selectedCardsObj: Record<number, string> = {};
-        this.gameState.selectedCards.forEach((userId, cardId) => {
-            selectedCardsObj[cardId] = userId;
-        });
-
-        ws.send(JSON.stringify({
-            type: 'selection_state',
-            data: {
-                selectedCards: selectedCardsObj,
-                playerCount: this.gameState.players.size,
-                status: this.gameState.status,
-                countdown: this.gameState.countdown,
-                drawnNumbers: this.gameState.calledNumbers,
-            },
-        }));
+        this.gameState.selectedCards.forEach((u, c) => selectedCardsObj[c] = u);
+        ws.send(JSON.stringify({ type: 'selection_state', data: { selectedCards: selectedCardsObj, playerCount: this.gameState.players.size, status: this.gameState.status, countdown: this.gameState.countdown, drawnNumbers: this.gameState.calledNumbers } }));
     }
 
-    // Helper to send message to specific player
     sendToPlayer(userId: string, message: any) {
-        console.log(`[DEBUG] sendToPlayer called for userId=${userId}. Total sessions: ${this.sessions.size}`);
-        let found = false;
+        const msg = JSON.stringify(message);
         for (const [ws, sessionUserId] of this.sessions.entries()) {
-            if (sessionUserId === userId) {
-                console.log(`[DEBUG] Found session for userId=${userId}, sending message type=${message.type}`);
-                if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify(message));
-                    found = true;
-                } else {
-                    console.log(`[DEBUG] Session found but socket not OPEN. State: ${ws.readyState}`);
-                }
-            }
-        }
-        if (!found) {
-            console.log(`[DEBUG] No active session found for userId=${userId} in sessions map.`);
-            // Debug: Print all session keys
-            console.log(`[DEBUG] Available sessions: ${Array.from(this.sessions.values()).join(', ')}`);
+            if (sessionUserId === userId && ws.readyState === WebSocket.OPEN) ws.send(msg);
         }
     }
 
     broadcast(message: any, exclude?: WebSocket) {
         const msg = JSON.stringify(message);
-        this.sessions.forEach((userId, ws) => {
-            if (ws !== exclude) {
-                try {
-                    ws.send(msg);
-                } catch (error) {
-                    console.error('Error broadcasting:', error);
-                }
-            }
-        });
+        this.sessions.forEach((uid, ws) => { if (ws !== exclude && ws.readyState === WebSocket.OPEN) ws.send(msg); });
     }
 
     shuffleArray(array: number[]) {

@@ -29,16 +29,19 @@ export default function FinancePage() {
 
     const chartData = statsData?.map((item: any) => ({
         date: format(new Date(item.date), 'MMM dd'),
-        revenue: item.total_revenue || 0,
-        payouts: item.total_payout || 0,
-        projected: (item.total_revenue || 0) * 1.1 // Simple projection logic
+        revenue: Number(item.total_deposits || 0),
+        payouts: Number(item.total_withdrawals || 0),
+        bets: Number(item.total_bets || 0),
+        profit: Number(item.net_profit || 0),
+        projected: Number(item.total_deposits || 0) * 1.1 // Simple projection logic
     })) || [];
 
     // Calculate totals
     const totalRev = chartData.reduce((acc, curr) => acc + curr.revenue, 0);
     const totalPayout = chartData.reduce((acc, curr) => acc + curr.payouts, 0);
-    const profit = totalRev - totalPayout;
-    const margin = totalRev > 0 ? ((profit / totalRev) * 100).toFixed(1) : '0.0';
+    const totalBets = chartData.reduce((acc, curr) => acc + curr.bets, 0);
+    const profit = chartData.reduce((acc, curr) => acc + curr.profit, 0);
+    const margin = totalBets > 0 ? ((profit / totalBets) * 100).toFixed(1) : '0.0';
 
     return (
         <div className="space-y-6 pb-20">

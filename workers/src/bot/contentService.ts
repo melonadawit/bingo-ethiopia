@@ -1,12 +1,11 @@
 import satori from 'satori';
 import { Resvg, initWasm } from '@resvg/resvg-wasm';
 
-// We need to load WASM for resvg. In CF Workers, we usually import it.
-// However, the specific import depends on the bundler. 
-// For now we assume typical ES module behaviour or that the user has configured it.
-// If this fails, we might need a specific rollup plugin or copy step.
+// WASM import for resvg
+// We use a dynamic import that Wrangler can resolve from node_modules
+// @ts-ignore
+import wasmModule from '@resvg/resvg-wasm/index_bg.wasm';
 
-// Simplified font loader
 async function loadFont() {
     try {
         // Try fetching Google Font
@@ -24,11 +23,9 @@ export class ContentService {
     private static async renderSvgToPng(svg: string): Promise<Uint8Array> {
         // Initialize WASM blindly
         try {
-            // specific import for cloudflare workers environment might differ
-            // @ts-ignore
-            await initWasm(import('@resvg/resvg-wasm/index_bg.wasm').then(m => m.default));
+            await initWasm(wasmModule);
         } catch (e) {
-            console.log('WASM init skipped or failed (might be already loaded)', e);
+            // Already loaded or other non-fatal error
         }
 
         const resvg = new Resvg(svg, { fitTo: { mode: 'width', value: 800 } });

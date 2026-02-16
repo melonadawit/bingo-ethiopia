@@ -44,6 +44,7 @@ export class GameRoom {
         this.state = state;
         this.env = env;
         this.sessions = new Map();
+        console.log("[VERSION] Workers-Primary-DO v1.2 Active");
         this.gameState = {
             gameId: '',
             mode: 'ande-zig',
@@ -58,7 +59,13 @@ export class GameRoom {
             pendingClaims: new Map(),
         };
 
-        // Don't start the loop automatically - wait for players to join
+        // Clear any persisted state from previous alarm-based implementation
+        // Use blockConcurrencyWhile to ensure this completes before any requests
+        this.state.blockConcurrencyWhile(async () => {
+            await this.state.storage.deleteAll();
+            await this.state.storage.deleteAlarm();
+            console.log('🧹 Cleared all persisted DO storage');
+        });
     }
 
     // ... (rest of methods)
@@ -116,46 +123,34 @@ export class GameRoom {
         }, 1000);
     }
 
-    resetGame() {
+    async resetGame() {
         console.log('Resetting game for next round');
 
-        // UNLOCK ALL PLAYERS from PlayerTracker
-        if (this.gameState.players.size > 0 && this.env.PLAYER_TRACKER) {
-            const trackerStub = this.env.PLAYER_TRACKER.idFromName('global');
-            const tracker = this.env.PLAYER_TRACKER.get(trackerStub);
+        // Reset game state for the new round, but PRESERVE the players
+        this.gameState.status = 'waiting';
+        this.gameState.selectedCards = new Map();
+        this.gameState.winners = [];
+        this.gameState.calledNumbers = [];
+        this.gameState.currentNumber = null;
+        this.gameState.pendingClaims.clear();
 
-            // Fire and forget unlock requests
-            for (const [userId] of this.gameState.players) {
-                tracker.fetch('https://dummy/unregister-player', {
-                    method: 'POST',
-                    body: JSON.stringify({ userId }),
-                    headers: { 'Content-Type': 'application/json' }
-                }).catch(err => console.error(`Failed to unlock player ${userId}:`, err));
-            }
-            console.log(`🔓 Unlocked ${this.gameState.players.size} players from tracker.`);
-        }
+        // Clear only the selections for each player
+        this.gameState.players.forEach(p => {
+            p.selectedCards = [];
+        });
 
-        this.gameState = {
-            ...this.gameState,
-            status: 'waiting', // Enforce waiting state so startPerpetualLoop can transition to countdown
-            selectedCards: new Map(), // Changed from new Set() to new Map() to match gameState type
-            winners: [],
-            calledNumbers: [], // Changed from new Set() to [] to match gameState type
-            currentNumber: null,
-            players: new Map(), // CLEAR PLAYERS ON RESET (They must rejoin/reselect for next round) - User said "return before session game ends". Reset = new session.
-            pendingClaims: new Map(),
-        };
+        await this.saveState();
 
-        // Restart the game loop FIRST to set status to 'countdown'
+        // Restart the game loop
         this.startPerpetualLoop();
 
-        // Broadcast reset to all players with the NEW status
+        // Broadcast reset to all players
         this.broadcast({
             type: 'game_reset',
             data: {
                 gameId: this.gameState.gameId,
-                status: this.gameState.status, // This will now be 'countdown'
-                countdown: this.gameState.countdown
+                status: 'selecting',
+                countdown: 30
             }
         });
     }
@@ -279,11 +274,7 @@ export class GameRoom {
                     if (checkData.isActive && checkData.currentGameId !== this.gameState.gameId) {
                         // ALLOW rejoin if it's the SAME game ID (persistence)
                         // But BLOCK if different
-                        console.log(`🚫 Player ${userId} is locked to game ${checkData.currentGameId}, blocking join to ${this.gameState.gameId}`);
-                        ws.send(JSON.stringify({
-                            type: 'error',
-                            data: { message: `You are already playing in ${checkData.currentMode} mode! Finish that game first.` }
-                        }));
+                        console.log(`🚫 Silent Reject: Player ${userId} is locked to game ${checkData.currentGameId}`);
                         ws.close(1000, "Already playing elsewhere");
                         return;
                     }

@@ -7,7 +7,7 @@ import { ConfigProvider, useConfig } from './context/ConfigContext';
 import { Lock } from 'lucide-react';
 
 function AppContent() {
-  const { user } = useAuth();
+  useAuth();
   const { config, isLoading } = useConfig();
 
   useEffect(() => {

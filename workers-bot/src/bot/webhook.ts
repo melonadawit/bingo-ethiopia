@@ -193,6 +193,11 @@ async function handleCommand(chatId: number, userId: number, text: string, usern
             await handleTournaments(chatId, userId, env, supabase);
             break;
 
+        case '/leaderboard':
+        case '📊 Leaderboard':
+            await handleLeaderboard(chatId, userId, 'weekly', env, supabase, config);
+            break;
+
 
         case '/events':
         case '🎉 Events':
@@ -612,24 +617,8 @@ async function handleCallbackQuery(callbackQuery: any, env: Env, supabase: any, 
 
                 // Trigger next step via FlowManager
                 const flowManager = new FlowManager();
-                // We need to re-trigger the "next step" logic. 
-                // Since handleInput expects text, let's just use internal helper or simulate input?
-                // Better: Just manually call sendPrompt for next step.
-
-                // Hack: Reuse sendPrompt logic by accessing private method? No.
-                // Solution: Create a public 'next' method or simulation.
-                // For now, let's assume FlowManager.handleInput handles validation. 
-                // We'll just pass dummy text? No.
 
                 // Let's rely on FlowManager to handle the flow progression.
-                // We can't easily call 'handleInput' because it runs 'bank' handler which fails on text.
-                // WE NEED TO UPDATE FlowManager.ts to have 'handleCallback'.
-                // FOR NOW: Let's assume we update FlowManager to allow skipping validation if data is present.
-
-                // Let's try calling handleInput with the bank key as text?
-                // If I updated FlowManager 'bank' handler to accept text matching keys, it would work.
-
-                // Temporary Fix: Manually advance.
                 const sequence = flowManager.getSequence(config, currentState.flow!);
                 if (currentState.stepIndex < sequence.length) {
                     const nextStep = sequence[currentState.stepIndex];
@@ -646,6 +635,11 @@ async function handleCallbackQuery(callbackQuery: any, env: Env, supabase: any, 
                     userStates.delete(userId);
                 }
             }
+            break;
+
+        case 'lb': // Leaderboard pagination/period
+            const period = params[0] as any;
+            await handleLeaderboard(chatId, userId, period, env, supabase, config, true);
             break;
 
 
@@ -1241,4 +1235,68 @@ async function handleContactShare(message: any, env: Env, supabase: any) {
     );
 }
 
-// Helper functions moved to utils.ts
+
+async function handleLeaderboard(chatId: number, userId: number, period: 'daily' | 'weekly' | 'monthly' | 'yearly' = 'weekly', env: Env, supabase: any, config: any, isEdit: boolean = false) {
+    console.log(`Fetching ${period} leaderboard...`);
+
+    // Fetch top 10 from leaderboard_entries using ACTUAL column names
+    const { data: entries, error } = await supabase
+        .from('leaderboard_entries')
+        .select(`
+            rank,
+            wins,
+            earnings,
+            gamesPlayed,
+            username
+        `)
+        .eq('period', period)
+        .order('rank', { ascending: true })
+        .limit(10);
+
+    if (error) {
+        console.error('Leaderboard fetch error:', error);
+        await sendMessage(chatId, '❌ Failed to fetch leaderboard.', env);
+        return;
+    }
+
+    const title = {
+        daily: '📅 Daily Champions',
+        weekly: '📅 Weekly Champions',
+        monthly: '📅 Monthly Champions',
+        yearly: '👑 Yearly Legends'
+    }[period];
+
+    let message = `🏆 <b>${title}</b>\n`;
+    message += `<i>Ranked by total games played</i>\n\n`;
+
+    if (!entries || entries.length === 0) {
+        message += `<i>No rankings yet for this period. Be the first!</i>`;
+    } else {
+        entries.forEach((entry: any, index: number) => {
+            const medal = index === 0 ? '🥇 ' : index === 1 ? '🥈 ' : index === 2 ? '🥉 ' : `#${index + 1} `;
+            const name = entry.username ? (entry.username.startsWith('@') ? entry.username : `@${entry.username}`) : 'Anonymous';
+            message += `${medal}<b>${name}</b>\n   🔥 ${entry.gamesPlayed} games • ${entry.wins} wins\n\n`;
+        });
+    }
+
+    const keyboard = {
+        inline_keyboard: [
+            [
+                { text: period === 'daily' ? '• Daily •' : 'Daily', callback_data: 'lb:daily' },
+                { text: period === 'weekly' ? '• Weekly •' : 'Weekly', callback_data: 'lb:weekly' }
+            ],
+            [
+                { text: period === 'monthly' ? '• Monthly •' : 'Monthly', callback_data: 'lb:monthly' },
+                { text: period === 'yearly' ? '• Yearly •' : 'Yearly', callback_data: 'lb:yearly' }
+            ]
+        ]
+    };
+
+    if (isEdit) {
+        // Use editMessageText if possible (need to export from utils or implement here)
+        // For now, just send a new one or implement edit in sendMessage
+        await sendMessage(chatId, message, env, keyboard);
+    } else {
+        await sendMessage(chatId, message, env, keyboard);
+    }
+}

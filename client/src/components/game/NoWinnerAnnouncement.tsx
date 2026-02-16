@@ -2,17 +2,31 @@ import React, { useEffect, useState } from 'react';
 
 interface NoWinnerAnnouncementProps {
     onNextGame: () => void;
+    externalCountdown?: number;
 }
 
-export const NoWinnerAnnouncement: React.FC<NoWinnerAnnouncementProps> = ({ onNextGame }) => {
-    const [countdown, setCountdown] = useState(10);
+export const NoWinnerAnnouncement: React.FC<NoWinnerAnnouncementProps> = ({ onNextGame, externalCountdown }) => {
+    const [countdown, setCountdown] = useState(externalCountdown || 10);
+
+    // Sync with external countdown if provided
+    useEffect(() => {
+        if (externalCountdown !== undefined) {
+            setCountdown(externalCountdown);
+            if (externalCountdown <= 0) {
+                onNextGame();
+            }
+        }
+    }, [externalCountdown, onNextGame]);
 
     useEffect(() => {
-        // Countdown timer
+        // Fallback local timer if no external countdown
+        if (externalCountdown !== undefined) return;
+
         const timer = setInterval(() => {
             setCountdown(prev => {
                 if (prev <= 1) {
                     clearInterval(timer);
+                    onNextGame(); // Ensure we transition even if sync fails
                     return 0;
                 }
                 return prev - 1;
@@ -22,7 +36,7 @@ export const NoWinnerAnnouncement: React.FC<NoWinnerAnnouncementProps> = ({ onNe
         return () => {
             clearInterval(timer);
         };
-    }, [onNextGame]);
+    }, [onNextGame, externalCountdown]);
 
     return (
         <div style={{

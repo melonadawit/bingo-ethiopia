@@ -9,7 +9,6 @@ import Leaderboard from './pages/Leaderboard';
 import Tournaments from './pages/Tournaments';
 import Events from './pages/Events';
 import ReferralPage from './pages/ReferralPage';
-import DailyBonus from './pages/DailyBonus';
 import DashboardLayout from './layouts/DashboardLayout';
 
 const AppRoutes = () => {
@@ -21,7 +20,6 @@ const AppRoutes = () => {
                 <Route path="tournaments" element={<Tournaments />} />
                 <Route path="events" element={<Events />} />
                 <Route path="referral" element={<ReferralPage />} />
-                <Route path="daily-bonus" element={<DailyBonus />} />
                 <Route path="wallet" element={<Wallet />} />
                 <Route path="history" element={<History />} />
                 <Route path="leaderboard" element={<Leaderboard />} />

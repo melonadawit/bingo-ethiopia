@@ -7,8 +7,8 @@ export const APP_VERSION = 'v3.9-STABLE'; // Force another refresh
 
 export function getWebAppUrl(userId?: number, customUrl?: string): string {
     // Standardize: No trailing slash before query params to match user's working "keyboard" link
-    // Pattern: https://main.bingo-ethiopia.pages.dev?v=...
-    const baseUrl = customUrl || 'https://main.bingo-ethiopia.pages.dev';
+    // Pattern: https://bingo-client.pages.dev?v=...
+    const baseUrl = customUrl || 'https://bingo-client.pages.dev';
     const params = new URLSearchParams();
 
     if (userId) params.append('tgid', userId.toString());
@@ -130,10 +130,11 @@ export function getMainKeyboard(userId?: number, config?: any) {
 
     // Default if no config provided
     const defaultButtons = [
-        [{ text: config?.botSettings?.open_now_text || '🎮', web_app: { url: webAppUrl } }],
-        [{ text: '💰 Balance' }, { text: '💳 Deposit' }],
-        [{ text: '💸 Withdraw' }, { text: '🎁 Referral' }],
-        [{ text: '🎁 Daily Bonus' }, { text: '📞 Support' }]
+        [{ text: config?.botSettings?.open_now_text || '🎮 Play Now', web_app: { url: webAppUrl } }],
+        [{ text: '💰 Balance' }, { text: '📊 Leaderboard' }],
+        [{ text: '💳 Deposit' }, { text: '💸 Withdraw' }],
+        [{ text: '🎁 Referral' }, { text: '🎁 Daily Bonus' }],
+        [{ text: '📞 Support' }]
     ];
 
     if (!config?.botMenuButtons || config.botMenuButtons.length === 0) {

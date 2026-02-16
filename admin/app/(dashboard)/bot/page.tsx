@@ -34,6 +34,8 @@ interface BotConfig {
 const FLOW_DEFINITIONS = {
     onboarding: [
         { key: 'welcome_message', label: 'Welcome Message', desc: 'First message sent to new users', default: '👋 Welcome to Bingo Ethiopia!' },
+        { key: 'msg_welcome_back', label: 'Welcome Back', desc: 'Message for returning users', default: '👋 Welcome back! We missed you.' },
+        { key: 'msg_reg_success', label: 'Registration Success', desc: 'Sent after successful phone verification', default: '✅ <b>Registration Complete!</b>' },
         { key: 'referral_message', label: 'Referral Invite', desc: 'Message when sharing invite link. Use {link} for the invite URL.', default: '🔗 Invite your friends to Online Bingo and earn rewards!\n\n🎁 {link}' },
     ],
     deposit: [
@@ -306,7 +308,7 @@ export default function BotPage() {
             <div className="flex items-center justify-between sticky top-0 bg-background/80 backdrop-blur-xl z-40 py-6 border-b">
                 <div>
                     <h1 className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-cyan-600">
-                        Bot Logic Studio <Badge variant="outline" className="ml-2 text-xs align-middle">v3.1 - LATEST</Badge>
+                        Bot Logic Studio <Badge variant="outline" className="ml-2 text-xs align-middle bg-green-500/20 text-green-400 border-green-500/30">v3.2 - STABLE</Badge>
                     </h1>
                     <p className="text-muted-foreground mt-1">Design and re-arrange conversation flows.</p>
                 </div>
@@ -343,6 +345,44 @@ export default function BotPage() {
                 <TabsContent value="onboarding" className="mt-0">
                     <Card className="border-none bg-transparent">
                         <CardContent className="p-0 space-y-2">
+                            {/* Welcome Bonus Special Control */}
+                            <div className="mb-8 p-6 rounded-2xl bg-gradient-to-br from-blue-600/10 to-indigo-600/10 border border-blue-500/20 shadow-lg">
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white">
+                                            <Plus className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-lg">New User Welcome Bonus</h3>
+                                            <p className="text-sm text-muted-foreground">Apply a free balance to users upon registration.</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/10">
+                                        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground pr-2 border-r border-white/10">Bonus Status</span>
+                                        <Switch
+                                            checked={localConfigs['welcome_bonus_enabled'] !== 'false'}
+                                            onCheckedChange={(checked) => handleChange('welcome_bonus_enabled', String(checked))}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-blue-400 uppercase tracking-widest">Bonus Amount (ETB)</label>
+                                        <Input
+                                            type="number"
+                                            value={localConfigs['welcome_bonus_amount'] || '5'}
+                                            onChange={(e) => handleChange('welcome_bonus_amount', e.target.value)}
+                                            className="bg-black/40 border-white/10 h-10 text-xl font-bold font-mono"
+                                            placeholder="5"
+                                        />
+                                    </div>
+                                    <div className="flex items-end text-xs text-muted-foreground pb-2">
+                                        <AlertTriangle className="w-4 h-4 mr-2 text-yellow-500" />
+                                        This bonus is only given to new users once during registration.
+                                    </div>
+                                </div>
+                            </div>
+
                             {FLOW_DEFINITIONS.onboarding.map((step, i) => renderFlowStep(step, i, 'onboarding'))}
                         </CardContent>
                     </Card>

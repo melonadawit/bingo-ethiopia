@@ -218,7 +218,9 @@ export class BotConfigService {
             botFinancials: getJson('botFinancials', getJson('bot_financials', {})),
             botPaymentMethods: getJson('botPaymentMethods', getJson('payment_methods', [])),
             botFlows: botFlows,
-            dailyCheckinEnabled: gameConfig?.features?.daily_checkin_enabled !== false
+            dailyCheckinEnabled: getVal('daily_checkin_enabled', gameConfig?.features?.daily_checkin_enabled !== false ? 'true' : 'false') !== 'false',
+            welcomeBonusEnabled: getVal('welcome_bonus_enabled', 'true') !== 'false',
+            welcomeBonusAmount: Number(getVal('welcome_bonus_amount', DEFAULT_CONFIG.referral.referredReward))
         };
 
         console.log('[DEBUG_CONFIG] Initial Methods (Defaults):', JSON.stringify(finalConfig.methods));

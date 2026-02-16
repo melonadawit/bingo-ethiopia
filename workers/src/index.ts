@@ -48,7 +48,7 @@ export default {
         if (url.pathname === '/health' || url.pathname === '/') {
             return jsonResponse({
                 status: 'ok',
-                version: '3.0.0',
+                version: '3.2.0-STABLE',
                 platform: 'cloudflare-workers',
                 database: 'supabase',
                 timestamp: new Date().toISOString(),
@@ -220,6 +220,31 @@ export default {
                 const { uploadToStorage } = await import('./storage');
                 const publicUrl = await uploadToStorage(env, new Uint8Array(arrayBuffer), (file as any).name, (file as any).type);
                 return jsonResponse({ url: publicUrl });
+            }
+
+            // --- Admin Reset All Games ---
+            if (url.pathname === '/admin/reset-all-games' && request.method === 'POST') {
+                try {
+                    const gameIds = ['ande-zig-global-v55', 'hulet-zig-global-v55', 'mulu-zig-global-v55'];
+                    const results = [];
+
+                    for (const gameId of gameIds) {
+                        const id = env.GAME_ROOM.idFromName(gameId);
+                        const stub = env.GAME_ROOM.get(id);
+
+                        // Force the DO to reset by calling a special internal endpoint
+                        try {
+                            await stub.fetch(new Request('https://dummy/internal/reset-game'));
+                            results.push({ gameId, status: 'reset' });
+                        } catch (e: any) {
+                            results.push({ gameId, status: 'error', message: e.message });
+                        }
+                    }
+
+                    return jsonResponse({ success: true, results });
+                } catch (err: any) {
+                    return jsonResponse({ error: err.message }, 500);
+                }
             }
 
             // --- Main Admin Handler (Tournaments, Logic, etc) ---
@@ -426,6 +451,27 @@ export default {
         if (url.pathname === '/bot/update-menu' && request.method === 'POST') {
             const { updateBotMenuButton } = await import('./bot/utils');
             return updateBotMenuButton(env);
+        }
+
+        // Verify bot status
+        if (url.pathname === '/bot/verify') {
+            const { getSupabase } = await import('./utils');
+            const supabase = getSupabase(env);
+            const { data: configs, error } = await supabase.from('bot_configs').select('count');
+
+            const botRes = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/getMe`);
+            const botData = await botRes.json() as any;
+
+            return jsonResponse({
+                status: 'ok',
+                bot: botData.ok ? { username: botData.result.username } : { error: botData },
+                database: error ? { error } : { configs_count: configs },
+                env: {
+                    has_bot_token: !!env.BOT_TOKEN,
+                    has_supabase_url: !!env.SUPABASE_URL,
+                    has_supabase_key: !!env.SUPABASE_SERVICE_KEY
+                }
+            });
         }
 
         // WebSocket

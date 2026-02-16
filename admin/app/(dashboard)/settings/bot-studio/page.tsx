@@ -18,9 +18,12 @@ import {
     Terminal,
     Bot,
     Save,
-    Menu, Plus, Trash2, LayoutGrid, Check, Coins, Banknote, Phone, User, Wifi, Battery
+    Menu, Plus, Trash2, LayoutGrid, Check, Coins, Banknote, Phone, User, Wifi, Battery, Database,
+    DollarSign, Timer, AlertCircle
 } from "lucide-react";
 import { toast } from 'sonner';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 
 export default function BotStudioPage() {
     const queryClient = useQueryClient();

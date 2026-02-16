@@ -172,7 +172,7 @@ const Settings = () => {
                             {/* FAQ Item 2 */}
                             <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50">
                                 <h4 className="text-white font-bold text-sm mb-1">ዕለታዊ ጉርሻ (Daily Bonus) ምንድን ነው?</h4>
-                                <p className="text-slate-400 text-xs">በየቀኑ ወደ ቦቱ ሲገቡ የሚሰጥ የነፃ ሳንቲም ሽልማት ነው። ተከታታይ ቀናት በገቡ ቁጥር ሽልማቱ ይጨምራል።</p>
+                                <p className="text-slate-400 text-xs">DAILY BONUS በቴሌግራም ቦቱ @BingoEthiopiaBot በኩል ብቻ ይከፈላል። በየቀኑ ቦቱ ላይ በመግባት Claim ማድረግ ይችላሉ።</p>
                             </div>
                             {/* FAQ Item 3 */}
                             <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50">

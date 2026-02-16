@@ -20,14 +20,15 @@ export class GameWebSocket {
 
     connect(gameId?: string) {
         if (gameId) {
+            // IF ALREADY CONNECTED TO THIS GAME, SKIP RECONNECT
+            if (this.ws && this.ws.readyState === WebSocket.OPEN && this.gameId === gameId) {
+                console.log('Already connected to game:', gameId);
+                return;
+            }
             this.gameId = gameId;
         }
 
-        if (!this.gameId) {
-            console.error('Cannot connect: no gameId provided');
-            return;
-        }
-
+        this.reconnectAttempts = 0; // Reset attempts for new target
         const wsUrl = `${WS_URL}/ws/game/${this.gameId}`;
 
         console.log('Connecting to Durable Object:', wsUrl);

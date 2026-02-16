@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Plus, Calendar, Trophy, Users, Clock, PlayCircle, Sparkles, MessageSquare, RefreshCw, Send, CheckCircle2 } from 'lucide-react';
+import { Loader2, Plus, Calendar, Trophy, Users, Clock, PlayCircle, Sparkles, MessageSquare, RefreshCw, Send, CheckCircle2, Download } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
@@ -368,7 +368,10 @@ export default function TournamentsPage() {
                 {/* ... (Header Content) */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-green-500/10 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
                 <div className="z-10">
-                    <h1 className="text-4xl font-extrabold tracking-tight text-foreground bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-emerald-600">Tournament & Events Center</h1>
+                    <h1 className="text-4xl font-extrabold tracking-tight text-foreground bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-emerald-600 flex items-center gap-3">
+                        Tournament & Events Center
+                        <Badge variant="outline" className="text-xs align-middle bg-green-500/20 text-green-400 border-green-500/30 font-mono">v3.2</Badge>
+                    </h1>
                     <p className="text-muted-foreground mt-2 text-lg">Manage competitions and global broadcasts.</p>
                 </div>
 
@@ -560,6 +563,107 @@ export default function TournamentsPage() {
                                     />
                                 </div>
                             </div>
+                        </div>
+
+                        {/* AI Content Generator */}
+                        <div className="pt-4 border-t border-white/5 space-y-3">
+                            <Label className="text-[10px] uppercase tracking-widest text-purple-400 font-bold">AI Content Lab</Label>
+                            <div className="flex flex-wrap gap-2">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => generateAI('tournament')}
+                                    disabled={isGeneratingAI}
+                                    className="h-7 text-[10px] border-purple-500/30 hover:bg-purple-500/10"
+                                >
+                                    <Trophy className="w-3 h-3 mr-1" /> Tournament
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => generateAI('event')}
+                                    disabled={isGeneratingAI}
+                                    className="h-7 text-[10px] border-purple-500/30 hover:bg-purple-500/10"
+                                >
+                                    <Sparkles className="w-3 h-3 mr-1" /> Special Event
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => generateAI('win')}
+                                    disabled={isGeneratingAI}
+                                    className="h-7 text-[10px] border-purple-500/30 hover:bg-purple-500/10"
+                                >
+                                    <CheckCircle2 className="w-3 h-3 mr-1" /> Jackpots
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* AI Image Lab */}
+                        <div className="pt-4 border-t border-white/5 space-y-3">
+                            <Label className="text-[10px] uppercase tracking-widest text-pink-400 font-bold">AI Visual Arts</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => generateImage('cyberpunk, neon, 3d render')}
+                                    disabled={isGeneratingAI}
+                                    className="h-8 text-xs bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 border-pink-500/30"
+                                >
+                                    {isGeneratingAI ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                                    Gen Cyberpunk
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => generateImage('vibrant, festive, ethio-modern')}
+                                    disabled={isGeneratingAI}
+                                    className="h-8 text-xs bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border-orange-500/30"
+                                >
+                                    {isGeneratingAI ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                                    Gen Festive
+                                </Button>
+                            </div>
+
+                            <div className="relative mt-2">
+                                <Input
+                                    type="file"
+                                    className="hidden"
+                                    id="manual-upload"
+                                    accept="image/*"
+                                    onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0])}
+                                />
+                                <Label
+                                    htmlFor="manual-upload"
+                                    className="flex items-center justify-center h-12 border-2 border-dashed border-white/10 rounded-xl hover:border-purple-500/50 hover:bg-purple-500/5 cursor-pointer transition-all text-muted-foreground hover:text-purple-400 text-xs gap-2"
+                                >
+                                    <Plus className="w-4 h-4" /> Upload Custom Artwork
+                                </Label>
+                            </div>
+
+                            {announcement?.image_url && (
+                                <div className="mt-3 relative rounded-xl overflow-hidden aspect-video border border-white/10 group">
+                                    <img src={announcement.image_url} alt="Preview" className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-4 gap-3">
+                                        <p className="text-[10px] text-white/70 font-mono break-all text-center">{announcement.image_url}</p>
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            onClick={() => {
+                                                const link = document.createElement('a');
+                                                link.href = announcement.image_url!;
+                                                link.download = `tournament-poster-${Date.now()}.png`;
+                                                document.body.appendChild(link);
+                                                link.click();
+                                                document.body.removeChild(link);
+                                            }}
+                                            className="bg-white/10 hover:bg-white/20 text-white border-white/20 backdrop-blur-md"
+                                        >
+                                            <Download className="w-4 h-4 mr-2" /> Download Poster
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
