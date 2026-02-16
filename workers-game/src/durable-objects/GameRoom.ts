@@ -334,6 +334,13 @@ export class GameRoom {
                             return;
                         }
                     }
+
+                    // No conflict found? Register proactively for this mode/game
+                    await tracker.fetch('https://dummy/register-player', {
+                        method: 'POST',
+                        body: JSON.stringify({ userId, gameId: this.gameState.gameId, mode: this.gameState.mode }),
+                        headers: { 'Content-Type': 'application/json' }
+                    });
                 }
             } catch (err) {
                 console.error('[JOIN] PlayerTracker check failed:', err);
@@ -413,16 +420,6 @@ export class GameRoom {
             console.log(`[SELECT] User ${userId} reached card limit (${player.selectedCards.length})`);
             ws.send(JSON.stringify({ type: 'error', data: { message: 'Max 2 cards' } }));
             return;
-        }
-
-        if (player.selectedCards.length === 0) {
-            const trackerStub = this.env.PLAYER_TRACKER.idFromName('global');
-            const tracker = this.env.PLAYER_TRACKER.get(trackerStub);
-            await tracker.fetch('https://dummy/register-player', {
-                method: 'POST',
-                body: JSON.stringify({ userId, gameId: this.gameState.gameId, mode: this.gameState.mode }),
-                headers: { 'Content-Type': 'application/json' }
-            });
         }
 
         player.selectedCards.push(cardId);
