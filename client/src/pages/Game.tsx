@@ -236,6 +236,7 @@ const GamePage: React.FC = () => {
     const [_isSpectator, _setIsSpectator] = useState(false); // True if joined after game started
     const [highlightMode, setHighlightMode] = useState<'auto' | 'manual'>('auto');
     const [manuallyMarkedCells, setManuallyMarkedCells] = useState<Set<string>>(new Set());
+    const [modeConflict, setModeConflict] = useState<{ activeMode: string, activeGameId: string, message: string } | null>(null);
 
     // Get game mode from URL or default to 'ande-zig'
     const [searchParams] = useSearchParams();
@@ -553,7 +554,8 @@ const GamePage: React.FC = () => {
 
         // Mode conflict - player already in another mode
         gameSocket.on('mode_conflict', (data: any) => {
-            console.log('🚫 MODE_CONFLICT EVENT RECEIVED (Ignored to allow switch):', data);
+            console.log('🚫 MODE_CONFLICT EVENT RECEIVED:', data);
+            setModeConflict(data);
         });
 
         // Player rejoin - watch only
@@ -1097,6 +1099,60 @@ const GamePage: React.FC = () => {
             {showNoWinner && (
                 <NoWinnerAnnouncement onNextGame={handleNextGame} />
             )}
+
+            {/* Mode Conflict Modal Overlay */}
+            <AnimatePresence>
+                {modeConflict && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, y: 20, opacity: 0 }}
+                            animate={{ scale: 1, y: 0, opacity: 1 }}
+                            exit={{ scale: 0.9, y: 20, opacity: 0 }}
+                            className="bg-[#2A1B3D] border-2 border-yellow-500/30 rounded-2xl p-6 max-w-sm w-full shadow-[0_0_50px_rgba(0,0,0,0.5)] text-center relative overflow-hidden"
+                        >
+                            {/* Animated Background Glow */}
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 via-orange-500 to-yellow-400 animate-gradient-x" />
+
+                            <div className="mb-6 mt-2 flex justify-center">
+                                <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center">
+                                    <RefreshCw className="text-yellow-400 animate-spin-slow" size={32} />
+                                </div>
+                            </div>
+
+                            <h2 className="text-2xl font-black text-white mb-2 uppercase tracking-tight">Active Game Found!</h2>
+                            <p className="text-slate-300 text-sm mb-8 leading-relaxed">
+                                {modeConflict.message || `You are already playing in a ${modeConflict.activeMode} room. Please finish that game first.`}
+                            </p>
+
+                            <div className="flex flex-col gap-3">
+                                <Button
+                                    className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-300 hover:to-orange-400 text-black font-black py-4 rounded-xl shadow-[0_4px_15px_rgba(245,158,11,0.3)] transition-all active:scale-95"
+                                    onClick={() => {
+                                        window.location.href = `/game/${modeConflict.activeGameId}?mode=${modeConflict.activeMode}`;
+                                    }}
+                                >
+                                    BACK TO ACTIVE GAME
+                                </Button>
+
+                                <Button
+                                    className="w-full bg-[#1A1B2E] hover:bg-[#252642] text-slate-300 border border-white/10 py-3 rounded-xl transition-all active:scale-95"
+                                    onClick={() => {
+                                        setModeConflict(null);
+                                        navigate('/lobby');
+                                    }}
+                                >
+                                    RETURN TO LOBBY
+                                </Button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

@@ -305,8 +305,7 @@ export class GameRoom {
         };
         this.gameState.players.set(userId, player);
 
-        // 5. Mode-Lock Check (DISABLED per user request to restore flow)
-        /*
+        // 5. Mode-Lock Check (Re-enabled for flickering fix)
         if (this.env.PLAYER_TRACKER) {
             try {
                 const trackerStub = this.env.PLAYER_TRACKER.idFromName('global');
@@ -340,7 +339,6 @@ export class GameRoom {
                 console.error('[JOIN] PlayerTracker check failed:', err);
             }
         }
-        */
 
         await this.savePlayer(userId);
         await this.saveState();

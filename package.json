@@ -1,11 +1,19 @@
 {
   "name": "bingo-ethiopia-monorepo",
   "version": "1.0.0",
+  "workspaces": [
+    "workers",
+    "workers-game",
+    "workers-bot"
+  ],
   "scripts": {
     "deploy": "wrangler deploy"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.95.3"
+    "@resvg/resvg-wasm": "^2.6.2",
+    "@supabase/supabase-js": "^2.39.0",
+    "@upstash/redis": "^1.35.8",
+    "satori": "^0.18.3"
   },
   "devDependencies": {
     "wrangler": "^3.114.15"
